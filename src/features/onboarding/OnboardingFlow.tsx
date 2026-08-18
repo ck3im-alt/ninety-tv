@@ -8,12 +8,12 @@ import { parseCategory } from '../channels/parseCategory'
 import { DEFAULT_PREFERENCES, markOnboardingComplete, savePreferences } from '../../data/preferences'
 import type { SportKey } from '../../data/sports/types'
 import type { Channel } from '../../data/channel'
-import type { XtreamCredentials } from '../../data/xtream/types'
+import type { PlaylistSourceRecord } from '../../data/session'
 
 type Step = 1 | 2 | 3 | 4
 
 interface Props {
-  onDone: (channels: Channel[], xtreamCreds: XtreamCredentials | null) => void
+  onDone: (channels: Channel[], source: PlaylistSourceRecord | null) => void
 }
 
 // Owns state across all four onboarding steps (playlist connect → sports →
@@ -24,7 +24,7 @@ interface Props {
 export function OnboardingFlow({ onDone }: Props) {
   const [step, setStep] = useState<Step>(1)
   const [channels, setChannels] = useState<Channel[]>([])
-  const [xtreamCreds, setXtreamCreds] = useState<XtreamCredentials | null>(null)
+  const [source, setSource] = useState<PlaylistSourceRecord | null>(null)
   const [selectedSports, setSelectedSports] = useState<Set<SportKey>>(new Set(DEFAULT_PREFERENCES.sports))
   const [selectedLeagues, setSelectedLeagues] = useState<Set<string>>(new Set(DEFAULT_PREFERENCES.footballLeagueIds))
   const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set())
@@ -85,16 +85,16 @@ export function OnboardingFlow({ onDone }: Props) {
       favoriteCountries: [...countries],
     })
     markOnboardingComplete()
-    onDone(channels, xtreamCreds)
+    onDone(channels, source)
   }
 
   if (step === 1) {
     return (
       <PlaylistSetupScreen
         stepperCurrent={1}
-        onLoaded={(loaded, creds) => {
+        onLoaded={(loaded, connectedSource) => {
           setChannels(loaded)
-          setXtreamCreds(creds)
+          setSource(connectedSource)
           // Pre-select the playlist's biggest countries by channel count —
           // gives the Countries step a sensible non-empty starting point
           // instead of forcing the user to build the selection from zero.

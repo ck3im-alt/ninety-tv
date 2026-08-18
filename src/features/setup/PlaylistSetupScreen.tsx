@@ -1,47 +1,44 @@
 import { useRef, useState } from 'react'
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { fetchWithDevCorsFallback } from '../../core/net/devCorsProxy'
 import { parseM3u } from '../../data/m3u/parseM3u'
-import { getLiveCategories, getLiveStreams, parseXtreamPlaylistUrl } from '../../data/xtream/xtreamClient'
-import { liveStreamsToChannels } from '../../data/xtream/toChannels'
+import { parseXtreamPlaylistUrl } from '../../data/xtream/xtreamClient'
+import { recoverChannelsFromSource } from '../../data/playlistRecovery'
 import { mergeChannelSources } from '../channels/mergeChannels'
 import { OnboardingTopBar } from '../onboarding/OnboardingStepper'
 import { ArrowRightIcon } from '../onboarding/sportIcons'
 import type { Channel } from '../../data/channel'
-import type { RawChannel } from '../../data/rawChannel'
-import type { XtreamCredentials } from '../../data/xtream/types'
+import type { M3uUrlSourceRecord, PlaylistSourceRecord, XtreamSourceRecord } from '../../data/session'
 import '../onboarding/onboardingShared.css'
 import './PlaylistSetupScreen.css'
 
 type LoadState = { status: 'idle' | 'loading' | 'error'; message?: string }
 
 interface Props {
-  // xtreamCreds is null for plain M3U sources — EPG (get_short_epg) only
-  // exists on the Xtream JSON API, so callers need to know which kind of
-  // source this was to know whether EPG lookups are even possible.
-  onLoaded: (channels: Channel[], xtreamCreds: XtreamCredentials | null) => void
+  // Always the concrete source the user just connected — Xtream creds, the
+  // M3U URL, or (file uploads) just enough metadata to explain a reconnect
+  // is needed later. Callers persist this via session.ts's savePlaylist so
+  // a future reload can auto-recover Xtream/M3U-URL sources even if the
+  // (large) channel cache fails to write — see playlistRecovery.ts.
+  onLoaded: (channels: Channel[], source: PlaylistSourceRecord) => void
   // Set when this screen is embedded as onboarding's first step (see
   // OnboardingFlow) — shows the shared stepper instead of just the plain
   // logo, and there's no Back target since it's the very first step.
   stepperCurrent?: number
+  // Shown when this screen is being used to reconnect a playlist that
+  // couldn't be auto-recovered (a file-upload source with no valid cache)
+  // rather than as a first-time connect — see App.tsx's startup recovery.
+  notice?: string
 }
 
-async function loadFromUrl(url: string): Promise<{ raw: RawChannel[]; xtreamCreds: XtreamCredentials | null }> {
-  // Xtream Codes / Xtream UI panels (the most common IPTV panel software)
-  // hand out a "get.php" M3U export URL, but also expose a much richer JSON
-  // API (player_api.php: categories, live streams, VOD, series, EPG) at the
-  // same server/credentials. Prefer that when we recognize the URL shape.
+// Xtream Codes / Xtream UI panels (the most common IPTV panel software)
+// hand out a "get.php" M3U export URL, but also expose a much richer JSON
+// API (player_api.php: categories, live streams, VOD, series, EPG) at the
+// same server/credentials. Prefer that when we recognize the URL shape;
+// otherwise treat it as a plain M3U URL.
+function sourceFromUrl(url: string): XtreamSourceRecord | M3uUrlSourceRecord {
   const xtreamCreds = parseXtreamPlaylistUrl(url)
-  if (xtreamCreds) {
-    const [categories, streams] = await Promise.all([
-      getLiveCategories(xtreamCreds),
-      getLiveStreams(xtreamCreds),
-    ])
-    return { raw: liveStreamsToChannels(streams, categories, xtreamCreds), xtreamCreds }
-  }
-
-  const response = await fetchWithDevCorsFallback(url)
-  return { raw: parseM3u(await response.text()), xtreamCreds: null }
+  if (xtreamCreds) return { type: 'xtream', ...xtreamCreds }
+  return { type: 'm3u-url', url }
 }
 
 // Same shape parseXtreamPlaylistUrl recognizes — building it from the
@@ -52,7 +49,7 @@ function buildXtreamUrl(server: string, username: string, password: string): str
   return `${base}/get.php?username=${encodeURIComponent(username.trim())}&password=${encodeURIComponent(password.trim())}&type=m3u_plus&output=ts`
 }
 
-export function PlaylistSetupScreen({ onLoaded, stepperCurrent }: Props) {
+export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props) {
   const [urlValue, setUrlValue] = useState('')
   const [streamCodeOpen, setStreamCodeOpen] = useState(false)
   const [server, setServer] = useState('')
@@ -65,9 +62,10 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent }: Props) {
     if (!url.trim()) return
     setState({ status: 'loading' })
     try {
-      const { raw, xtreamCreds } = await loadFromUrl(url.trim())
-      if (raw.length === 0) throw new Error('No channels found in playlist')
-      onLoaded(mergeChannelSources(raw), xtreamCreds)
+      const source = sourceFromUrl(url.trim())
+      const channels = await recoverChannelsFromSource(source)
+      if (channels.length === 0) throw new Error('No channels found in playlist')
+      onLoaded(channels, source)
     } catch (err) {
       setState({
         status: 'error',
@@ -83,7 +81,7 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent }: Props) {
     try {
       const raw = parseM3u(await file.text())
       if (raw.length === 0) throw new Error('No channels found in playlist')
-      onLoaded(mergeChannelSources(raw), null)
+      onLoaded(mergeChannelSources(raw), { type: 'file', fileName: file.name })
     } catch (err) {
       setState({
         status: 'error',
@@ -119,6 +117,12 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent }: Props) {
   return (
     <main className="onboarding-screen">
       <OnboardingTopBar current={stepperCurrent} />
+
+      {notice && (
+        <p className="setup-status" role="status">
+          {notice}
+        </p>
+      )}
 
       <div className="onboarding-info with-divider">
         <h1 className="onboarding-headline">

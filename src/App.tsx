@@ -8,7 +8,8 @@ import { AdminPanel } from './features/admin/AdminPanel'
 import { hasCompletedOnboarding, loadPreferences } from './data/preferences'
 import {
   loadFilters,
-  loadPlaylist,
+  loadPlaylistState,
+  xtreamCredsFromSource,
   saveFilters,
   savePlaylist,
   loadFavoriteChannels,
@@ -18,6 +19,7 @@ import {
   loadRecentlyWatched,
   saveRecentlyWatched,
 } from './data/session'
+import { recoverChannelsFromSource } from './data/playlistRecovery'
 import { CategoryChannelsScreen } from './features/channels/CategoryChannelsScreen'
 import { BrowseCascadeScreen } from './features/channels/BrowseCascadeScreen'
 import type { CascadeLevel } from './features/channels/BrowseCascadeScreen'
@@ -27,7 +29,7 @@ import { EventDetailsScreen } from './features/eventDetails/EventDetailsScreen'
 import { CompetitionsScreen } from './features/competitions/CompetitionsScreen'
 import { parseCategory } from './features/channels/parseCategory'
 import type { Channel } from './data/channel'
-import type { XtreamCredentials } from './data/xtream/types'
+import type { PlaylistSourceRecord } from './data/session'
 import type { SportEvent } from './data/sports/types'
 
 // Temporary in-memory screen switcher, standing in for real routing
@@ -50,8 +52,8 @@ type Screen =
 const RECENTLY_WATCHED_LIMIT = 30
 
 // Read once at module load rather than per-render — both the initial screen
-// and the initial channels/xtreamCreds state below need the same snapshot.
-const storedPlaylist = loadPlaylist()
+// and the initial channels/source state below need the same snapshot.
+const initialPlaylistState = loadPlaylistState()
 
 function App() {
   // Home always opens first — its data comes from TheSportsDB, not the
@@ -60,10 +62,37 @@ function App() {
   // (which starts with connecting a playlist — Steg 25) only kicks in once
   // the user actually goes looking for Channels, via onSelectChannels below.
   const [screen, setScreen] = useState<Screen>('home')
-  const [channels, setChannels] = useState<Channel[]>(() => storedPlaylist?.channels ?? [])
+  const [channels, setChannels] = useState<Channel[]>(() =>
+    initialPlaylistState.kind === 'ready' ? initialPlaylistState.channels : [],
+  )
+  // The recorded source (Xtream creds / M3U URL / file-upload metadata) for
+  // the connected playlist, kept alongside `channels` so a save persists
+  // both — see session.ts. Also what drives startup recovery below when the
+  // channel cache didn't survive but the source did.
+  const [playlistSource, setPlaylistSource] = useState<PlaylistSourceRecord | null>(() =>
+    initialPlaylistState.kind === 'ready' ? initialPlaylistState.source : null,
+  )
   // Only set when the connected playlist was an Xtream source — EPG
   // (get_short_epg) only exists on that API, not for plain M3U playlists.
-  const [xtreamCreds, setXtreamCreds] = useState<XtreamCredentials | null>(() => storedPlaylist?.xtreamCreds ?? null)
+  // Derived from playlistSource rather than its own state so the two can
+  // never drift apart.
+  const xtreamCreds = useMemo(() => xtreamCredsFromSource(playlistSource), [playlistSource])
+  // Plain-language, non-technical message shown when the channel cache
+  // couldn't be saved (or couldn't be auto-recovered) — see the persistence
+  // effect and the startup-recovery effect below. Cleared once the user
+  // dismisses it or a save/recovery later succeeds.
+  const [playlistNotice, setPlaylistNotice] = useState<string | null>(null)
+  // Shown on the setup screen only — when the only thing on record is a
+  // file-upload source with no valid cache, there's nothing to auto-fetch
+  // (the file's contents were never kept around), so the user is told
+  // plainly that re-adding the file is required rather than the app
+  // pretending it can recover on its own. See PlaylistSetupScreen's
+  // `notice` prop.
+  const [reconnectNotice] = useState<string | null>(() =>
+    initialPlaylistState.kind === 'unrecoverable-file-source'
+      ? `Ninety needs your playlist file again to reconnect — please re-add "${initialPlaylistState.source.fileName}" below.`
+      : null,
+  )
   // The event the user drilled into from Home (hero or a Live Now/Coming Up
   // card) — set right before navigating to 'event-details', read by that
   // screen to know which fixture to look up broadcast channels for.
@@ -121,17 +150,65 @@ function App() {
   // future "disconnect" action wouldn't silently wipe a saved playlist by
   // resetting channels to [] (no such action exists yet, but the guard costs
   // nothing and keeps this effect honest about what it's for).
+  //
+  // savePlaylist writes the (small, cheap) source record even when the
+  // (large, quota-risky) channel-cache write fails, so a failure here still
+  // leaves a recoverable 'source-available-cache-missing' state behind for
+  // next launch (see session.ts / playlistRecovery.ts) rather than forcing
+  // the user to re-enter their playlist source from scratch. The toast
+  // below exists so that recovery need isn't a silent surprise.
   useEffect(() => {
     if (channels.length === 0) return
-    const persisted = savePlaylist(channels, xtreamCreds)
+    const persisted = savePlaylist(channels, playlistSource)
     if (!persisted) {
       // localStore.ts already logs the underlying error. This is the one
       // write in the app large enough to plausibly hit a storage quota —
       // when it happens, the connected playlist silently won't survive a
       // reload, so it's worth a distinct, findable log line here too.
       console.error('Playlist did not persist — it will need to be reconnected after a reload.')
+      setPlaylistNotice(
+        "Ninety couldn't fully save your playlist. It'll keep working for now, but you may need to reconnect it if the app restarts.",
+      )
+    } else {
+      setPlaylistNotice(null)
     }
-  }, [channels, xtreamCreds])
+  }, [channels, playlistSource])
+
+  // Startup recovery: if the small source record survived but the large
+  // channel cache didn't (missing, or written under an older schema
+  // version), automatically rebuild the cache from the source instead of
+  // forcing the user back through setup — see loadPlaylistState()'s
+  // 'source-available-cache-missing'/'source-available-cache-invalid'
+  // outcomes. Only Xtream and M3U-URL sources are recoverable this way; a
+  // file-upload source with no cache surfaces as reconnectNotice instead
+  // (see the initial state for reconnectNotice below and the 'setup'
+  // screen render). Runs once, off the snapshot read at module load.
+  useEffect(() => {
+    if (
+      initialPlaylistState.kind !== 'source-available-cache-missing' &&
+      initialPlaylistState.kind !== 'source-available-cache-invalid'
+    ) {
+      return
+    }
+    let cancelled = false
+    const source = initialPlaylistState.source
+    recoverChannelsFromSource(source)
+      .then((recovered) => {
+        if (cancelled) return
+        setChannels(recovered)
+        setPlaylistSource(source)
+      })
+      .catch((err) => {
+        console.error('Automatic playlist recovery failed — the playlist will need to be reconnected manually.', err)
+        if (!cancelled) {
+          setPlaylistNotice("Ninety couldn't automatically reconnect your playlist. Open Channels to reconnect it.")
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once off the module-load snapshot, not live state
+  }, [])
 
   useEffect(() => {
     saveFilters(hiddenCountries, hiddenCategories)
@@ -248,9 +325,10 @@ function App() {
 
       {screen === 'setup' && (
         <PlaylistSetupScreen
-          onLoaded={(loaded, creds) => {
+          notice={reconnectNotice ?? undefined}
+          onLoaded={(loaded, source) => {
             setChannels(loaded)
-            setXtreamCreds(creds)
+            setPlaylistSource(source)
             setScreen('browse-cascade')
           }}
         />
@@ -258,9 +336,9 @@ function App() {
 
       {screen === 'onboarding' && (
         <OnboardingFlow
-          onDone={(loaded, creds) => {
+          onDone={(loaded, source) => {
             setChannels(loaded)
-            setXtreamCreds(creds)
+            setPlaylistSource(source)
             // Countries step selection becomes the initial hidden-country
             // filter: everything NOT chosen starts hidden in Channels
             // browsing (still changeable any time via the existing Filter
@@ -358,6 +436,15 @@ function App() {
           }}
           onClose={() => setFilterOpen(false)}
         />
+      )}
+
+      {playlistNotice && (
+        <div className="playlist-persistence-toast" role="status">
+          <span>{playlistNotice}</span>
+          <button aria-label="Dismiss" onClick={() => setPlaylistNotice(null)}>
+            ×
+          </button>
+        </div>
       )}
 
       {import.meta.env.DEV && adminOpen && <AdminPanel onClose={() => setAdminOpen(false)} />}

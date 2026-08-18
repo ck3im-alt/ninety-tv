@@ -5,32 +5,45 @@
 // nothing that needs to sync or survive a reinstall.
 //
 // The playlist is split across two keys rather than one:
-//   - "source" (Xtream creds) is a few hundred bytes and effectively never
-//     fails to write.
+//   - "source" (how to reconnect: Xtream creds, an M3U URL, or — for a
+//     file upload — just enough metadata to explain a reconnect is needed)
+//     is a few hundred bytes and effectively never fails to write.
 //   - "channels" (the merged Channel[]) is the one part of this file that
 //     can get large — a big IPTV playlist can be tens of thousands of
 //     entries, tens of KB to low-MB of JSON — and is therefore the one
 //     realistically at risk of hitting a storage quota on some Tizen Web
-//     Runtime versions. Splitting them means a channel-cache write failure
-//     doesn't also lose the (tiny, essentially free) source config, so
-//     reconnecting doesn't require the user to re-type their Xtream
-//     credentials on top of the playlist re-fetch.
-// Both carry PLAYLIST_SCHEMA_VERSION so a future change to the merge/
-// normalization logic (see mergeChannels.ts) can bump the version and have
-// old cached entries safely ignored (treated as absent, re-fetched) instead
-// of being read back in a shape the current code doesn't expect.
+//     Runtime versions.
 //
-// Xtream credentials are stored as plain JSON here, same as everything
-// else in this file. That's a deliberate choice, not an oversight: a Tizen
-// (or any) web app has no OS keychain / secure-enclave API available to it,
-// and Web Crypto's SubtleCrypto can only encrypt with a key that itself has
-// to live somewhere on-device readable by this same origin — so it adds
-// code without changing what's actually recoverable via devtools/the
-// filesystem. Given the threat model here (single-user family TV, IPTV
-// panel creds, not a banking credential), that obfuscation isn't worth the
-// complexity. What actually matters — never sending these off-device to
-// ninety-api — is already true (see xtream/xtreamClient.ts: it talks
-// directly to the Xtream panel, not through our backend).
+// Splitting them means a channel-cache write failure doesn't also lose the
+// (tiny, essentially free) source record. For Xtream and M3U-URL sources
+// that source record is enough to automatically refetch and rebuild the
+// channel cache without asking the user to type anything again — see
+// loadPlaylistState()'s 'source-available-cache-missing'/'-invalid' cases
+// and src/data/playlistRecovery.ts, which App.tsx drives on startup. A
+// file-upload source can't be auto-reacquired (we never keep the file's
+// contents around after the initial parse), so that case is reported
+// separately ('unrecoverable-file-source') and the UI asks the user to
+// re-add the file instead of pretending it can recover on its own.
+//
+// The source and channel-cache records carry their own, independent
+// PLAYLIST_SOURCE_SCHEMA_VERSION / PLAYLIST_CHANNELS_SCHEMA_VERSION so a
+// future change to the merge/normalization logic (see mergeChannels.ts)
+// can bump just the channels version and have old cached entries safely
+// ignored (treated as absent, re-fetched) without also throwing away a
+// perfectly good, unrelated source record.
+//
+// Xtream credentials and M3U URLs are stored as plain JSON here, same as
+// everything else in this file. That's a deliberate choice, not an
+// oversight: a Tizen (or any) web app has no OS keychain / secure-enclave
+// API available to it, and Web Crypto's SubtleCrypto can only encrypt with
+// a key that itself has to live somewhere on-device readable by this same
+// origin — so it adds code without changing what's actually recoverable
+// via devtools/the filesystem. Given the threat model here (single-user
+// family TV, IPTV panel creds, not a banking credential), that obfuscation
+// isn't worth the complexity. What actually matters — never sending these
+// off-device to ninety-api — is already true (see xtream/xtreamClient.ts
+// and playlistRecovery.ts: both talk directly to the user's own Xtream
+// panel / M3U host, not through our backend).
 
 import { readStored, writeStored } from '../core/storage/localStore'
 import type { Channel } from './channel'
@@ -40,13 +53,46 @@ const PLAYLIST_SOURCE_KEY = 'ninety.playlist.source'
 const PLAYLIST_CHANNELS_KEY = 'ninety.playlist.channels'
 const FILTERS_KEY = 'ninety.channelFilters'
 
+// Bump when the *source record* shape changes in a way that makes
+// previously-stored source records unreadable/unsafe to reconnect with.
+// Independent of PLAYLIST_CHANNELS_SCHEMA_VERSION on purpose — see header.
+const PLAYLIST_SOURCE_SCHEMA_VERSION = 1
+
 // Bump when Channel's shape or the merge/normalization logic changes in a
 // way that makes previously-cached channels stale or invalid.
-const PLAYLIST_SCHEMA_VERSION = 1
+const PLAYLIST_CHANNELS_SCHEMA_VERSION = 1
+
+// How to reconnect a playlist without the user retyping anything, for the
+// two source kinds that support it — plus a third kind that deliberately
+// does NOT pretend to support it. Kept as a discriminated union (rather
+// than reusing XtreamCredentials directly) so a file-upload source is a
+// distinct, type-checked case instead of a null/undefined XtreamCredentials
+// that looks like "no source" from the type system's point of view.
+export interface XtreamSourceRecord {
+  type: 'xtream'
+  server: string
+  username: string
+  password: string
+}
+
+export interface M3uUrlSourceRecord {
+  type: 'm3u-url'
+  url: string
+}
+
+// No file contents here, ever — only enough to explain to the user what
+// needs reconnecting. See loadPlaylistState()'s 'unrecoverable-file-source'
+// outcome: this source type is never auto-refetched.
+export interface FileSourceRecord {
+  type: 'file'
+  fileName: string
+}
+
+export type PlaylistSourceRecord = XtreamSourceRecord | M3uUrlSourceRecord | FileSourceRecord
 
 interface StoredPlaylistSource {
   version: number
-  xtreamCreds: XtreamCredentials | null
+  source: PlaylistSourceRecord
 }
 
 interface StoredPlaylistChannels {
@@ -54,31 +100,74 @@ interface StoredPlaylistChannels {
   channels: Channel[]
 }
 
-interface StoredPlaylist {
-  channels: Channel[]
-  xtreamCreds: XtreamCredentials | null
+// The five outcomes loading persisted playlist state can land on:
+//   - ready: valid cache (+ source, when one was recorded) — use it as-is.
+//   - source-available-cache-missing: cache was never written (e.g. this is
+//     the very first load after a channel-cache write failure) but the
+//     source is intact — auto-recoverable for xtream/m3u-url.
+//   - source-available-cache-invalid: cache exists but its version is
+//     stale — same recovery path as above, just a different cause.
+//   - unrecoverable-file-source: the only source on record is a file
+//     upload and there's no valid cache — nothing to auto-refetch from,
+//     the UI must ask the user to re-add the file.
+//   - no-source: nothing usable was ever persisted (or it's all been
+//     cleared) — normal first-run / post-reset state.
+export type PlaylistState =
+  | { kind: 'ready'; channels: Channel[]; source: PlaylistSourceRecord | null }
+  | { kind: 'source-available-cache-missing'; source: XtreamSourceRecord | M3uUrlSourceRecord }
+  | { kind: 'source-available-cache-invalid'; source: XtreamSourceRecord | M3uUrlSourceRecord }
+  | { kind: 'unrecoverable-file-source'; source: FileSourceRecord }
+  | { kind: 'no-source' }
+
+export function loadPlaylistState(): PlaylistState {
+  const storedSource = readStored<StoredPlaylistSource | null>(PLAYLIST_SOURCE_KEY, null)
+  const storedChannels = readStored<StoredPlaylistChannels | null>(PLAYLIST_CHANNELS_KEY, null)
+
+  const source =
+    storedSource && storedSource.version === PLAYLIST_SOURCE_SCHEMA_VERSION ? storedSource.source : null
+  const cacheValid = storedChannels != null && storedChannels.version === PLAYLIST_CHANNELS_SCHEMA_VERSION
+
+  if (cacheValid) {
+    return { kind: 'ready', channels: storedChannels.channels, source }
+  }
+  if (!source) {
+    return { kind: 'no-source' }
+  }
+  if (source.type === 'file') {
+    return { kind: 'unrecoverable-file-source', source }
+  }
+  return {
+    kind: storedChannels == null ? 'source-available-cache-missing' : 'source-available-cache-invalid',
+    source,
+  }
 }
 
-export function loadPlaylist(): StoredPlaylist | null {
-  const source = readStored<StoredPlaylistSource | null>(PLAYLIST_SOURCE_KEY, null)
-  const channels = readStored<StoredPlaylistChannels | null>(PLAYLIST_CHANNELS_KEY, null)
-  if (!source || source.version !== PLAYLIST_SCHEMA_VERSION) return null
-  if (!channels || channels.version !== PLAYLIST_SCHEMA_VERSION) return null
-  return { channels: channels.channels, xtreamCreds: source.xtreamCreds }
+// Backward/simple-compatible helper for call sites that only care about
+// "do we have a usable, connected-EPG-capable Xtream session right now" —
+// EPG (get_short_epg) only exists on the Xtream JSON API, so a plain M3U
+// or file source never has one.
+export function xtreamCredsFromSource(source: PlaylistSourceRecord | null): XtreamCredentials | null {
+  if (!source || source.type !== 'xtream') return null
+  return { server: source.server, username: source.username, password: source.password }
 }
 
 // Returns whether both parts persisted. The channel cache (the large,
 // quota-risky part) is written first — if it fails, the caller should
 // treat this playlist as not durably saved, and callers that care can log
-// or surface that instead of assuming a reload will find it.
-export function savePlaylist(channels: Channel[], xtreamCreds: XtreamCredentials | null): boolean {
+// or surface that instead of assuming a reload will find it. Critically,
+// the source record is still written (and still returned as part of a
+// combined success/failure signal only for the caller's own bookkeeping)
+// even when the channel-cache write fails, so a subsequent reload can find
+// 'source-available-cache-missing' and recover instead of 'no-source'.
+export function savePlaylist(channels: Channel[], source: PlaylistSourceRecord | null): boolean {
   const channelsOk = writeStored<StoredPlaylistChannels>(PLAYLIST_CHANNELS_KEY, {
-    version: PLAYLIST_SCHEMA_VERSION,
+    version: PLAYLIST_CHANNELS_SCHEMA_VERSION,
     channels,
   })
+  if (!source) return channelsOk
   const sourceOk = writeStored<StoredPlaylistSource>(PLAYLIST_SOURCE_KEY, {
-    version: PLAYLIST_SCHEMA_VERSION,
-    xtreamCreds,
+    version: PLAYLIST_SOURCE_SCHEMA_VERSION,
+    source,
   })
   return channelsOk && sourceOk
 }

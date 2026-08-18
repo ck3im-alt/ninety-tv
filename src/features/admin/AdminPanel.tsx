@@ -3,7 +3,7 @@ import { FocusContext, getCurrentFocusKey, setFocus, useFocusable } from '@norig
 import { useBackHandler } from '../../core/platform'
 import { clearAllAppStorage } from '../../core/storage/localStore'
 import { hasCompletedOnboarding, loadPreferences } from '../../data/preferences'
-import { loadPlaylist, clearPlaylist, loadFavoriteChannels, loadFavoriteCategories } from '../../data/session'
+import { loadPlaylistState, clearPlaylist, loadFavoriteChannels, loadFavoriteCategories } from '../../data/session'
 import './AdminPanel.css'
 
 const POPUP_FOCUS_KEY = 'admin-panel'
@@ -38,7 +38,7 @@ function ActionButton({
 // profile avatar in TopNav.
 export function AdminPanel({ onClose }: Props) {
   const [confirmingReset, setConfirmingReset] = useState(false)
-  const savedPlaylist = loadPlaylist()
+  const savedPlaylist = loadPlaylistState()
   const savedFavoriteChannels = loadFavoriteChannels()
   const savedFavoriteCategories = loadFavoriteCategories()
 
@@ -103,7 +103,7 @@ export function AdminPanel({ onClose }: Props) {
             <span>Saved football leagues:</span>
             <strong>{loadPreferences().footballLeagueIds.join(', ') || '(none)'}</strong>
             <span>Saved playlist:</span>
-            <strong>{savedPlaylist ? `${savedPlaylist.channels.length} channels` : '(none)'}</strong>
+            <strong>{savedPlaylist.kind === 'ready' ? `${savedPlaylist.channels.length} channels` : '(none)'}</strong>
             <span>Favorite channels:</span>
             <strong>{savedFavoriteChannels.size}</strong>
             <span>Favorite categories:</span>

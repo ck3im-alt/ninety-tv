@@ -64,3 +64,34 @@ code {
   background: var(--surface-elevated);
   color: var(--text-primary);
 }
+
+/* Plain-language notice shown when the connected playlist's large channel
+   cache failed to save (or auto-reconnect failed) — see App.tsx. Never
+   describes storage/quota internals; just says the session still works
+   and reconnecting may be needed later. */
+.playlist-persistence-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 720px;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+.playlist-persistence-toast button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
