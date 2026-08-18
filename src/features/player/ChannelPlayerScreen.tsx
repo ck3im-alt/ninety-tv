@@ -75,6 +75,14 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
   const [sourcePopupOpen, setSourcePopupOpen] = useState(false)
   const [subtitlesPopupOpen, setSubtitlesPopupOpen] = useState(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Whether the user has explicitly muted playback via the toolbar — once
+  // set, the auto-unmute-on-interaction effect below backs off and leaves
+  // the choice to them.
+  const userMutedRef = useRef(false)
+  // Autoplay policy (browser + Tizen) only allows audible playback after a
+  // real user gesture, which is why the <video> starts `muted`. This tracks
+  // whether such a gesture has happened yet so we know it's safe to unmute.
+  const hasInteractedRef = useRef(false)
 
   const { ref: overlayRef, focusKey: overlayFocusKey } = useFocusable({ focusKey: OVERLAY_FOCUS_KEY, trackChildren: true })
   const { ref: toolbarRef, focusKey: toolbarFocusKey } = useFocusable({ focusKey: TOOLBAR_FOCUS_KEY, trackChildren: true })
@@ -159,6 +167,21 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuVisible])
 
+  // Any remote/keyboard or pointer press counts as the user gesture that
+  // autoplay policy requires before audio can play — record it once, then
+  // let the effect below unmute as soon as it's also safe (playback started).
+  useEffect(() => {
+    const markInteracted = () => {
+      hasInteractedRef.current = true
+    }
+    window.addEventListener('keydown', markInteracted)
+    window.addEventListener('pointerdown', markInteracted)
+    return () => {
+      window.removeEventListener('keydown', markInteracted)
+      window.removeEventListener('pointerdown', markInteracted)
+    }
+  }, [])
+
   useEffect(() => {
     if (videoRef.current) player.attach(videoRef.current)
     const unsubscribe = player.subscribe(setPlayerState)
@@ -167,6 +190,18 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
       player.dispose()
     }
   }, [player])
+
+  // Starts muted to satisfy autoplay policy, then unmutes itself the moment
+  // both conditions are true: a real user gesture has happened, and playback
+  // has actually started (so there's something audible to unmute into). If
+  // the user explicitly muted via the toolbar, that choice wins and this
+  // backs off. Runs on every status/muted change so it also catches e.g. a
+  // channel switch resuming playback after the user has already interacted.
+  useEffect(() => {
+    if (playerState.status === 'playing' && playerState.muted && hasInteractedRef.current && !userMutedRef.current) {
+      player.setMuted(false)
+    }
+  }, [playerState.status, playerState.muted, player])
 
   const activeSource = selected?.sources[sourceIndex] ?? selected?.sources[0]
 
@@ -244,6 +279,17 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
               />
 
               <ToolbarButton icon="((•))" label="Sync Live" onSelect={() => player.seekToLive()} />
+
+              <ToolbarButton
+                icon={playerState.muted ? '🔇' : '🔊'}
+                label={playerState.muted ? 'Unmute' : 'Mute'}
+                onSelect={() => {
+                  const next = !playerState.muted
+                  userMutedRef.current = next
+                  hasInteractedRef.current = true
+                  player.setMuted(next)
+                }}
+              />
 
               <div className="toolbar-item">
                 <ToolbarButton

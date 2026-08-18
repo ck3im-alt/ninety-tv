@@ -29,6 +29,7 @@ export interface PlayerState {
   error: PlayerError | null
   subtitleTracks: SubtitleTrack[]
   activeSubtitleTrack: string | null
+  muted: boolean
 }
 
 export interface Player {

@@ -9,6 +9,10 @@ const INITIAL_STATE: PlayerState = {
   error: null,
   subtitleTracks: [],
   activeSubtitleTrack: null,
+  // The <video> element is rendered with the `muted` attribute so autoplay
+  // is allowed before any user gesture (browser/Tizen autoplay policy) —
+  // this default mirrors that until attach() reads the element's real value.
+  muted: true,
 }
 
 function isHlsSource(url: string): boolean {
@@ -79,6 +83,10 @@ export function createHtmlVideoPlayer(): Player {
     })
     el.textTracks.addEventListener('addtrack', () => refreshSubtitleTracks(el))
     el.textTracks.addEventListener('removetrack', () => refreshSubtitleTracks(el))
+    // Setting el.muted fires 'volumechange' (spec-guaranteed), so this is
+    // the single source of truth for keeping state.muted in sync, whether
+    // the change came from setMuted() or (in principle) elsewhere.
+    el.addEventListener('volumechange', () => setState({ muted: el.muted }))
   }
 
   function teardownActiveEngine(): void {
@@ -130,6 +138,7 @@ export function createHtmlVideoPlayer(): Player {
     attach(element) {
       video = element
       bindVideoEvents(video)
+      setState({ muted: video.muted })
     },
 
     async load(sourceUrl) {
