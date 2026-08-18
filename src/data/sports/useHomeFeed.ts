@@ -28,6 +28,7 @@ const EMPTY_FEED: HomeFeed = { hero: null, heroIsWatchableNow: false, liveNow: [
 export type HomeFeedState =
   | { status: 'loading'; feed: HomeFeed }
   | { status: 'error'; feed: HomeFeed; message: string }
+  | { status: 'partial'; feed: HomeFeed; message: string }
   | { status: 'ready'; feed: HomeFeed }
 
 export function useHomeFeed(preferences: SportPreferences, channels: Channel[], xtreamCreds: XtreamCredentials | null): HomeFeedState {
@@ -53,6 +54,12 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
         // pattern as the old Sportmonks day-wide fetch but a single
         // request instead of one per lookahead day.
         let footballAll: SportEvent[] = []
+        // Unlike the per-league try/catch below for F1, a football fetch
+        // failure isn't swallowed into an empty list — that used to make a
+        // dead ninety-api (or a missing VITE_NINETY_API_URL) look like
+        // "just no matches today" instead of a real outage. The message is
+        // surfaced via footballError below so F1 can still render.
+        let footballError: string | null = null
         if (footballLeagues.length > 0) {
           try {
             const { events } = await getEvents()
@@ -60,8 +67,8 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
               const league = footballLeagues.find((l) => l.ninetyCompetitionName === ev.competition_name)
               return league ? [mapNinetyEvent(ev, league)] : []
             })
-          } catch {
-            footballAll = []
+          } catch (err) {
+            footballError = err instanceof Error ? err.message : 'Failed to load football fixtures'
           }
         }
         const footballUpcoming = footballAll.filter((ev) => !ev.isLive)
@@ -138,8 +145,15 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
         // sorted for the Coming Up row below either way.
         const { hero, isWatchableNow } = selectHero(liveNow, upcoming)
         const tonight = upcoming.filter((ev) => ev.id !== hero?.id)
+        const feed: HomeFeed = { hero, heroIsWatchableNow: isWatchableNow, liveNow, tonight }
 
-        if (!cancelled) setState({ status: 'ready', feed: { hero, heroIsWatchableNow: isWatchableNow, liveNow, tonight } })
+        if (!cancelled) {
+          if (footballError) {
+            setState({ status: 'partial', feed, message: `Football fixtures unavailable: ${footballError}` })
+          } else {
+            setState({ status: 'ready', feed })
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           setState({

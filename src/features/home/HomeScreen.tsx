@@ -322,6 +322,7 @@ export function HomeScreen({
         {feedState.status === 'error' && (
           <p className="feed-status feed-status-error">Couldn't load fixtures: {feedState.message}</p>
         )}
+        {feedState.status === 'partial' && <p className="feed-status feed-status-error">{feedState.message}</p>}
         {feedState.status === 'loading' && <p className="feed-status">Loading fixtures…</p>}
 
         <section className="row">
@@ -333,7 +334,7 @@ export function HomeScreen({
               ))}
             </ScrollRow>
           ) : (
-            feedState.status === 'ready' && (
+            (feedState.status === 'ready' || feedState.status === 'partial') && (
               <p className="feed-status">No ongoing matches in the top 5 leagues or UEFA competitions right now.</p>
             )
           )}
@@ -366,7 +367,9 @@ export function HomeScreen({
               ))}
             </ScrollRow>
           ) : (
-            feedState.status === 'ready' && <p className="feed-status">No upcoming fixtures in this window.</p>
+            (feedState.status === 'ready' || feedState.status === 'partial') && (
+              <p className="feed-status">No upcoming fixtures in this window.</p>
+            )
           )}
         </section>
       </main>
