@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getEvents } from './ninetyApiClient'
+import { getAllEvents } from './ninetyApiClient'
 import { mapNinetyEvent } from './mapEvent'
 import type { SportEvent } from './types'
 import type { LeagueDef } from './leagues'
@@ -37,11 +37,12 @@ export function useCompetitionFixtures(league: LeagueDef | null): CompetitionFix
 
     async function load() {
       try {
-        // ninety-api's rolling upcoming window (30 days) covers this in
-        // one call — no per-day paging needed (see useHomeFeed.ts).
-        const { events } = await getEvents()
+        // Filtered server-side by competition_id (ninety-api's rolling
+        // upcoming window still applies) -- getAllEvents follows
+        // next_cursor so a competition with more than one page of
+        // fixtures still returns everything, not just the first page.
+        const events = await getAllEvents({ competitionId })
         const fixtures = events
-          .filter((ev) => ev.competition_id === competitionId)
           .map((ev) => mapNinetyEvent(ev, activeLeague))
           .sort((a, b) => new Date(a.dateTimeUtc ?? 0).getTime() - new Date(b.dateTimeUtc ?? 0).getTime())
 

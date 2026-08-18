@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchNextEventsForLeague, fetchPastEventsForLeague } from './theSportsDbClient'
-import { getEvents } from './ninetyApiClient'
+import { getAllEvents } from './ninetyApiClient'
 import { leaguesForPreferences } from './leagues'
 import { mapNinetyEvent, mapEvent } from './mapEvent'
 import { isHeuristicallyLive } from './liveHeuristic'
@@ -52,7 +52,9 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
         // window at once (see the backend's rolling-window default) —
         // filtered client-side to the leagues actually followed, same
         // pattern as the old Sportmonks day-wide fetch but a single
-        // request instead of one per lookahead day.
+        // request instead of one per lookahead day. getAllEvents follows
+        // next_cursor to fetch every page rather than assuming the first
+        // page is the entire feed.
         let footballAll: SportEvent[] = []
         // Unlike the per-league try/catch below for F1, a football fetch
         // failure isn't swallowed into an empty list — that used to make a
@@ -62,7 +64,7 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
         let footballError: string | null = null
         if (footballLeagues.length > 0) {
           try {
-            const { events } = await getEvents()
+            const events = await getAllEvents()
             footballAll = events.flatMap((ev) => {
               const league = footballLeagues.find((l) => l.ninetyCompetitionId === ev.competition_id)
               return league ? [mapNinetyEvent(ev, league)] : []

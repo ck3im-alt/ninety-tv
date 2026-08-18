@@ -47,15 +47,54 @@ export interface NinetyLogicalChannel {
   broadcast_type: 'LINEAR' | 'STREAMING' | 'BOTH' | 'UNKNOWN'
 }
 
-// Omitting `date` returns a rolling upcoming window (see ninety-api's
-// events route) rather than requiring a per-day loop like the old
-// Sportmonks integration did.
-export async function getEvents(params: { date?: string; country?: string } = {}) {
+export interface NinetyEventsPagination {
+  has_more: boolean
+  next_cursor: string | null
+}
+
+export interface GetEventsParams {
+  date?: string
+  country?: string
+  competitionId?: string
+  from?: string
+  to?: string
+  limit?: number
+  cursor?: string
+}
+
+// Omitting `date`/`from`/`to` returns a rolling upcoming window (see
+// ninety-api's events route) rather than requiring a per-day loop like the
+// old Sportmonks integration did.
+export async function getEvents(params: GetEventsParams = {}) {
   const query = new URLSearchParams()
   if (params.date) query.set('date', params.date)
   if (params.country) query.set('country', params.country)
+  if (params.competitionId) query.set('competition_id', params.competitionId)
+  if (params.from) query.set('from', params.from)
+  if (params.to) query.set('to', params.to)
+  if (params.limit != null) query.set('limit', String(params.limit))
+  if (params.cursor) query.set('cursor', params.cursor)
   const qs = query.toString()
-  return getJson<{ events: NinetyEvent[] }>(`/v1/events${qs ? `?${qs}` : ''}`)
+  return getJson<{ events: NinetyEvent[]; pagination: NinetyEventsPagination }>(
+    `/v1/events${qs ? `?${qs}` : ''}`,
+  )
+}
+
+// Fetches every page of GET /v1/events for the given filters, following
+// next_cursor until has_more is false. Use this instead of a bare getEvents
+// call whenever the result set might legitimately exceed one page (e.g. no
+// competition_id filter) -- a single getEvents call is only safe to treat
+// as "the whole feed" when the caller knows the filtered result is small.
+export async function getAllEvents(params: GetEventsParams = {}): Promise<NinetyEvent[]> {
+  const events: NinetyEvent[] = []
+  let cursor: string | undefined
+  for (;;) {
+    const page = await getEvents({ ...params, cursor })
+    events.push(...page.events)
+    if (!page.pagination.has_more || !page.pagination.next_cursor) break
+    cursor = page.pagination.next_cursor
+  }
+  return events
 }
 
 export async function getChannelCatalog(params: { country?: string } = {}) {
