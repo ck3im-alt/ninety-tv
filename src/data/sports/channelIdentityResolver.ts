@@ -25,8 +25,8 @@
 // conflict, external-id-vs-name contradiction, external-id collision,
 // reverse collision) can only ever push a candidate DOWN in confidence —
 // nothing in this file makes such a candidate look MORE confirmed.
-import type { Channel } from '../channel'
 import type { NinetyLogicalChannel } from './ninetyApiClient'
+import type { PlaylistChannelIdentity } from './channelIdentityProjection'
 import { parseCategory } from '../../features/channels/parseCategory'
 import { meaningfulWords, namesExactMatch, namesOverlap, normalizeCountryKey, qualifierWords, sameSet } from './channelMatchCore'
 
@@ -67,8 +67,14 @@ export interface NegativeSignal {
   detail: string
 }
 
-export interface ChannelCandidateMatch {
-  channel: Channel
+// Deliberately keyed by playlistChannelId (a string), never a Channel
+// reference — this is what makes the resolver's output safe to structured-
+// clone back out of a Worker (see channelIdentityWorker.ts) and what lets
+// the pure resolver stay decoupled from the runtime Channel type entirely.
+// ChannelIdentityIndex (main thread only) is what maps a playlistChannelId
+// back to a real Channel, via its own Map<Channel.id, Channel>.
+export interface IdentityCandidateMatch {
+  playlistChannelId: string
   score: number
   signals: MatchSignal[]
   negativeSignals: NegativeSignal[]
@@ -79,7 +85,7 @@ export type IdentityClassification = 'CONFIRMED' | 'STRONG' | 'AMBIGUOUS' | 'NON
 export interface LogicalChannelResolution {
   logicalChannelId: string
   classification: IdentityClassification
-  matches: ChannelCandidateMatch[]
+  matches: IdentityCandidateMatch[]
   // The next-best candidate's score once the accepted match(es) are decided
   // (or, for AMBIGUOUS, the runner-up driving the ambiguity) — undefined
   // when there was nothing else to compare against.
@@ -153,7 +159,7 @@ const CONTRADICTION_SIGNALS: ReadonlySet<NegativeSignalType> = new Set([
   'reverse_collision',
 ])
 
-function isConfirmedGrade(match: ChannelCandidateMatch): boolean {
+function isConfirmedGrade(match: IdentityCandidateMatch): boolean {
   // The reduced-weight "id matches but also owns another logical channel"
   // signal reuses the 'exact_unique_external_id' type at a lower weight —
   // only the full-weight version counts as confirmed-grade.
@@ -162,7 +168,7 @@ function isConfirmedGrade(match: ChannelCandidateMatch): boolean {
   )
 }
 
-function isContradicted(match: ChannelCandidateMatch): boolean {
+function isContradicted(match: IdentityCandidateMatch): boolean {
   return match.negativeSignals.some((s) => CONTRADICTION_SIGNALS.has(s.type))
 }
 
@@ -190,8 +196,8 @@ export function buildExternalIdIndex(catalog: NinetyLogicalChannel[]): ExternalI
   return index
 }
 
-function playlistExternalIds(channel: Channel): string[] {
-  const ids = (channel.epgChannelIds ?? []).map((id) => id.trim()).filter((id) => id.length > 0)
+function playlistExternalIds(identity: PlaylistChannelIdentity): string[] {
+  const ids = (identity.epgChannelIds ?? []).map((id) => id.trim()).filter((id) => id.length > 0)
   return [...new Set(ids)]
 }
 
@@ -245,8 +251,8 @@ function structuredConflict(catalogName: string, playlistName: string): Structur
 // consistent with the live matcher's notion of "this channel's country".
 // ---------------------------------------------------------------------
 
-function playlistCountryKey(channel: Channel): string | null {
-  const parsed = parseCategory(channel.groupTitle ?? '').countryName
+function playlistCountryKey(identity: PlaylistChannelIdentity): string | null {
+  const parsed = parseCategory(identity.groupTitle ?? '').countryName
   return parsed ? parsed.toUpperCase() : null
 }
 
@@ -310,13 +316,13 @@ function bestSignal(candidates: (MatchSignal | null)[]): MatchSignal | null {
 // appears in the resolution's `matches` for transparency.
 // ---------------------------------------------------------------------
 
-function scoreCandidate(logical: NinetyLogicalChannel, channel: Channel, idIndex: ExternalIdIndex): ChannelCandidateMatch | null {
+function scoreCandidate(logical: NinetyLogicalChannel, identity: PlaylistChannelIdentity, idIndex: ExternalIdIndex): IdentityCandidateMatch | null {
   const signals: MatchSignal[] = []
   const negativeSignals: NegativeSignal[] = []
   let score = 0
 
   // ---- 1. External id (Part 2A / Part 3.4) ----
-  const ids = playlistExternalIds(channel)
+  const ids = playlistExternalIds(identity)
   const uniqueOwners = new Set<string>()
   const collidingIds: string[] = []
   for (const id of ids) {
@@ -363,7 +369,7 @@ function scoreCandidate(logical: NinetyLogicalChannel, channel: Channel, idIndex
   }
 
   // ---- 2. Canonical / alias / source-name identity (Part 2B) ----
-  const playlistNames = [channel.name, ...(channel.rawNames ?? [])]
+  const playlistNames = [identity.name, ...(identity.rawNames ?? [])]
   const nameCandidates: (MatchSignal | null)[] = [
     considerName(playlistNames, 'structured_name_match', 'exact_canonical_name', SIGNAL_WEIGHTS.EXACT_CANONICAL_NAME, SIGNAL_WEIGHTS.STRUCTURED_NAME_MATCH, logical.name, 'canonical name'),
     ...logical.aliases.map((alias) =>
@@ -392,7 +398,7 @@ function scoreCandidate(logical: NinetyLogicalChannel, channel: Channel, idIndex
 
   // ---- 3. Country (Part 3.1) ----
   const catalogCountry = catalogCountryKey(logical)
-  const playlistCountry = playlistCountryKey(channel)
+  const playlistCountry = playlistCountryKey(identity)
   if (catalogCountry && playlistCountry) {
     if (catalogCountry === playlistCountry) {
       if (hasIdentityEvidence) {
@@ -423,7 +429,7 @@ function scoreCandidate(logical: NinetyLogicalChannel, channel: Channel, idIndex
   // ---- 5. Explicit channel number corroboration (Part 2C) ----
   if (hasIdentityEvidence) {
     const catalogNumbers = explicitNumbers(meaningfulWords(logical.name))
-    const playlistNumbers = explicitNumbers(meaningfulWords(channel.name))
+    const playlistNumbers = explicitNumbers(meaningfulWords(identity.name))
     if (catalogNumbers.size > 0 && [...catalogNumbers].some((n) => playlistNumbers.has(n))) {
       score += SIGNAL_WEIGHTS.CHANNEL_NUMBER_MATCH
       signals.push({ type: 'channel_number_match', weight: SIGNAL_WEIGHTS.CHANNEL_NUMBER_MATCH, detail: `channel number ${[...catalogNumbers].filter((n) => playlistNumbers.has(n)).join(', ')} matches on both sides` })
@@ -431,7 +437,7 @@ function scoreCandidate(logical: NinetyLogicalChannel, channel: Channel, idIndex
   }
 
   // ---- 6. Structured conflict between the PRIMARY names (Parts 3 & 4) ----
-  const conflict = structuredConflict(logical.name, channel.name)
+  const conflict = structuredConflict(logical.name, identity.name)
   if (conflict.conflict) {
     if (idPointsToLogical && !idConflictsAcrossMultiple) {
       // The id says this IS the channel, but the visible name explicitly
@@ -465,7 +471,7 @@ function scoreCandidate(logical: NinetyLogicalChannel, channel: Channel, idIndex
 
   if (score <= 0 && signals.length === 0 && negativeSignals.length === 0) return null
 
-  return { channel, score, signals, negativeSignals }
+  return { playlistChannelId: identity.id, score, signals, negativeSignals }
 }
 
 // ---------------------------------------------------------------------
@@ -478,7 +484,7 @@ function scoreCandidate(logical: NinetyLogicalChannel, channel: Channel, idIndex
 
 type ScoredResolution = Omit<LogicalChannelResolution, 'logicalChannelId'>
 
-function classifyScored(scored: ChannelCandidateMatch[]): ScoredResolution {
+function classifyScored(scored: IdentityCandidateMatch[]): ScoredResolution {
   if (scored.length === 0) return { classification: 'NONE', matches: [] }
 
   const sorted = [...scored].sort((a, b) => b.score - a.score)
@@ -588,14 +594,14 @@ function buildCountryToLogicalIds(catalog: NinetyLogicalChannel[]): { byCountry:
 // mirrors exactly the set of pairs scoreCandidate could produce a signal
 // for (see the section comment above), nothing more, nothing less.
 function candidateLogicalIds(
-  channel: Channel,
+  identity: PlaylistChannelIdentity,
   catalog: NinetyLogicalChannel[],
   byCountry: Map<string, string[]>,
   noCountry: string[],
   idIndex: ExternalIdIndex,
 ): Set<string> {
   const candidates = new Set<string>()
-  const channelCountry = playlistCountryKey(channel)
+  const channelCountry = playlistCountryKey(identity)
   if (channelCountry === null) {
     // No parsed country on this playlist entry — scoreCandidate's country
     // check only ever fires when BOTH sides have one, so a country-less
@@ -606,19 +612,19 @@ function candidateLogicalIds(
     for (const id of byCountry.get(channelCountry) ?? []) candidates.add(id)
     for (const id of noCountry) candidates.add(id)
   }
-  for (const extId of playlistExternalIds(channel)) {
+  for (const extId of playlistExternalIds(identity)) {
     const owners = idIndex.get(extId)
     if (owners) for (const id of owners) candidates.add(id)
   }
   return candidates
 }
 
-export function resolveChannelIdentities(catalog: NinetyLogicalChannel[], playlist: Channel[]): Map<string, LogicalChannelResolution> {
+export function resolveChannelIdentities(catalog: NinetyLogicalChannel[], playlist: PlaylistChannelIdentity[]): Map<string, LogicalChannelResolution> {
   const idIndex = buildExternalIdIndex(catalog)
   const logicalById = new Map(catalog.map((l) => [l.id, l]))
   const { byCountry, noCountry } = buildCountryToLogicalIds(catalog)
 
-  const scoredByLogical = new Map<string, ChannelCandidateMatch[]>()
+  const scoredByLogical = new Map<string, IdentityCandidateMatch[]>()
   for (const logical of catalog) scoredByLogical.set(logical.id, [])
 
   // Single pass over the playlist (not one pass per logical channel) —
@@ -627,12 +633,12 @@ export function resolveChannelIdentities(catalog: NinetyLogicalChannel[], playli
   // fixed logical channel's `scored` list ends up in exactly the order
   // the original nested loop (`for (const channel of playlist)` per
   // logical) would have produced it in.
-  for (const channel of playlist) {
-    const candidates = candidateLogicalIds(channel, catalog, byCountry, noCountry, idIndex)
+  for (const identity of playlist) {
+    const candidates = candidateLogicalIds(identity, catalog, byCountry, noCountry, idIndex)
     for (const logicalId of candidates) {
       const logical = logicalById.get(logicalId)
       if (!logical) continue
-      const candidate = scoreCandidate(logical, channel, idIndex)
+      const candidate = scoreCandidate(logical, identity, idIndex)
       if (candidate) scoredByLogical.get(logicalId)!.push(candidate)
     }
   }
@@ -647,9 +653,9 @@ export function resolveChannelIdentities(catalog: NinetyLogicalChannel[], playli
   for (const [logicalId, res] of firstPass) {
     if (res.classification !== 'CONFIRMED' && res.classification !== 'STRONG') continue
     for (const m of res.matches) {
-      const list = claims.get(m.channel.id) ?? []
+      const list = claims.get(m.playlistChannelId) ?? []
       list.push({ logicalChannelId: logicalId, score: m.score })
-      claims.set(m.channel.id, list)
+      claims.set(m.playlistChannelId, list)
     }
   }
 
@@ -685,8 +691,8 @@ export function resolveChannelIdentities(catalog: NinetyLogicalChannel[], playli
 
     const flaggedAsTie = collisionReason.get(logicalId) ?? new Set<string>()
     const adjusted = scored.map((m) => {
-      if (!excludedChannelIds.has(m.channel.id)) return m
-      const detail = flaggedAsTie.has(m.channel.id)
+      if (!excludedChannelIds.has(m.playlistChannelId)) return m
+      const detail = flaggedAsTie.has(m.playlistChannelId)
         ? 'this playlist channel scores comparably for another logical channel too, with no decisive evidence to prefer either (Part 6 reverse collision)'
         : 'this playlist channel is claimed by a clearly higher-scoring logical channel (Part 6 reverse collision)'
       return { ...m, negativeSignals: [...m.negativeSignals, { type: 'reverse_collision' as const, detail }] }

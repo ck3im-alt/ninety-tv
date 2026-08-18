@@ -11,6 +11,8 @@ import {
 import { foldForMatching } from '../fancyUnicode'
 import { matchChannelsForEvent } from './channelMatch'
 import { ChannelIdentityIndex } from './channelIdentityIndex'
+import { resolveChannelIdentities } from './channelIdentityResolver'
+import { projectChannelIdentity } from './channelIdentityProjection'
 import type { SportEvent } from './types'
 import type { Channel } from '../channel'
 import type { XtreamCredentials } from '../xtream/types'
@@ -296,7 +298,8 @@ function testChannel(overrides: Partial<Channel> & Pick<Channel, 'id' | 'name'>)
 }
 
 function buildIndex(catalog: NinetyLogicalChannel[], playlist: Channel[]): ChannelIdentityIndex {
-  return new ChannelIdentityIndex('test-version', catalog, playlist)
+  const resolutions = resolveChannelIdentities(catalog, playlist.map(projectChannelIdentity))
+  return new ChannelIdentityIndex('test-version', resolutions, playlist)
 }
 
 function eventWithBroadcasts(broadcasts: SportEvent['broadcasts'], overrides: Partial<SportEvent> = {}): SportEvent {

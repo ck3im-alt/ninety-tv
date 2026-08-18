@@ -202,7 +202,7 @@ function isSportLogical(logical: NinetyLogicalChannel): boolean {
   return text.includes('sport') || SPORTS_KEYWORDS.some((k) => text.includes(k))
 }
 
-function reportSportsReview(relevant: NinetyLogicalChannel[], resolutions: Map<string, LogicalChannelResolution>): void {
+function reportSportsReview(relevant: NinetyLogicalChannel[], resolutions: Map<string, LogicalChannelResolution>, byChannelId: Map<string, Channel>): void {
   const sportsChannels = relevant.filter(isSportLogical)
   let resolved = 0
   let ambiguous = 0
@@ -223,7 +223,8 @@ function reportSportsReview(relevant: NinetyLogicalChannel[], resolutions: Map<s
         ? res.matches
             .map((m) => {
               const strongest = strongestSignal(m)
-              return `"${m.channel.name}" [score ${m.score}${strongest ? `, via ${strongest.type}` : ''}${m.negativeSignals.length ? `, ⚠ ${m.negativeSignals.map((n) => n.type).join(',')}` : ''}]`
+              const name = byChannelId.get(m.playlistChannelId)?.name ?? m.playlistChannelId
+              return `"${name}" [score ${m.score}${strongest ? `, via ${strongest.type}` : ''}${m.negativeSignals.length ? `, ⚠ ${m.negativeSignals.map((n) => n.type).join(',')}` : ''}]`
             })
             .join('; ')
         : '(none)'
@@ -241,7 +242,7 @@ function reportSportsReview(relevant: NinetyLogicalChannel[], resolutions: Map<s
 // open this stream if a user clicked Watch?"
 // ---------------------------------------------------------------------
 
-function reportSuspiciousCases(relevant: NinetyLogicalChannel[], resolutions: Map<string, LogicalChannelResolution>): void {
+function reportSuspiciousCases(relevant: NinetyLogicalChannel[], resolutions: Map<string, LogicalChannelResolution>, byChannelId: Map<string, Channel>): void {
   console.log('\n=== 6. SUSPICIOUS / FALSE-POSITIVE REVIEW (all CONFIRMED+STRONG matches) ===')
   const flags: string[] = []
   const claimedBy = new Map<string, Set<string>>() // playlist channel id -> logical channel ids that accepted it
@@ -251,22 +252,24 @@ function reportSuspiciousCases(relevant: NinetyLogicalChannel[], resolutions: Ma
     if (!res || (res.classification !== 'CONFIRMED' && res.classification !== 'STRONG')) continue
 
     for (const m of res.matches) {
-      const set = claimedBy.get(m.channel.id) ?? new Set<string>()
+      const set = claimedBy.get(m.playlistChannelId) ?? new Set<string>()
       set.add(logical.id)
-      claimedBy.set(m.channel.id, set)
+      claimedBy.set(m.playlistChannelId, set)
 
+      const channel = byChannelId.get(m.playlistChannelId)
+      const channelName = channel?.name ?? m.playlistChannelId
       const strongest = strongestSignal(m)
       const isExactBasis = strongest?.type === 'exact_unique_external_id' || strongest?.type === 'exact_canonical_name' || strongest?.type === 'exact_alias' || strongest?.type === 'exact_source_name'
-      const isPpv = isPpvCategory(parseCategory(m.channel.groupTitle ?? ''))
+      const isPpv = isPpvCategory(parseCategory(channel?.groupTitle ?? ''))
 
       if (!isExactBasis) {
-        flags.push(`FUZZY BASIS: ${logical.name} (${logical.id}) ${res.classification} via "${m.channel.name}" — strongest signal ${strongest?.type ?? 'none'}, score ${m.score}`)
+        flags.push(`FUZZY BASIS: ${logical.name} (${logical.id}) ${res.classification} via "${channelName}" — strongest signal ${strongest?.type ?? 'none'}, score ${m.score}`)
       }
       if (isPpv) {
-        flags.push(`PPV-CATEGORY MATCH: ${logical.name} (${logical.id}) matched playlist channel "${m.channel.name}" whose group is PPV-categorized`)
+        flags.push(`PPV-CATEGORY MATCH: ${logical.name} (${logical.id}) matched playlist channel "${channelName}" whose group is PPV-categorized`)
       }
       if (m.negativeSignals.length > 0) {
-        flags.push(`ACCEPTED DESPITE NEGATIVE SIGNAL: ${logical.name} (${logical.id}) ${res.classification} via "${m.channel.name}" — ${m.negativeSignals.map((n) => `${n.type}: ${n.detail}`).join(' | ')}`)
+        flags.push(`ACCEPTED DESPITE NEGATIVE SIGNAL: ${logical.name} (${logical.id}) ${res.classification} via "${channelName}" — ${m.negativeSignals.map((n) => `${n.type}: ${n.detail}`).join(' | ')}`)
       }
     }
   }
@@ -326,7 +329,7 @@ function newMatchViaResolver(event: NinetyEvent, resolutions: Map<string, Logica
     const res = resolutions.get(b.logical_channel_id)
     if (!res) continue
     if (res.classification === 'CONFIRMED' || res.classification === 'STRONG') {
-      for (const m of res.matches) result.set(m.channel.id, { logicalChannelId: b.logical_channel_id, classification: res.classification })
+      for (const m of res.matches) result.set(m.playlistChannelId, { logicalChannelId: b.logical_channel_id, classification: res.classification })
     }
   }
   return result
@@ -392,7 +395,7 @@ function reportOldVsNew(events: NinetyEvent[], playlist: Channel[], resolutions:
       if (res?.classification === 'AMBIGUOUS') {
         newAmbiguousCount++
         if (newAmbiguousExamples.length < 15) {
-          newAmbiguousExamples.push(`event ${event.id}: broadcast "${b.name}" (${b.logical_channel_id}) AMBIGUOUS — candidates: ${res.matches.map((m) => `"${m.channel.name}" (score ${m.score})`).join(', ')}`)
+          newAmbiguousExamples.push(`event ${event.id}: broadcast "${b.name}" (${b.logical_channel_id}) AMBIGUOUS — candidates: ${res.matches.map((m) => `"${byChannelId.get(m.playlistChannelId)?.name ?? m.playlistChannelId}" (score ${m.score})`).join(', ')}`)
         }
       }
     }
@@ -436,11 +439,12 @@ async function main() {
   console.log(`Catalog: ${catalog.length} logical channels.`)
 
   const resolutions = resolveChannelIdentities(catalog, playlist)
+  const byChannelId = new Map(playlist.map((c) => [c.id, c]))
 
   const playlistCountries = reportPlaylistSummary(playlist)
   const relevant = reportResolverCoverage(catalog, resolutions, playlistCountries)
-  reportSportsReview(relevant, resolutions)
-  reportSuspiciousCases(relevant, resolutions)
+  reportSportsReview(relevant, resolutions, byChannelId)
+  reportSuspiciousCases(relevant, resolutions, byChannelId)
 
   console.log('\nFetching current/upcoming events for OLD vs NEW shadow comparison...')
   try {

@@ -34,7 +34,7 @@ function classificationOf(resolutions: Map<string, LogicalChannelResolution>, id
 }
 
 function matchedChannelIds(resolutions: Map<string, LogicalChannelResolution>, id: string): string[] {
-  return (resolutions.get(id)?.matches ?? []).map((m) => m.channel.id).sort()
+  return (resolutions.get(id)?.matches ?? []).map((m) => m.playlistChannelId).sort()
 }
 
 describe('external id signals', () => {

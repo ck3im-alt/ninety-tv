@@ -112,7 +112,7 @@ for (const goldCase of cases) {
     totalExpectations++
     const res = resolutions.get(expected.logicalChannelId)
     const predictedClassification = res?.classification ?? 'NONE'
-    const predictedIds = [...(res?.matches ?? [])].map((m) => m.channel.id).sort()
+    const predictedIds = [...(res?.matches ?? [])].map((m) => m.playlistChannelId).sort()
     const expectedIds = [...expected.playlistIds].sort()
     const idsMatch = sameIdSet(predictedIds, expectedIds)
     const exact = predictedClassification === expected.classification && idsMatch
