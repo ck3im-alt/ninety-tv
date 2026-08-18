@@ -7,7 +7,6 @@ import { useStreamQualities } from './useStreamQualities'
 import type { QualityByGroup, QualityState } from './useStreamQualities'
 import { groupChannelMatches } from './groupChannelMatches'
 import type { MatchGroup, SourceOption } from './groupChannelMatches'
-import type { StreamQuality } from '../../data/streamQuality'
 import type { SportEvent } from '../../data/sports/types'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials } from '../../data/xtream/types'
@@ -173,16 +172,18 @@ function TeamBlock({
   )
 }
 
-// Higher is better; unknown/still-probing sorts after every measured
-// candidate rather than before, so a probe that hasn't resolved yet doesn't
-// visually outrank a stream we already know is worse.
+// Higher is better; groups with no quality hint (tier 0) sort after any
+// group that has one, but otherwise keep their incoming relative order —
+// see rankStreamQuality.ts for how the tier itself is derived.
 function qualityRank(quality: QualityState | undefined): number {
-  if (!quality || quality === 'loading') return -1
-  return quality.height * 1000 + (quality.fps ?? 0)
+  return quality?.tier ?? 0
 }
 
 function sortByQuality(groups: MatchGroup[], qualities: QualityByGroup): MatchGroup[] {
-  return [...groups].sort((a, b) => qualityRank(qualities.get(b.key)) - qualityRank(qualities.get(a.key)))
+  return groups
+    .map((group, index) => ({ group, index }))
+    .sort((a, b) => qualityRank(qualities.get(b.group.key)) - qualityRank(qualities.get(a.group.key)) || a.index - b.index)
+    .map((entry) => entry.group)
 }
 
 function ChannelMatchGroups({
@@ -253,21 +254,12 @@ function BrowseManuallyButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-// "1080p50 · 8.2 Mbps" — resolution bucketed to familiar TV-quality names
-// rather than raw pixel counts, fps only appended when the probe actually
-// reported one (mpegts.js's MEDIA_INFO doesn't always carry it).
-function formatQuality(quality: StreamQuality): string {
-  const resLabel = quality.height >= 2160 ? '4K' : quality.height >= 1080 ? '1080p' : quality.height >= 720 ? '720p' : `${quality.height}p`
-  const fps = quality.fps ? Math.round(quality.fps) : null
-  const resWithFps = fps ? `${resLabel}${fps}` : resLabel
-  const bitrate = quality.bitrateKbps ? `${(quality.bitrateKbps / 1000).toFixed(1)} Mbps` : null
-  return [resWithFps, bitrate].filter(Boolean).join(' · ')
-}
-
+// A name/label-derived hint (e.g. "UHD", "1080p") — not a measured value,
+// since nothing here has opened the stream to check. Omitted entirely when
+// no quality tag was found in the playlist metadata, rather than guessing.
 function QualityBadge({ quality }: { quality: QualityState | undefined }) {
-  if (quality === 'loading') return <span className="event-details-channel-quality checking">Checking quality…</span>
-  if (!quality) return null
-  return <span className="event-details-channel-quality">{formatQuality(quality)}</span>
+  if (!quality?.label) return null
+  return <span className="event-details-channel-quality">{quality.label}</span>
 }
 
 function ChannelOption({

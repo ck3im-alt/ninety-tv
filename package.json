@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "build:tizen": "tsc -b && node scripts/build-tizen.mjs"
+    "build:tizen": "tsc -b && node scripts/build-tizen.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@noriginmedia/norigin-spatial-navigation": "^3.3.0",
@@ -25,6 +26,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
   }
 }

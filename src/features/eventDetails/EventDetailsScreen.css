@@ -289,10 +289,6 @@
   opacity: 0.75;
 }
 
-.event-details-channel-quality.checking {
-  font-style: italic;
-}
-
 .event-details-channel-card {
   display: flex;
   flex-direction: column;
