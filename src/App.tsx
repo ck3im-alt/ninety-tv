@@ -65,6 +65,30 @@ function App() {
   const [channels, setChannels] = useState<Channel[]>(() =>
     initialPlaylistState.kind === 'ready' ? initialPlaylistState.channels : [],
   )
+  // DEV-only diagnostic hook for scripts/evaluate-real-playlist-channel-identity.ts
+  // — exposes a SAFE projection of the in-memory playlist (no
+  // ChannelSource.url, no credentials) on window so it can be exported from
+  // devtools via `copy(JSON.stringify(window.__ninetyExportChannels))`.
+  // Needed because a playlist this large can fail to round-trip through
+  // localStorage (see session.ts's savePlaylist/QuotaExceededError), so the
+  // only reliable way to get real playlist data out for that diagnostic is
+  // straight from this tab's own React state.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    ;(window as unknown as { __ninetyExportChannels?: unknown }).__ninetyExportChannels = channels.map((c) => {
+      const parsed = parseCategory(c.groupTitle ?? '')
+      return {
+        id: c.id,
+        name: c.name,
+        groupTitle: c.groupTitle,
+        country: parsed.countryName,
+        category: parsed.mergedLabel,
+        epgChannelIds: c.epgChannelIds,
+        rawNames: c.rawNames,
+        hasEpgChannelId: c.hasEpgChannelId,
+      }
+    })
+  }, [channels])
   // The recorded source (Xtream creds / M3U URL / file-upload metadata) for
   // the connected playlist, kept alongside `channels` so a save persists
   // both — see session.ts. Also what drives startup recovery below when the

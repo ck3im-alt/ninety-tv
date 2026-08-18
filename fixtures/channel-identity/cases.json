@@ -4678,5 +4678,971 @@
       }
     ],
     "note": "Two different playlist channels both fuzzily resemble the same multi-word-brand logical channel (namesOverlap's >=2-shared-word branch allows the extra trailing word) with neither reaching the strong bar cleanly nor separating from the other — genuinely unclear which (if either) is real, so both surface together rather than an arbitrary pick."
+  },
+  {
+    "id": "real-pl-bbc-one-regional-collapse",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "gb_bbc_one",
+        "name": "BBC One",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "BBC",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "BBC ONE LONDON 4K",
+        "groupTitle": "UK| GENERAL HD/RAW",
+        "epgChannelIds": [
+          "BBCOneOxford.uk"
+        ],
+        "rawNames": [
+          "UK: BBC ONE LONDON 4K"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "BBC ONE WALES 4K",
+        "groupTitle": "UK| GENERAL HD/RAW",
+        "epgChannelIds": [
+          "BBCOneNorthWest.uk"
+        ],
+        "rawNames": [
+          "UK: BBC ONE WALES 4K"
+        ]
+      },
+      {
+        "id": "p3",
+        "name": "BBC ONE SCOTLAND HD",
+        "groupTitle": "UK| GENERAL HD/RAW",
+        "epgChannelIds": [
+          "BBCOneScotland.uk"
+        ],
+        "rawNames": [
+          "UK: BBC ONE SCOTLAND HD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_bbc_one",
+        "classification": "STRONG",
+        "playlistIds": [
+          "p1",
+          "p2",
+          "p3"
+        ]
+      }
+    ],
+    "note": "Real GB playlist carries ~20 BBC One regional opt-out variants (London/Wales/Scotland/NI/etc.), none matching the bare catalog name exactly, each only earning structured_name_match+country+network (score 51) -> STRONG here. Reviewed as a legitimate sibling-channel collapse (all genuinely BBC One), not a false positive -- but flags a real data-quality issue found alongside it: several of these regional variants carry a WRONG regional tvg-id (e.g. the London variant is tagged BBCOneOxford.uk, Wales is tagged BBCOneNorthWest.uk). Harmless today since gb_bbc_one has no external_ids to compare against, but a landmine if per-region external ids are ever added to the catalog. At full playlist scale (~20 variants instead of 3) the equivalent BBC Two case crosses into CONFIRMED, suggesting classification here is sensitive to corroborating-match count, not just per-match score -- worth understanding before integration."
+  },
+  {
+    "id": "real-pl-bbc-two-regional-collapse",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "gb_bbc_two",
+        "name": "BBC Two",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "BBC",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "BBC TWO WALES HD",
+        "groupTitle": "UK| GENERAL HD/RAW",
+        "epgChannelIds": [
+          "BBCTwoWales.uk"
+        ],
+        "rawNames": [
+          "UK: BBC TWO WALES HD"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "BBC TWO NORTHERN IRELAND",
+        "groupTitle": "UK| GENERAL HD/RAW",
+        "epgChannelIds": [
+          "BBC2NI.uk"
+        ],
+        "rawNames": [
+          "UK: BBC TWO NORTHERN IRELAND"
+        ]
+      },
+      {
+        "id": "p3",
+        "name": "BBC TWO SCOTLAND",
+        "groupTitle": "UK| GENERAL HD/RAW",
+        "epgChannelIds": [
+          "BBC2.uk"
+        ],
+        "rawNames": [
+          "UK: BBC TWO SCOTLAND"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_bbc_two",
+        "classification": "STRONG",
+        "playlistIds": [
+          "p1",
+          "p2",
+          "p3"
+        ]
+      }
+    ],
+    "note": "Same regional-opt-out pattern as BBC One (see real-pl-bbc-one-regional-collapse). With only these 3 variants included it lands STRONG; the real playlist has 7+ BBC Two regional variants and that larger set crossed into CONFIRMED during the live diagnostic run, which is worth understanding before integration (does more corroborating volume alone increase confidence, or something else about that specific set of names)."
+  },
+  {
+    "id": "real-pl-sky-sports-main-event-fuzzy-only",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "gb_sky_sports_main_event",
+        "name": "Sky Sports Main Event",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "NOW: SKY SPORTS MAIN EVENT",
+        "groupTitle": "UK| NOW TV SPORT HD/RAW",
+        "epgChannelIds": [
+          "skysportsmainevent.uk"
+        ],
+        "rawNames": [
+          "NOW: SKY SPORTS MAIN EVENT RAW"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "NOW: SKY SPORTS MAIN EVENT UHD 3840P",
+        "groupTitle": "UK| NOW TV SPORT UHD 3840P",
+        "epgChannelIds": [],
+        "rawNames": [
+          "NOW: SKY SPORTS MAIN EVENT UHD 3840P"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_sky_sports_main_event",
+        "classification": "STRONG",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      }
+    ],
+    "note": "Isolates the \"NOW:\"-prefixed / UHD-suffixed slice of this real GB playlist (a differently-packaged simulcast, common on IPTV panels that also sell a NOW TV-branded tier). Neither variant equals the bare catalog name, so both land on structured_name_match only -> STRONG. The full playlist also carries an exact \"SKY SPORTS MAIN EVENT\" entry elsewhere (already representative of the existing exact-match gold cases), which pushes the real full-scale result to CONFIRMED -- this case exists to characterize the fuzzy-only path in isolation."
+  },
+  {
+    "id": "real-pl-tnt-sports-ultimate-uhd-suffix",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_ultimate",
+        "name": "TNT Sports Ultimate",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.Ultimate.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports Ultimate HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT SPORTS ULTIMATE 4K & 3840P",
+        "groupTitle": "UK| SPORT UHD",
+        "epgChannelIds": [],
+        "rawNames": [
+          "TNT SPORTS ULTIMATE 4K & 3840P"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_ultimate",
+        "classification": "STRONG",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Real GB entry, single corroborating match, no exact name/id hit due to the \"4K & 3840P\" suffix -- STRONG on structured_name_match+country+network alone. Minimal real example of the single-signal STRONG floor."
+  },
+  {
+    "id": "real-pl-trt-spor-gold-prefix",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "tr_trt_spor",
+        "name": "TRT Spor",
+        "country": "TR",
+        "broadcast_type": "LINEAR",
+        "network_name": "TRT",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_tr",
+            "source_channel_id": "TRT.SPOR.HD.tr"
+          },
+          {
+            "source_id": "epgshare01_tr",
+            "source_channel_id": "TRT.SPOR.tr"
+          }
+        ],
+        "source_names": [
+          "TRT SPOR",
+          "TRT SPOR HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "GOLD: TRT SPOR HD",
+        "groupTitle": "TR| SPOR KANALI GOLD",
+        "epgChannelIds": [],
+        "rawNames": [
+          "GOLD: TRT SPOR HD"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "GOLD: TRT SPOR",
+        "groupTitle": "TR| SPOR KANALI GOLD",
+        "epgChannelIds": [],
+        "rawNames": [
+          "GOLD: TRT SPOR"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "tr_trt_spor",
+        "classification": "STRONG",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      }
+    ],
+    "note": "Real TR entry inside a \"GOLD:\" package-tier prefix -- garbage provider prefix pushes this off exact_canonical_name onto structured_name_match, landing STRONG. Also: this playlist's \"Turkish Spor\" branding does not contain the literal English substring \"sport\", so this diagnostic script's own isSportLogical() keyword scan silently excluded TRT Spor from its sports-review section despite it obviously being a sports channel -- a limitation of the diagnostic script, not the resolver, worth fixing before relying on that section's counts."
+  },
+  {
+    "id": "real-pl-tv2-direkte-gold-and-vip-raw",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv2_direkte",
+        "name": "TV 2 Direkte",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_direkte"
+          }
+        ],
+        "source_names": [
+          "TV 2 Direkte",
+          "TV 2 Direkte HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "GOLD: TV 2 DIREKTE",
+        "groupTitle": "NO| NORWAY GOLD RAW",
+        "epgChannelIds": [],
+        "rawNames": [
+          "GOLD: TV 2 DIREKTE RAW"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "TV 2 DIREKTE RAW 50fps",
+        "groupTitle": "NO| NORWAY VIP",
+        "epgChannelIds": [
+          "tv2direkte.no"
+        ],
+        "rawNames": [
+          "NO: TV 2 DIREKTE VIP"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_direkte",
+        "classification": "STRONG",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      }
+    ],
+    "note": "Real NO entry; the \"GOLD:\" package prefix breaks the exact-name path for both duplicate-stream variants of this channel, landing STRONG rather than CONFIRMED despite one variant carrying a correct tvg-id."
+  },
+  {
+    "id": "real-pl-tv3-plus-dk-mislabeled-disney-ppv-category",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "dk_tv3_plus",
+        "name": "TV3+",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv3_plus"
+          }
+        ],
+        "source_names": [
+          "TV3+ HD (D)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV3+",
+        "groupTitle": "DK| DISNEY+ PPV",
+        "epgChannelIds": [
+          "tv3plus.no"
+        ],
+        "rawNames": [
+          "NO: TV3+ HD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_tv3_plus",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Real, bizarre provider miscategorization: this ordinary linear channel is filed under a group literally titled \"DISNEY+ PPV\" (garbage category, not a real PPV event) -- exact name still resolves it CONFIRMED. This diagnostic's own PPV-category heuristic correctly flags this resolution for human review (category says PPV, name says a normal linear channel) even though the classification itself is right -- confirms that heuristic is doing its job, and that category labels in this provider's data cannot be trusted at face value."
+  },
+  {
+    "id": "real-pl-viaplay-sport-news-dk-mislabeled-ppv-category",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "dk_viaplay_sport_news",
+        "name": "Viaplay Sport News",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_viaplay_sport_news"
+          }
+        ],
+        "source_names": [
+          "Viaplay Sport News"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "VIAPLAY SPORT NEWS",
+        "groupTitle": "DK| VIAPLAY PPV",
+        "epgChannelIds": [],
+        "rawNames": [
+          "DK: VIAPLAY SPORT NEWS HD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_viaplay_sport_news",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Same real mislabeled-category pattern as TV3+ (see real-pl-tv3-plus-dk-mislabeled-disney-ppv-category): a real linear channel filed under a \"VIAPLAY PPV\" group even though it is not a one-off pay-per-view stream. The same real playlist also has actual one-off PPV entries under this same group label (e.g. dated \"VIAPLAY SPORT NEWS <headline> | <date> | VIAPLAY PPV N\" event streams), so this category genuinely mixes real PPV events with ordinary linear channels -- category alone is not a safe signal for this provider."
+  },
+  {
+    "id": "real-pl-premier-sports-1-singular-nearmiss",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "uk_premier_sports_1",
+        "name": "Premier Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Premier Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "Premier.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "Premier Sports 1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "PREMIER SPORT 1",
+        "groupTitle": "UK| SPORT HD VIP",
+        "epgChannelIds": [
+          "PremierSports1.uk"
+        ],
+        "rawNames": [
+          "VIP: PREMIER SPORT 1 HD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_premier_sports_1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "DISCLOSED GAP, real playlist. Catalog canonical name is plural \"Premier Sports 1\"; this real provider's name is singular \"PREMIER SPORT 1\" -- fails both the plural-sensitive name match AND the external-id match, because the playlist tvg-id (\"PremierSports1.uk\") and the catalog's known external id (\"Premier.Sports.1.HD.uk\", a different EPG source's naming convention) don't share a common format either. A human would instantly recognize these as the same channel; the resolver currently does not. Worth a plural-tolerant name comparison and/or teaching the catalog this tvg-id as a known alias before integration."
+  },
+  {
+    "id": "real-pl-sky-sports-ultra-hd-1-wordorder-nearmiss",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "uk_sky_sports_ultra_hd_1",
+        "name": "Sky Sports Ultra HD 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "Sky.Sports.Ultra.HD.1.uk"
+          }
+        ],
+        "source_names": [
+          "Sky Sports Ultra HD 1"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "SKY SPORTS 1 UHD 3840P",
+        "groupTitle": "UK| SPORT RAW",
+        "epgChannelIds": [],
+        "rawNames": [
+          "UK: SKY SPORTS 1 UHD 3840P"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "NOW: SKY SPORTS 1 UHD 3840P",
+        "groupTitle": "UK| NOW TV SPORT UHD 3840P",
+        "epgChannelIds": [
+          "skysports1uhd.uk"
+        ],
+        "rawNames": [
+          "NOW: SKY SPORTS 1 UHD 3840P"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_sky_sports_ultra_hd_1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "DISCLOSED GAP, real playlist. Catalog says \"Sky Sports Ultra HD 1\" (brand, number, then quality); this real provider says \"SKY SPORTS 1 UHD\" (number then abbreviated quality) -- word-order plus full-word-vs-abbreviation mismatch defeats name matching entirely, and the provider's tvg-id (\"skysports1uhd.uk\") is not among the catalog's known external ids either. Both real playlist variants (plain and \"NOW:\"-prefixed) miss."
+  },
+  {
+    "id": "real-pl-v-sport-ultra-multi-suffix-nearmiss",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "se_vsport_ultra",
+        "name": "V Sport Ultra",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_vsport_ultra"
+          }
+        ],
+        "source_names": [
+          "V sport ultra HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V SPORT ULTRA SD *MULTI* 50fps",
+        "groupTitle": "SE| SWEDEN HD/RAW",
+        "epgChannelIds": [
+          "viasatsportultra.se"
+        ],
+        "rawNames": [
+          "SE: V SPORT ULTRA SD *MULTI* 50fps"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "V SPORT ULTRA UHD *MULTI-AUDIO",
+        "groupTitle": "SE| SWEDEN ULTRA RAW DOLBY AUDIO",
+        "epgChannelIds": [
+          "viasatsport.se"
+        ],
+        "rawNames": [
+          "SE: V SPORT ULTRA UHD *MULTI-AUDIO*"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_vsport_ultra",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "DISCLOSED GAP, real playlist. This provider ships several multi-audio/multi-subtitle variants of V Sport Ultra tagged \"*MULTI*\" / \"*MULTI-AUDIO*\". mergeChannels.ts's quality-tag vocabulary does not recognize that annotation as a stripped quality suffix (unlike HD/RAW/SD/UHD), so it stays baked into each merged channel's own name and defeats canonical-name matching, even though p1 correctly carries the matching tvg-id family (viasatsportultra.se). Root cause is upstream of the resolver, in merge normalization -- flagged for that layer, not fixed here per this task's shadow-only scope."
+  },
+  {
+    "id": "real-pl-v-sport-1-viaplay-rebrand-duplicate-nearmiss",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "se_vsport_1",
+        "name": "V Sport 1",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_vsport_1"
+          }
+        ],
+        "source_names": [
+          "V sport 1 HD (S)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "VIAPLAY SPORT 1",
+        "groupTitle": "SE| VIAPLAY RAW",
+        "epgChannelIds": [],
+        "rawNames": [
+          "SE: VIAPLAY SPORT 1 RAW"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_vsport_1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "DISCLOSED GAP, real playlist -- this is the concrete case behind the live diagnostic's OLD-vs-NEW section C disagreement (old matched \"Viaplay Sport 1\" to the \"Viaplay Sport\" broadcast name via loose word-overlap; new rejects it). This provider carries a SEPARATE, un-linked \"VIAPLAY SPORT 1\" entry (no tvg-id) alongside the catalog-matching \"V SPORT 1\" entry elsewhere in the same playlist -- almost certainly the same real channel under Viaplay's actual Nordic rebrand (V Sport -> Viaplay Sport), which the catalog does not yet know as an alias. Old's looser match was likely a true positive here, making this a genuine new false negative, not an old false positive. Recommend adding \"Viaplay Sport {N}\" as a known alias pattern for the V Sport family before integration."
+  },
+  {
+    "id": "real-pl-v-sport-live-1-dk-catalog-vs-no-tagged-playlist",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "dk_vsport_live_1",
+        "name": "V Sport Live 1",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_vsport_live_1"
+          }
+        ],
+        "source_names": [
+          "V sport live 1"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V SPORT LIVE 1",
+        "groupTitle": "NO| NORWAY HD/RAW",
+        "epgChannelIds": [
+          "vsportlive1.no"
+        ],
+        "rawNames": [
+          "NO: V SPORT LIVE 1"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_vsport_live_1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "CORRECT-BEHAVIOR regression, real playlist. This provider does not carry any DK-tagged \"V Sport Live\" bundle at all -- V Sport Live channels only appear grouped under NORWAY/SWEDEN. The resolver correctly refuses to match a Norway-tagged playlist entry to a Denmark catalog channel despite the identical name, rather than silently ignoring country scoping. Committed specifically to protect this behavior from regressing, not because it is a gap -- five of Denmark's V Sport Live catalog entries came back NONE in the live run for exactly this structural reason (a genuine provider/catalog country-tagging mismatch for a channel family that Nordic IPTV providers usually only bundle once, not per-market)."
+  },
+  {
+    "id": "real-pl-s-sport-numbered-vs-bare-uncertain",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "tr_s_sport",
+        "name": "S Sport",
+        "country": "TR",
+        "broadcast_type": "LINEAR",
+        "network_name": "S Sport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_tr",
+            "source_channel_id": "SSport.tr"
+          }
+        ],
+        "source_names": [
+          "SSport"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "S SPORT 1",
+        "groupTitle": "TR| SPOR KANALI VIP",
+        "epgChannelIds": [],
+        "rawNames": [
+          "TR VIP: S SPORT 1 HD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "tr_s_sport",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "UNCERTAIN, real playlist -- not confidently a bug. This provider never lists a bare \"S SPORT\" (only \"S SPORT 1\", \"S SPORT 2\", \"S SPORT+ N\", \"GOLD: S SPORT N\"), while the catalog's \"S Sport\" (no number) has no known alias/external-id overlap with any of them. Could be: (a) \"S Sport 1\" genuinely is the flagship channel under this provider's numbered convention and should map to tr_s_sport, or (b) tr_s_sport is a distinct, differently-branded channel this provider simply does not carry. Resolver's conservative NONE here is defensible either way; committed as a documented open question rather than a target to fix blindly."
+  },
+  {
+    "id": "real-pl-eurosport-1-norway-inserted-space-nearmiss",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "no_eurosport_1",
+        "name": "Eurosport 1 Norway",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "Eurosport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_eurosport_1"
+          }
+        ],
+        "source_names": [
+          "Eurosport 1",
+          "Eurosport 1 HD (N)",
+          "Eurosport 1 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "EURO SPORT 1",
+        "groupTitle": "NO| NORWAY HD/RAW",
+        "epgChannelIds": [
+          "eurosport1.no"
+        ],
+        "rawNames": [
+          "NO: EURO SPORT 1 HD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_eurosport_1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "DISCLOSED GAP, real playlist. This provider carries BOTH a spaced \"EURO SPORT 1\" and, elsewhere in the same playlist, an unspaced \"EUROSPORT 1\" for what both look like the same NO Eurosport 1 feed -- the unspaced one matches fine via exact_source_name, but this spaced variant does not match at all despite carrying the correct tvg-id (eurosport1.no). Contrast with real-pl-tv3-plus-no-duplicate-spacing below, where an equivalent inserted-space variant of TV3+ DOES match -- so the resolver's tolerance for inserted spaces is inconsistent across channels/paths, not simply absent."
+  },
+  {
+    "id": "real-pl-tv3-plus-no-duplicate-spacing",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv3_plus",
+        "name": "TV3+",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3_plus"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3_plus"
+          }
+        ],
+        "source_names": [
+          "TV3+",
+          "TV3+ HD (N)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV 3 +",
+        "groupTitle": "NO| NORWAY HD/RAW",
+        "epgChannelIds": [
+          "tv3plus.no"
+        ],
+        "rawNames": [
+          "NO: TV 3 +"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "TV3+",
+        "groupTitle": "NO| NORWAY VIP",
+        "epgChannelIds": [
+          "tv3plus.no"
+        ],
+        "rawNames": [
+          "NO: TV3+ HD VIP"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv3_plus",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      }
+    ],
+    "note": "Real duplicate-stream pair: this provider lists this channel twice under different bundles (\"NO| NORWAY\" and \"NO| NORWAY VIP\") with slightly different punctuation/spacing (\"TV 3 +\" vs \"TV3+\"), same tvg-id on both. Both resolve CONFIRMED via exact_canonical_name -- the resolver does normalize this particular spacing/punctuation difference away. Contrast with real-pl-eurosport-1-norway-inserted-space-nearmiss above, where an equivalent inserted space does NOT get normalized away, for a different channel."
+  },
+  {
+    "id": "real-pl-tv2-sport-1-no-clean-confirm",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv2_sport_1",
+        "name": "TV 2 Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_1"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport 1",
+          "TV 2 Sport 1 HD",
+          "TV 2 Sport 1 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV2 SPORT 1",
+        "groupTitle": "NO| NORWAY HD/RAW",
+        "epgChannelIds": [
+          "tv2sport1.no"
+        ],
+        "rawNames": [
+          "NO: TV2 SPORT 1 HD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_sport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Clean real NO confirm (name+country+network+channel-number all agree) -- included mainly to broaden the real-playlist-sanitized set's country coverage, which otherwise skews UK-heavy."
+  },
+  {
+    "id": "real-pl-sky-sports-premier-league-uk-messy-vs-de-samebrand",
+    "provenance": "real-playlist-sanitized",
+    "catalog": [
+      {
+        "id": "gb_sky_sports_premier_league",
+        "name": "Sky Sports Premier League",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "NOW: SKY SPORTS PREMIER LEAGUE",
+        "groupTitle": "UK| NOW TV SPORT HD/RAW",
+        "epgChannelIds": [
+          "skysportspremiereleague.uk"
+        ],
+        "rawNames": [
+          "NOW: SKY SPORTS PREMIER LEAGUE HD"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "SKY SPORTS PREMIER LEAGUE (BK2)",
+        "groupTitle": "UK| SPORT SD VIP",
+        "epgChannelIds": [
+          "SkySportsPremiereLeague.uk"
+        ],
+        "rawNames": [
+          "VIP: SKY SPORTS PREMIER LEAGUE (BK2) SD HEVC"
+        ]
+      },
+      {
+        "id": "p3",
+        "name": "Sky Sport Premier League",
+        "groupTitle": "DE| SKY HEVC",
+        "epgChannelIds": [],
+        "rawNames": [
+          "DE: Sky Sport Premier League HEVC"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_sky_sports_premier_league",
+        "classification": "STRONG",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      }
+    ],
+    "note": "SAME-BRAND-DIFFERENT-COUNTRY negative control, real playlist. This provider also sells a German \"Sky Sport Premier League\" simulcast (Sky operates in DE too) -- confirms country scoping correctly excludes it (p3 gets no match at all) even though the name is nearly identical to the GB catalog entry. The two real GB variants (\"NOW:\"-prefixed and a \"(BK2)\"-suffixed VIP tier) both land STRONG via structured_name_match, neither hitting the bare exact catalog name."
   }
 ]
