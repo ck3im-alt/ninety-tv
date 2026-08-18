@@ -10,12 +10,14 @@ import type { MatchGroup, SourceOption } from './groupChannelMatches'
 import type { SportEvent } from '../../data/sports/types'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials } from '../../data/xtream/types'
+import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
 import './EventDetailsScreen.css'
 
 interface Props {
   event: SportEvent
   channels: Channel[]
   xtreamCreds: XtreamCredentials | null
+  identityIndex: ChannelIdentityIndex | null
   onWatch: (channel: Channel, source: ChannelSource) => void
   onBack: () => void
   onBrowseChannels: () => void
@@ -32,7 +34,7 @@ type MatchState =
   // between.
   | { status: 'not-found'; apiStations: BroadcastStationInfo[] }
 
-export function EventDetailsScreen({ event, channels, xtreamCreds, onWatch, onBack, onBrowseChannels }: Props) {
+export function EventDetailsScreen({ event, channels, xtreamCreds, identityIndex, onWatch, onBack, onBrowseChannels }: Props) {
   const [state, setState] = useState<MatchState>({ status: 'loading' })
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function EventDetailsScreen({ event, channels, xtreamCreds, onWatch, onBa
     let cancelled = false
     const controller = new AbortController()
     setState({ status: 'loading' })
-    matchChannelsForEvent(event, channels, xtreamCreds, { allowNetworkFallback: true, signal: controller.signal })
+    matchChannelsForEvent(event, channels, xtreamCreds, identityIndex, { allowNetworkFallback: true, signal: controller.signal })
       .then(({ matches, apiStations }) => {
         if (cancelled) return
         setState(matches.length > 0 ? { status: 'ready', matches, apiStations } : { status: 'not-found', apiStations })
@@ -58,7 +60,7 @@ export function EventDetailsScreen({ event, channels, xtreamCreds, onWatch, onBa
       cancelled = true
       controller.abort()
     }
-  }, [event, channels, xtreamCreds])
+  }, [event, channels, xtreamCreds, identityIndex])
 
   useBackHandler(() => {
     onBack()

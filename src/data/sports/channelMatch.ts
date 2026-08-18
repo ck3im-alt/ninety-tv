@@ -28,8 +28,9 @@ import {
   STALE_STATUS_WORDS,
   extractCandidateDates,
   isPlausibleEventDate,
-  normalizeCountryKey,
 } from './channelMatchCore'
+import type { ChannelIdentityIndex } from './channelIdentityIndex'
+import type { IdentityClassification } from './channelIdentityResolver'
 import type { Channel } from '../channel'
 import type { XtreamCredentials } from '../xtream/types'
 import type { SportEvent } from './types'
@@ -45,21 +46,43 @@ export interface ChannelMatch {
   channel: Channel
   source: 'ninety' | 'broadcasterMap' | 'ppvName' | 'epg'
   // The real broadcaster/programme name that produced this match, shown
-  // in the UI so the pick isn't a black box (e.g. "via TV 2 Sport").
+  // in the UI so the pick isn't a black box (e.g. "via TV 2 Sport"). For a
+  // 'ninety' match this is always ninety-api's own canonical broadcast
+  // name (event.broadcasts[].name), never the matched playlist channel's
+  // own (possibly differently-spelled) name.
   label: string
-  // True only for a ninety-api match where the channel name's meaningful
-  // words are exactly the reported broadcast channel's (e.g. "ARENA SPORT
-  // PREMIUM 1" channel for a reported "Arena Sport Premium 1" station) —
-  // as opposed to a looser word-overlap or EPG-programme-title guess. Lets
-  // the UI tell the user which picks are a confirmed identity match versus
-  // a best-effort one, rather than presenting every match with equal
-  // confidence.
+  // True only when the match is a genuinely exact identity/name match —
+  // a 'ninety' match with identityClassification 'CONFIRMED' (an
+  // exact-grade resolver signal: unique external id, or an exact
+  // canonical/alias/source-name match), or the pre-existing
+  // namesExactMatch-based check for broadcasterMap matches. A 'ninety'
+  // match classified STRONG is a real, automatically-watchable match but
+  // NOT exact (structured/fuzzy overlap got it there) — never mark it
+  // true just because it was accepted; see the resolver-integration task's
+  // explicit warning against that.
   isExactMatch: boolean
+  // Only present for source: 'ninety' — which Channel Identity Resolver v2
+  // tier produced this match. AMBIGUOUS/NONE never reach here at all (see
+  // channelIdentityIndex.ts's getPlaylistChannels), so this field is only
+  // ever 'CONFIRMED' or 'STRONG' when present.
+  identityClassification?: Extract<IdentityClassification, 'CONFIRMED' | 'STRONG'>
 }
 
 export interface BroadcastStationInfo {
   name: string
   country: string | null
+  // Present only when a ChannelIdentityIndex was available to evaluate
+  // this broadcast's logical channel against the user's playlist.
+  // AMBIGUOUS/NONE never produce a ChannelMatch (see Part 9/10 of the
+  // resolver-integration task — no silent namesOverlap fallback, and
+  // AMBIGUOUS is never auto-watchable), but this keeps the diagnostic
+  // classification around rather than throwing it away, so a future Event
+  // Details phase can say e.g. "Ninety knows this is on TNT Sports 1, but
+  // your playlist channel couldn't be confirmed" instead of nothing at all.
+  identityClassification?: IdentityClassification
+  // Playlist channel names behind an AMBIGUOUS classification specifically
+  // — diagnostic only, never used to auto-select a stream.
+  ambiguousPlaylistChannelNames?: string[]
 }
 
 export interface MatchResult {
@@ -76,47 +99,58 @@ export interface MatchResult {
   apiStations: BroadcastStationInfo[]
 }
 
-function matchViaNinetyApi(event: SportEvent, channels: Channel[]): { matches: ChannelMatch[]; apiHasData: boolean; apiStations: BroadcastStationInfo[] } {
+// event.broadcast.logicalChannelId -> precomputed ChannelIdentityIndex ->
+// user's playlist Channel[] — replaces the old event.broadcast.name ->
+// namesOverlap() scan across every playlist channel. The index is built
+// ONCE per (catalog version, playlist) pair (see useChannelIdentityIndex.ts)
+// and reused across every event; this function does no scoring of its own,
+// only looks up already-computed resolutions.
+//
+// Only CONFIRMED/STRONG resolutions become a ChannelMatch (via
+// ChannelIdentityIndex.getPlaylistChannels — see its own doc comment).
+// AMBIGUOUS is deliberately never auto-watchable, and NONE means "Ninety
+// knows this logical channel but couldn't confirm it in this playlist" —
+// neither falls back to the old namesOverlap(broadcast.name, channel.name)
+// scan, which would reintroduce the false-positive class this resolver
+// exists to eliminate. `identityIndex` is null when no catalog was
+// available at all this session (see useChannelIdentityIndex.ts) — in that
+// case the Ninety stage simply contributes nothing, but apiHasData/
+// apiStations are still reported from the event's own broadcasts, and
+// broadcasterMap/PPV/EPG stages are entirely unaffected.
+function matchViaNinetyApi(event: SportEvent, identityIndex: ChannelIdentityIndex | null): { matches: ChannelMatch[]; apiHasData: boolean; apiStations: BroadcastStationInfo[] } {
   const broadcasts = event.broadcasts ?? []
   if (broadcasts.length === 0) return { matches: [], apiHasData: false, apiStations: [] }
 
-  // Grouped by country so a channel tagged e.g. "Norway" in the playlist
-  // is only checked against broadcasts ninety-api reports for Norway, not
-  // every channel worldwide airing this fixture — a Kazakh or Bosnian
-  // station sharing a generic word with an unrelated Norwegian channel was
-  // a real source of false positives with the old Sportmonks integration.
-  // A channel whose country couldn't be parsed from its category (no
-  // leading country prefix) still falls back to checking against every
-  // broadcast, since there's nothing to scope it by.
-  const broadcastsByCountry = new Map<string, string[]>()
-  const allBroadcastNames = new Set<string>()
-  for (const b of broadcasts) {
-    allBroadcastNames.add(b.name)
-    if (b.country) {
-      // ninety-api reports a short country code ("GB"), while
-      // `channelCountry` below comes from parseCategory/matchLeadingCountry,
-      // which normalizes playlist group-title prefixes to the full country
-      // NAME ("United Kingdom") — bucketing by the raw code here meant a
-      // real "TNT Sports 1" channel under a "UK|"/"GB -" group title could
-      // never be found, since "GB" was never a key the channel-side lookup
-      // (which looks up by name) would ever produce. Normalize through the
-      // same COUNTRY_NAMES map so both sides key off the same string.
-      const key = normalizeCountryKey(b.country)
-      const list = broadcastsByCountry.get(key) ?? []
-      list.push(b.name)
-      broadcastsByCountry.set(key, list)
-    }
-  }
-
   const matches: ChannelMatch[] = []
-  for (const channel of channels) {
-    const channelCountry = parseCategory(channel.groupTitle ?? '').countryName
-    const candidates = channelCountry ? (broadcastsByCountry.get(channelCountry.toUpperCase()) ?? []) : [...allBroadcastNames]
-    const hit = candidates.find((name) => namesOverlap(name, channel.name))
-    if (hit) matches.push({ channel, source: 'ninety', label: hit, isExactMatch: namesExactMatch(hit, channel.name) })
-  }
+  const apiStations: BroadcastStationInfo[] = broadcasts.map((b) => {
+    if (!identityIndex) return { name: b.name, country: b.country }
 
-  const apiStations = broadcasts.map((b) => ({ name: b.name, country: b.country }))
+    const resolution = identityIndex.getResolution(b.logicalChannelId)
+    const classification = resolution?.classification
+    const ambiguousPlaylistChannelNames =
+      classification === 'AMBIGUOUS' ? resolution!.matches.map((m) => m.channel.name) : undefined
+
+    if (classification === 'CONFIRMED' || classification === 'STRONG') {
+      for (const channel of identityIndex.getPlaylistChannels(b.logicalChannelId)) {
+        matches.push({
+          channel,
+          source: 'ninety',
+          // Canonical broadcast name as the UI label — never the matched
+          // playlist channel's own (possibly differently-spelled) name.
+          label: b.name,
+          // A STRONG result cleared the auto-match bar via structured/fuzzy
+          // signals, not an exact identity match — only CONFIRMED (an
+          // exact-grade signal: unique external id, or exact
+          // canonical/alias/source-name) may claim isExactMatch.
+          isExactMatch: classification === 'CONFIRMED',
+          identityClassification: classification,
+        })
+      }
+    }
+
+    return { name: b.name, country: b.country, identityClassification: classification, ambiguousPlaylistChannelNames }
+  })
+
   return { matches, apiHasData: true, apiStations }
 }
 
@@ -362,10 +396,17 @@ export async function matchChannelsForEvent(
   event: SportEvent,
   channels: Channel[],
   xtreamCreds: XtreamCredentials | null,
+  // Precomputed once per (catalog version, playlist) pair by
+  // useChannelIdentityIndex.ts and reused across every event — never build
+  // one of these per call. null means no channel catalog was available
+  // this session (first run, offline, ninety-api down with no cache); the
+  // Ninety stage then contributes nothing, but every other stage
+  // (broadcasterMap/PPV/EPG) is unaffected.
+  identityIndex: ChannelIdentityIndex | null,
   options: MatchChannelsOptions = {},
 ): Promise<MatchResult> {
   const { allowNetworkFallback = false, signal } = options
-  const { matches: ninetyMatches, apiHasData, apiStations } = matchViaNinetyApi(event, channels)
+  const { matches: ninetyMatches, apiHasData, apiStations } = matchViaNinetyApi(event, identityIndex)
   const broadcasterMapMatches = matchViaBroadcasterMap(event, channels)
   const ppvNameMatches = matchViaPpvChannelName(event, channels)
 

@@ -11,6 +11,7 @@ import type { SportPreferences } from '../preferences'
 import type { LeagueDef } from './leagues'
 import type { Channel } from '../channel'
 import type { XtreamCredentials } from '../xtream/types'
+import type { ChannelIdentityIndex } from './channelIdentityIndex'
 
 export interface HomeFeed {
   hero: SportEvent | null
@@ -31,7 +32,12 @@ export type HomeFeedState =
   | { status: 'partial'; feed: HomeFeed; message: string }
   | { status: 'ready'; feed: HomeFeed }
 
-export function useHomeFeed(preferences: SportPreferences, channels: Channel[], xtreamCreds: XtreamCredentials | null): HomeFeedState {
+export function useHomeFeed(
+  preferences: SportPreferences,
+  channels: Channel[],
+  xtreamCreds: XtreamCredentials | null,
+  identityIndex: ChannelIdentityIndex | null,
+): HomeFeedState {
   const [state, setState] = useState<HomeFeedState>({ status: 'loading', feed: EMPTY_FEED })
   // Stable key so the effect only refires when the actual selection
   // changes, not on every render (preferences is a fresh object each time
@@ -129,7 +135,7 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
             liveNowCandidates.map(async (ev): Promise<SportEvent | null> => {
               if (ev.sportKey !== 'football') return ev
               try {
-                const { matches } = await matchChannelsForEvent(ev, channels, xtreamCreds)
+                const { matches } = await matchChannelsForEvent(ev, channels, xtreamCreds, identityIndex)
                 return matches.length > 0 ? ev : null
               } catch {
                 return null
@@ -171,7 +177,7 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
     return () => {
       cancelled = true
     }
-  }, [prefsKey, channels, xtreamCreds])
+  }, [prefsKey, channels, xtreamCreds, identityIndex])
 
   return state
 }

@@ -7,6 +7,7 @@ import { useFavoriteChannelsNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { FavoriteChannelNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials } from '../../data/xtream/types'
+import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
 import { ArrowRightIcon, FootballIcon, FormulaOneIcon } from '../onboarding/sportIcons'
 import './HomeScreen.css'
 
@@ -291,12 +292,14 @@ export function HomeScreen({
   onWatchChannel,
   channels,
   xtreamCreds,
+  identityIndex,
   favoriteChannels,
 }: {
   onSelectEvent: (event: SportEvent) => void
   onWatchChannel: (channel: Channel, source: ChannelSource) => void
   channels: Channel[]
   xtreamCreds: XtreamCredentials | null
+  identityIndex: ChannelIdentityIndex | null
   favoriteChannels: Channel[]
 }) {
   const { ref, focusKey } = useFocusable({ focusKey: 'home-screen', trackChildren: true })
@@ -305,7 +308,7 @@ export function HomeScreen({
   // no need to subscribe to storage changes here. channels/xtreamCreds are
   // needed now too — Live Now filters out football matches with no
   // findable channel in the playlist (see useHomeFeed.ts).
-  const feedState = useHomeFeed(loadPreferences(), channels, xtreamCreds)
+  const feedState = useHomeFeed(loadPreferences(), channels, xtreamCreds, identityIndex)
   const { feed } = feedState
   const favoriteChannelsNowPlaying = useFavoriteChannelsNowPlaying(favoriteChannels, xtreamCreds)
 

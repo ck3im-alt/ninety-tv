@@ -10,9 +10,11 @@ import {
 } from './channelMatchCore'
 import { foldForMatching } from '../fancyUnicode'
 import { matchChannelsForEvent } from './channelMatch'
+import { ChannelIdentityIndex } from './channelIdentityIndex'
 import type { SportEvent } from './types'
 import type { Channel } from '../channel'
 import type { XtreamCredentials } from '../xtream/types'
+import type { NinetyLogicalChannel } from './ninetyApiClient'
 
 const getShortEpgMock = vi.fn()
 vi.mock('../xtream/xtreamClient', () => ({ getShortEpg: (...args: unknown[]) => getShortEpgMock(...args) }))
@@ -50,14 +52,14 @@ function ppvChannel(): Channel {
 
 describe('matchChannelsForEvent network fallback gating', () => {
   it('does not hit the EPG network fallback by default (home/live-row usage)', async () => {
-    const result = await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS)
+    const result = await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS, null)
     expect(result.matches).toEqual([])
     expect(getShortEpgMock).not.toHaveBeenCalled()
   })
 
   it('only hits the EPG network fallback when explicitly allowed (Event Details usage)', async () => {
     getShortEpgMock.mockResolvedValue([])
-    await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS, { allowNetworkFallback: true })
+    await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS, null, { allowNetworkFallback: true })
     expect(getShortEpgMock).toHaveBeenCalled()
   })
 
@@ -93,7 +95,7 @@ describe('matchChannelsForEvent network fallback gating', () => {
       return []
     })
 
-    await matchChannelsForEvent(unmatchedEvent(), [...normalChannels, widenedOnlyChannel], CREDS, {
+    await matchChannelsForEvent(unmatchedEvent(), [...normalChannels, widenedOnlyChannel], CREDS, null, {
       allowNetworkFallback: true,
     })
 
@@ -258,5 +260,244 @@ describe('normalizeCountryKey (UK/GB country normalization)', () => {
 
   it('falls back to the raw (uppercased) value for an unrecognized code', () => {
     expect(normalizeCountryKey('zz')).toBe('ZZ')
+  })
+})
+
+// ---------------------------------------------------------------------
+// Channel Identity Resolver v2 integration (resolver-integration task,
+// Part 12) — matchViaNinetyApi now looks up a precomputed
+// ChannelIdentityIndex by event.broadcast.logicalChannelId instead of
+// scanning every playlist channel with namesOverlap(broadcast.name,
+// channel.name). Every index below is built directly via the real
+// ChannelIdentityIndex/resolveChannelIdentities — no mocking of the
+// resolver itself, so these tests exercise the actual scoring/
+// classification logic, not a stand-in for it.
+// ---------------------------------------------------------------------
+
+function logicalChannel(overrides: Partial<NinetyLogicalChannel> & Pick<NinetyLogicalChannel, 'id' | 'name'>): NinetyLogicalChannel {
+  return {
+    country: null,
+    broadcast_type: 'LINEAR',
+    network_name: null,
+    channel_number: null,
+    channel_variant: null,
+    aliases: [],
+    external_ids: [],
+    source_names: [],
+    ...overrides,
+  }
+}
+
+function testChannel(overrides: Partial<Channel> & Pick<Channel, 'id' | 'name'>): Channel {
+  return {
+    sources: [{ label: 'Default', url: 'http://example.invalid/stream' }],
+    ...overrides,
+  }
+}
+
+function buildIndex(catalog: NinetyLogicalChannel[], playlist: Channel[]): ChannelIdentityIndex {
+  return new ChannelIdentityIndex('test-version', catalog, playlist)
+}
+
+function eventWithBroadcasts(broadcasts: SportEvent['broadcasts'], overrides: Partial<SportEvent> = {}): SportEvent {
+  return { ...unmatchedEvent(), homeTeam: undefined, awayTeam: undefined, broadcasts, ...overrides }
+}
+
+describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
+  it('resolves a CONFIRMED logical channel to its playlist channel, labeled with the canonical broadcast name', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', network_name: 'TNT Sports' })]
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches).toHaveLength(1)
+    expect(result.matches[0]).toMatchObject({ channel: playlist[0], source: 'ninety', label: 'TNT Sports 1', isExactMatch: true, identityClassification: 'CONFIRMED' })
+  })
+
+  it('resolves a STRONG logical channel as watchable, but never marks it isExactMatch', async () => {
+    const catalog = [logicalChannel({ id: 'gb_sky_sports_main_event', name: 'Sky Sports Main Event', country: 'GB', network_name: 'Sky' })]
+    const playlist = [testChannel({ id: 'p1', name: 'NOW: SKY SPORTS MAIN EVENT', groupTitle: 'UK| NOW TV SPORT' })]
+    const index = buildIndex(catalog, playlist)
+    expect(index.getResolution('gb_sky_sports_main_event')?.classification).toBe('STRONG') // sanity-check the fixture itself
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_sky_sports_main_event', name: 'Sky Sports Main Event', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches).toHaveLength(1)
+    expect(result.matches[0]).toMatchObject({ channel: playlist[0], source: 'ninety', identityClassification: 'STRONG', isExactMatch: false })
+  })
+
+  it('does not fall back to namesOverlap when the identity resolver says NONE, even though the old text match would have hit', async () => {
+    // p1's external id deterministically identifies it as TNT Sports 2 (a
+    // DIFFERENT logical channel) even though its visible NAME says "TNT
+    // Sports 1" -- namesOverlap('TNT Sports 1', 'TNT SPORTS 1') is true, so
+    // the old matcher would have matched it; the resolver correctly rejects
+    // it for gb_tnt_sports_1 (an id-vs-name contradiction against a
+    // DIFFERENT channel is a hard reject here, not just a low score).
+    expect(namesOverlap('TNT Sports 1', 'TNT SPORTS 1')).toBe(true)
+    const catalog = [
+      logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' }),
+      logicalChannel({ id: 'gb_tnt_sports_2', name: 'TNT Sports 2', country: 'GB', external_ids: [{ source_id: 'epgshare01_uk', source_channel_id: 'tnt2.uk' }] }),
+    ]
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT', epgChannelIds: ['tnt2.uk'], hasEpgChannelId: true })]
+    const index = buildIndex(catalog, playlist)
+    expect(index.getResolution('gb_tnt_sports_1')?.classification).toBe('NONE') // sanity-check the fixture
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches).toEqual([])
+    expect(result.apiHasData).toBe(true)
+  })
+
+  it('never surfaces an AMBIGUOUS resolution as a watchable match', async () => {
+    const catalog = [
+      logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' }),
+      logicalChannel({ id: 'gb_tnt_sports_2', name: 'TNT Sports 2', country: 'GB', external_ids: [{ source_id: 'epgshare01_uk', source_channel_id: 'tnt2.uk' }] }),
+    ]
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT', epgChannelIds: ['tnt2.uk'], hasEpgChannelId: true })]
+    const index = buildIndex(catalog, playlist)
+    expect(index.getResolution('gb_tnt_sports_2')?.classification).toBe('AMBIGUOUS') // sanity-check the fixture
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_2', name: 'TNT Sports 2', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches).toEqual([])
+    // Diagnostic info is retained (Part 10), not thrown away.
+    expect(result.apiStations[0]).toMatchObject({ identityClassification: 'AMBIGUOUS', ambiguousPlaylistChannelNames: ['TNT SPORTS 1'] })
+  })
+
+  it('keeps every legitimate playlist duplicate for one logical channel (regional/quality variants)', async () => {
+    const catalog = [logicalChannel({ id: 'gb_bbc_one', name: 'BBC One', country: 'GB', network_name: 'BBC' })]
+    const playlist = [
+      testChannel({ id: 'p1', name: 'BBC ONE HD', groupTitle: 'UK| GENERAL HD' }),
+      testChannel({ id: 'p2', name: 'BBC ONE RAW', groupTitle: 'UK| GENERAL RAW' }),
+    ]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_bbc_one', name: 'BBC One', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches.map((m) => m.channel.id).sort()).toEqual(['p1', 'p2'])
+    expect(result.matches.every((m) => m.source === 'ninety' && m.identityClassification === 'CONFIRMED')).toBe(true)
+  })
+
+  it('never lets the same playlist channel surface under two different logical broadcasts', async () => {
+    // Both logical channels independently clear the auto-match bar for the
+    // SAME playlist channel p1, with a decisive score gap -- the resolver's
+    // Part 6 reverse-collision guard demotes the loser to AMBIGUOUS rather
+    // than letting both claim it.
+    const catalog = [
+      logicalChannel({ id: 'gb_sky_sports_1', name: 'Sky Sports 1', country: 'GB', network_name: 'Sky' }),
+      logicalChannel({ id: 'gb_sky_sports_1_dup', name: 'Sky Sports Extra Feed', country: null, aliases: ['Sky Sports 1'] }),
+    ]
+    const playlist = [testChannel({ id: 'p1', name: 'SKY SPORTS 1', groupTitle: 'UK| SPORT' })]
+    const index = buildIndex(catalog, playlist)
+    expect(index.getResolution('gb_sky_sports_1')?.classification).toBe('CONFIRMED') // sanity-check the fixture
+    expect(index.getResolution('gb_sky_sports_1_dup')?.classification).toBe('AMBIGUOUS')
+    const event = eventWithBroadcasts([
+      { logicalChannelId: 'gb_sky_sports_1', name: 'Sky Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' },
+      { logicalChannelId: 'gb_sky_sports_1_dup', name: 'Sky Sports Extra Feed', country: null, confidence: 1, classification: 'CONFIRMED' },
+    ])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches).toHaveLength(1)
+    expect(result.matches[0]).toMatchObject({ channel: playlist[0], identityClassification: 'CONFIRMED' })
+  })
+
+  it('reports apiHasData=true and the full apiStations list even when the reported broadcaster is not found in the playlist', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
+    const playlist: Channel[] = [] // nothing in the playlist at all
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches).toEqual([])
+    expect(result.apiHasData).toBe(true)
+    expect(result.apiStations).toEqual([{ name: 'TNT Sports 1', country: 'GB', identityClassification: 'NONE', ambiguousPlaylistChannelNames: undefined }])
+  })
+
+  it('reports one apiStations entry per broadcast regardless of match outcome', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([
+      { logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' },
+      { logicalChannelId: 'unknown_logical_channel', name: 'Some Other Station', country: 'FR', confidence: 1, classification: 'CONFIRMED' },
+    ])
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.apiStations.map((s) => s.name)).toEqual(['TNT Sports 1', 'Some Other Station'])
+    expect(result.apiStations.map((s) => s.country)).toEqual(['GB', 'FR'])
+  })
+
+  it('combines a Ninety identity match with a PPV-name match for a different channel', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
+    const linear = testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })
+    const ppv = testChannel({ id: 'p2', name: 'LIVE | Home vs Away | Mon 18 Aug', groupTitle: 'PPV' })
+    const playlist = [linear, ppv]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts(
+      [{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }],
+      { homeTeam: 'Home', awayTeam: 'Away' },
+    )
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches.map((m) => ({ id: m.channel.id, source: m.source })).sort((a, b) => a.id.localeCompare(b.id))).toEqual([
+      { id: 'p1', source: 'ninety' },
+      { id: 'p2', source: 'ppvName' },
+    ])
+  })
+
+  it('combines a Ninety identity match with a broadcasterMap match for a different channel', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
+    const linear = testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })
+    const f1 = testChannel({ id: 'p3', name: 'SKY SPORTS F1 HD', groupTitle: 'UK| SPORT' })
+    const playlist = [linear, f1]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }], {
+      sportKey: 'f1',
+      leagueId: 'f1-generic',
+    })
+
+    const result = await matchChannelsForEvent(event, playlist, null, index)
+
+    expect(result.matches.map((m) => ({ id: m.channel.id, source: m.source })).sort((a, b) => a.id.localeCompare(b.id))).toEqual([
+      { id: 'p1', source: 'ninety' },
+      { id: 'p3', source: 'broadcasterMap' },
+    ])
+  })
+
+  it('never calls the EPG fallback when the Ninety identity stage already found a free match', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }], {
+      homeTeam: 'Home',
+      awayTeam: 'Away',
+    })
+
+    const result = await matchChannelsForEvent(event, playlist, CREDS, index, { allowNetworkFallback: true })
+
+    expect(result.matches).toHaveLength(1)
+    expect(result.matches[0].source).toBe('ninety')
+    expect(getShortEpgMock).not.toHaveBeenCalled()
+  })
+
+  it('degrades gracefully with a null identityIndex — no crash, no Ninety matches, apiHasData still reflects the event', async () => {
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, null, null)
+
+    expect(result.matches).toEqual([])
+    expect(result.apiHasData).toBe(true)
+    expect(result.apiStations).toEqual([{ name: 'TNT Sports 1', country: 'GB' }])
   })
 })

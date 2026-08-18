@@ -117,11 +117,38 @@ function expandPlusMarker(text: string): string {
   return text.replace(/\+/g, ' PLUS ')
 }
 
+// Channel Identity Resolver v2's real-playlist validation (30,925 playlist
+// channels x ~115 catalog logical channels) surfaced that this function is
+// the hot path: namesOverlap/namesExactMatch both retokenize their inputs
+// from scratch on every call, and the same catalog name / playlist channel
+// name gets compared against thousands of counterparts, so the identical
+// string is re-tokenized over and over. meaningfulWords/exactWords are pure
+// (same input always produces the same output), so memoizing them is a
+// behavior-preserving speedup, not a semantic change — verified via the
+// gold dataset (npm run evaluate:channel-identity) staying byte-identical
+// before/after. Capped defensively so a pathological caller (or a very
+// long-lived session) can't grow this unboundedly on a memory-constrained
+// Tizen device; a real playlist's distinct name strings number in the tens
+// of thousands, well under the cap in normal use.
+const TOKENIZE_CACHE_LIMIT = 100_000
+
+function memoize(fn: (text: string) => string[]): (text: string) => string[] {
+  const cache = new Map<string, string[]>()
+  return (text: string) => {
+    const cached = cache.get(text)
+    if (cached) return cached
+    if (cache.size >= TOKENIZE_CACHE_LIMIT) cache.clear()
+    const result = fn(text)
+    cache.set(text, result)
+    return result
+  }
+}
+
 // Exported for channelIdentityResolver.ts — same tokenization (generic-word
 // stripping, TV+digit brand merging, "+" -> PLUS expansion) that encodes
 // this file's real-world regression knowledge, reused rather than
 // reimplemented so the resolver doesn't drift from namesOverlap's behavior.
-export function meaningfulWords(text: string): string[] {
+export const meaningfulWords = memoize((text: string): string[] => {
   const words = mergeTvBrandTokens(
     expandPlusMarker(foldForMatching(text))
       .replace(/[^A-Z0-9 ]+/g, ' ')
@@ -132,7 +159,7 @@ export function meaningfulWords(text: string): string[] {
   // often a real, meaningful channel number ("Arena Sport 1") and must
   // survive for the numeric gate above to have anything to check.
   return words.filter((w) => (w.length >= 2 || /^\d$/.test(w)) && !GENERIC_CHANNEL_WORDS.has(w))
-}
+})
 
 // Broadcaster and channel names are rarely identical strings — a station
 // like "TV3 Sport HD" might appear in a playlist as "SE: TV3 Sport 1", so
@@ -229,13 +256,13 @@ export function namesOverlap(stationName: string, channelName: string): boolean 
 // as the same station as "Arena Sport Premium 1".
 export const QUALITY_TAGS = new Set(['HD', 'FHD', 'UHD', 'SD'])
 
-function exactWords(text: string): string[] {
+const exactWords = memoize((text: string): string[] => {
   return mergeTvBrandTokens(
     expandPlusMarker(foldForMatching(text))
       .replace(/[^A-Z0-9 ]+/g, ' ')
       .split(' '),
   ).filter((w) => w.length > 0 && !QUALITY_TAGS.has(w))
-}
+})
 
 // A much stricter check than namesOverlap, used only to flag a match as
 // "exact" in the UI (see ChannelMatch.isExactMatch). namesOverlap ignores

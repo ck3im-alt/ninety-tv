@@ -28,6 +28,7 @@ import { ChannelPlayerScreen } from './features/player/ChannelPlayerScreen'
 import { EventDetailsScreen } from './features/eventDetails/EventDetailsScreen'
 import { CompetitionsScreen } from './features/competitions/CompetitionsScreen'
 import { parseCategory } from './features/channels/parseCategory'
+import { useChannelIdentityIndex } from './data/sports/useChannelIdentityIndex'
 import type { Channel } from './data/channel'
 import type { PlaylistSourceRecord } from './data/session'
 import type { SportEvent } from './data/sports/types'
@@ -101,6 +102,14 @@ function App() {
   // Derived from playlistSource rather than its own state so the two can
   // never drift apart.
   const xtreamCreds = useMemo(() => xtreamCredsFromSource(playlistSource), [playlistSource])
+  // Channel Identity Resolver v2's runtime index — built once per (catalog
+  // version, playlist) pair and reused by every event's Ninety-stage
+  // channel match (see useChannelIdentityIndex.ts's own header for the
+  // full cached-catalog/refresh/rebuild lifecycle). null until the first
+  // build completes, or permanently null this session if no catalog is
+  // reachable at all — matchChannelsForEvent degrades gracefully either
+  // way (see channelMatch.ts).
+  const identityIndex = useChannelIdentityIndex(channels)
   // Plain-language, non-technical message shown when the channel cache
   // couldn't be saved (or couldn't be auto-recovered) — see the persistence
   // effect and the startup-recovery effect below. Cleared once the user
@@ -315,6 +324,7 @@ function App() {
         <HomeScreen
           channels={channels}
           xtreamCreds={xtreamCreds}
+          identityIndex={identityIndex}
           favoriteChannels={favoriteChannelsList}
           onSelectEvent={(event) => {
             setSelectedEvent(event)
@@ -341,6 +351,7 @@ function App() {
           event={selectedEvent}
           channels={channels}
           xtreamCreds={xtreamCreds}
+          identityIndex={identityIndex}
           onWatch={(channel, source) => watchChannel(channel, source, 'event-details')}
           onBack={() => setScreen(eventDetailsReturnScreen)}
           onBrowseChannels={() => setScreen('browse-cascade')}

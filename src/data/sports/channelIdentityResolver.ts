@@ -542,17 +542,99 @@ function addTo(map: Map<string, Set<string>>, key: string, value: string): void 
   map.set(key, set)
 }
 
+// ---------------------------------------------------------------------
+// Candidate generation (resolver-integration task, Part 3) — a naive
+// O(catalog x playlist) nested loop was measured at 3.5M+ scoreCandidate
+// calls against a real 30,925-channel playlist (~115 catalog channels),
+// taking minutes: unacceptable for a TV app's startup path. scoreCandidate
+// itself already guarantees a null (no signal) result for most of those
+// pairs before it ever looks at names: Part 3.1's hard country-conflict
+// reject means a (logical, channel) pair can only ever produce a signal
+// when the catalog side has no country, the playlist side has no parsed
+// country, the two sides' countries match, OR the playlist channel
+// carries an external id this logical channel owns (which rescues a
+// country mismatch — see scoreCandidate's idPointsToLogical branch). This
+// builds a per-playlist-channel candidate set of logicalChannelIds from
+// exactly those same conditions, so scoreCandidate is only invoked for
+// pairs that could actually produce a signal. This changes WHICH pairs are
+// skipped, never which pairs return non-null when scored — a skipped pair
+// is always one scoreCandidate would have rejected anyway. Deliberately
+// NOT a brand/token index: real catalog names like "V Sport 1" or "V Sport
+// Live 1" reduce to zero non-generic brand words under meaningfulWords
+// (the "V" is single-character noise, "Sport"/"Live" are generic/qualifier
+// words) — a token index keyed on those would silently drop real
+// candidates, which country+id bucketing never risks. Verified
+// byte-identical against the gold dataset (npm run evaluate:channel-identity)
+// before and after.
+// ---------------------------------------------------------------------
+
+function buildCountryToLogicalIds(catalog: NinetyLogicalChannel[]): { byCountry: Map<string, string[]>; noCountry: string[] } {
+  const byCountry = new Map<string, string[]>()
+  const noCountry: string[] = []
+  for (const logical of catalog) {
+    const key = catalogCountryKey(logical)
+    if (key === null) {
+      noCountry.push(logical.id)
+      continue
+    }
+    const list = byCountry.get(key) ?? []
+    list.push(logical.id)
+    byCountry.set(key, list)
+  }
+  return { byCountry, noCountry }
+}
+
+// The logicalChannelIds worth scoring THIS playlist channel against —
+// mirrors exactly the set of pairs scoreCandidate could produce a signal
+// for (see the section comment above), nothing more, nothing less.
+function candidateLogicalIds(
+  channel: Channel,
+  catalog: NinetyLogicalChannel[],
+  byCountry: Map<string, string[]>,
+  noCountry: string[],
+  idIndex: ExternalIdIndex,
+): Set<string> {
+  const candidates = new Set<string>()
+  const channelCountry = playlistCountryKey(channel)
+  if (channelCountry === null) {
+    // No parsed country on this playlist entry — scoreCandidate's country
+    // check only ever fires when BOTH sides have one, so a country-less
+    // channel remains a candidate against the whole catalog, same as the
+    // original nested loop.
+    for (const logical of catalog) candidates.add(logical.id)
+  } else {
+    for (const id of byCountry.get(channelCountry) ?? []) candidates.add(id)
+    for (const id of noCountry) candidates.add(id)
+  }
+  for (const extId of playlistExternalIds(channel)) {
+    const owners = idIndex.get(extId)
+    if (owners) for (const id of owners) candidates.add(id)
+  }
+  return candidates
+}
+
 export function resolveChannelIdentities(catalog: NinetyLogicalChannel[], playlist: Channel[]): Map<string, LogicalChannelResolution> {
   const idIndex = buildExternalIdIndex(catalog)
+  const logicalById = new Map(catalog.map((l) => [l.id, l]))
+  const { byCountry, noCountry } = buildCountryToLogicalIds(catalog)
 
   const scoredByLogical = new Map<string, ChannelCandidateMatch[]>()
-  for (const logical of catalog) {
-    const scored: ChannelCandidateMatch[] = []
-    for (const channel of playlist) {
+  for (const logical of catalog) scoredByLogical.set(logical.id, [])
+
+  // Single pass over the playlist (not one pass per logical channel) —
+  // each channel is scored against its own small candidate set, and
+  // appended to that logicalChannelId's array in playlist order, so a
+  // fixed logical channel's `scored` list ends up in exactly the order
+  // the original nested loop (`for (const channel of playlist)` per
+  // logical) would have produced it in.
+  for (const channel of playlist) {
+    const candidates = candidateLogicalIds(channel, catalog, byCountry, noCountry, idIndex)
+    for (const logicalId of candidates) {
+      const logical = logicalById.get(logicalId)
+      if (!logical) continue
       const candidate = scoreCandidate(logical, channel, idIndex)
-      if (candidate) scored.push(candidate)
+      if (candidate) scoredByLogical.get(logicalId)!.push(candidate)
     }
-    scoredByLogical.set(logical.id, scored)
   }
 
   const firstPass = new Map<string, ScoredResolution>()

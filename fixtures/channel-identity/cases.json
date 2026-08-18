@@ -5279,7 +5279,7 @@
     "note": "DISCLOSED GAP, real playlist. This provider ships several multi-audio/multi-subtitle variants of V Sport Ultra tagged \"*MULTI*\" / \"*MULTI-AUDIO*\". mergeChannels.ts's quality-tag vocabulary does not recognize that annotation as a stripped quality suffix (unlike HD/RAW/SD/UHD), so it stays baked into each merged channel's own name and defeats canonical-name matching, even though p1 correctly carries the matching tvg-id family (viasatsportultra.se). Root cause is upstream of the resolver, in merge normalization -- flagged for that layer, not fixed here per this task's shadow-only scope."
   },
   {
-    "id": "real-pl-v-sport-1-viaplay-rebrand-duplicate-nearmiss",
+    "id": "real-pl-v-sport-1-vs-viaplay-sport-disambiguation",
     "provenance": "real-playlist-sanitized",
     "catalog": [
       {
@@ -5290,7 +5290,9 @@
         "network_name": "Viaplay Group",
         "channel_number": null,
         "channel_variant": null,
-        "aliases": [],
+        "aliases": [
+          "Viaplay Sport 1"
+        ],
         "external_ids": [
           {
             "source_id": "iptv_org_allente_se",
@@ -5299,6 +5301,25 @@
         ],
         "source_names": [
           "V sport 1 HD (S)"
+        ]
+      },
+      {
+        "id": "se_viaplay_sport",
+        "name": "Viaplay Sport",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_viaplay_sport"
+          }
+        ],
+        "source_names": [
+          "Viaplay Sport HD"
         ]
       }
     ],
@@ -5311,16 +5332,34 @@
         "rawNames": [
           "SE: VIAPLAY SPORT 1 RAW"
         ]
+      },
+      {
+        "id": "p2",
+        "name": "VIAPLAY SPORT",
+        "groupTitle": "SE| VIAPLAY PPV",
+        "epgChannelIds": [],
+        "rawNames": [
+          "SE: VIAPLAY SPORT HD"
+        ]
       }
     ],
     "expected": [
       {
         "logicalChannelId": "se_vsport_1",
-        "classification": "NONE",
-        "playlistIds": []
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_viaplay_sport",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
       }
     ],
-    "note": "DISCLOSED GAP, real playlist -- this is the concrete case behind the live diagnostic's OLD-vs-NEW section C disagreement (old matched \"Viaplay Sport 1\" to the \"Viaplay Sport\" broadcast name via loose word-overlap; new rejects it). This provider carries a SEPARATE, un-linked \"VIAPLAY SPORT 1\" entry (no tvg-id) alongside the catalog-matching \"V SPORT 1\" entry elsewhere in the same playlist -- almost certainly the same real channel under Viaplay's actual Nordic rebrand (V Sport -> Viaplay Sport), which the catalog does not yet know as an alias. Old's looser match was likely a true positive here, making this a genuine new false negative, not an old false positive. Recommend adding \"Viaplay Sport {N}\" as a known alias pattern for the V Sport family before integration."
+    "note": "CORRECTED regression investigation, real playlist (resolver-integration task's alias-fix precondition). The shadow diagnostic's OLD-vs-NEW section C disagreement (old matched \"VIAPLAY SPORT 1\" to a \"Viaplay Sport\" broadcast; new rejected it) was initially assumed to be a missing V-Sport-family rebrand alias on se_vsport_1. Direct inspection of the live event (GET /v1/events, evt_fdio_2079863827) showed the broadcast's logical_channel_id is actually se_viaplay_sport (name \"Viaplay Sport\", no number) -- a SEPARATE, pre-existing, real catalog entry (own iptv_org_allente_se external id, confirming Allente's own upstream channel list treats it as a distinct channel from V Sport 1/Viaplay Sport 1) -- not se_vsport_1. Old's namesOverlap('Viaplay Sport', 'VIAPLAY SPORT 1') matched only because the station side (no explicit number) tolerates the channel side carrying an extra digit; the resolver's bidirectional overlap requirement (see channelIdentityResolver.ts's considerName -- the same TVP-2-vs-TVP-Historia-2 protection from Phase 1) correctly rejects it, since the reverse direction fails once 'Viaplay Sport 1' carries a channel number 'Viaplay Sport' doesn't have. So NEW's rejection there was CORRECT (a real old false positive fixed, not a regression) -- se_viaplay_sport keeps no alias. Separately, 'Viaplay Sport 1' IS a real, independently-verified alias of se_vsport_1 (Viaplay Group's actual 2023 Nordic V-Sport-to-Viaplay-Sport rebrand) -- added as a trusted (status='accepted') logical_channel_alias in ninety-api (scripts/seed-vsport-1-rebrand-alias.ts, live in production) and kept here as a real, narrow improvement. This single scenario now guards the full disambiguation both ways: se_vsport_1 must resolve via p1 only, se_viaplay_sport via p2 only -- neither may claim the other's channel."
   },
   {
     "id": "real-pl-v-sport-live-1-dk-catalog-vs-no-tagged-playlist",
