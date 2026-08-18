@@ -121,8 +121,8 @@ function matchViaNinetyApi(event: SportEvent, channels: Channel[]): { matches: C
 }
 
 // Curated fallback for sports/leagues with no per-fixture broadcast-rights
-// API (i.e. everything Sportmonks doesn't cover — see broadcasterMap.ts).
-// Unlike matchViaSportmonks, this needs no team names or kickoff time —
+// API (i.e. everything ninety-api's EPG resolver doesn't cover — see
+// broadcasterMap.ts). Unlike matchViaNinetyApi, this needs no team names or kickoff time —
 // it's a season-long "this league always airs on this channel in this
 // country" fact, so it applies just as well to single-entrant events (F1
 // sessions) as it does to team fixtures.
@@ -253,7 +253,7 @@ function significantWordSet(text: string): Set<string> {
   )
 }
 
-// Last-resort fallback, only tried once both the Sportmonks and the normal
+// Last-resort fallback, only tried once both the ninety-api and the normal
 // (sport-named-channel) EPG stages have come up empty. Widens the search
 // to every PPV-categorized channel in the playlist regardless of whether
 // its name looks sport-related (a one-off match can land on a PPV stream

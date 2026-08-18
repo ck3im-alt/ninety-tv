@@ -11,7 +11,7 @@ function useClock() {
   return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const NAV_ITEMS = ['Home', 'Matches', 'Live', 'Competitions', 'Channels'] as const
+const NAV_ITEMS = ['Home', 'Competitions', 'Channels'] as const
 
 interface NavItemProps {
   label: string
@@ -44,16 +44,13 @@ function Avatar({ onSelect }: { onSelect?: () => void }) {
 
 interface TopNavProps {
   activeItem?: string
-  // Only Home/Channels/Competitions go anywhere right now — Matches/Live
-  // have no screens built yet (see TIZEN-PLAN.md Steg 22 candidates), so
-  // they're intentionally left non-interactive rather than navigating
-  // somewhere misleading.
   onSelectHome?: () => void
   onSelectChannels?: () => void
   onSelectCompetitions?: () => void
   // Profile avatar doubles as the entry point to the dev-only admin panel
   // (reset onboarding/preferences for testing) — there's no real profile
-  // screen behind it yet.
+  // screen behind it yet. Only wired up in dev builds (see App.tsx); in
+  // production this stays undefined and the avatar is non-interactive.
   onOpenAdmin?: () => void
 }
 

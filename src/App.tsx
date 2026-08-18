@@ -207,7 +207,7 @@ function App() {
             else setScreen(hasCompletedOnboarding() ? 'setup' : 'onboarding')
           }}
           onSelectCompetitions={() => setScreen('competitions')}
-          onOpenAdmin={() => setAdminOpen(true)}
+          onOpenAdmin={import.meta.env.DEV ? () => setAdminOpen(true) : undefined}
         />
       )}
       {screen === 'home' && (
@@ -360,7 +360,7 @@ function App() {
         />
       )}
 
-      {adminOpen && <AdminPanel onClose={() => setAdminOpen(false)} />}
+      {import.meta.env.DEV && adminOpen && <AdminPanel onClose={() => setAdminOpen(false)} />}
     </>
   )
 }

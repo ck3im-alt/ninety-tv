@@ -2,8 +2,8 @@
 
 > Statusdokument. Oppdateres fortløpende etter hvert steg er gjort. Hver ny session starter med å lese denne filen for å vite hva som er gjort og hva som er neste steg.
 
-**Sist oppdatert:** 2026-08-13
-**Neste steg:** Brukertest hele fotball-datalaget etter bytte til Sportmonks (Steg 35) — verifiser at Home viser riktige kamper/live-status/logoer/runde, og se over event-details-skjermens nye lag-logoer/referee/venue/two-leg-aggregat (Steg 34).
+**Sist oppdatert:** 2026-08-18
+**Neste steg:** Sportmonks er fullstendig fjernet (2026-08-17) — fotball-data kommer nå fra `ninety-api`, en egen backend som løser fixtures, lag/liga-metadata og reelle lineære kringkastingskanaler via sin egen EPG-resolver (se README.md). Prototype/debug-opprydding før ekstern testing er gjort (nav-punkter uten skjerm skjult, admin-panel dev-only). Neste steg: fortsett kalibrering av kanal-matching per marked (se prosjektminner for status per land).
 
 **Steg 35 — FERDIG (2026-08-13): Byttet fotball-datakilde helt fra api-football til Sportmonks**
 
