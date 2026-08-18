@@ -1,0 +1,4682 @@
+[
+  {
+    "id": "tnt-sports-1-exact-id-and-name",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "TNT.Sports.1.HD.uk"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Real GB catalog entry, exact canonical name plus exact unique external id — the simplest possible confirmed case."
+  },
+  {
+    "id": "tnt-sports-siblings-1-2-3-4-no-cross-match",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_2",
+        "name": "TNT Sports 2",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.2.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 2 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_3",
+        "name": "TNT Sports 3",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.3.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 3 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_4",
+        "name": "TNT Sports 4",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.4.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 4 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports"
+      },
+      {
+        "id": "p2",
+        "name": "TNT Sports 2",
+        "groupTitle": "UK| Sports"
+      },
+      {
+        "id": "p3",
+        "name": "TNT Sports 3",
+        "groupTitle": "UK| Sports"
+      },
+      {
+        "id": "p4",
+        "name": "TNT Sports 4",
+        "groupTitle": "UK| Sports"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_3",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p3"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_4",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p4"
+        ]
+      }
+    ],
+    "note": "Mandatory channel-number gate: each numbered sibling must resolve only to its own number, never a neighbor."
+  },
+  {
+    "id": "tnt-sports-1-vs-2-single-playlist-entry",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_2",
+        "name": "TNT Sports 2",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.2.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 2 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 2",
+        "groupTitle": "UK| Sports"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Only one sibling is present in the playlist; the other must not claim it via any generic brand-word fallback."
+  },
+  {
+    "id": "tnt-sports-1-provider-prefix-and-quality-normalized",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports",
+        "rawNames": [
+          "UK | TNT SPORTS 1 FHD",
+          "UK | TNT SPORT 1 UHD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Channel.name is already the merged/normalized canonical name (country+quality stripped by mergeChannelSources) — rawNames carry the original provider strings for source-name matching, exactly as Part 2B describes."
+  },
+  {
+    "id": "tnt-sports-ultimate-not-confused-with-sport-4",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_4",
+        "name": "TNT Sports 4",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.4.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 4 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_ultimate",
+        "name": "TNT Sports Ultimate",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.Ultimate.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports Ultimate HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports Ultimate",
+        "groupTitle": "UK| Sports"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_4",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_ultimate",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "\"Ultimate\" is a distinct qualifier-like brand word, not a numbered sibling of Sports 4."
+  },
+  {
+    "id": "tnt-sports-1-id-conflicts-with-visible-number",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_2",
+        "name": "TNT Sports 2",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.2.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 2 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 2",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "TNT.Sports.1.HD.uk"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Part 4: playlist tvg-id deterministically matches TNT Sports 1, but the visible channel name explicitly says \"2\" — must never silently CONFIRM, must surface for confirmation instead. Sports 2 gets nothing since the id evidence points elsewhere."
+  },
+  {
+    "id": "tnt-sports-merged-channel-conflicting-ids",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_3",
+        "name": "TNT Sports 3",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.3.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 3 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "TNT.Sports.1.HD.uk",
+          "TNT.Sports.3.HD.uk"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_3",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Part 2A rule 3: a merged playlist channel carrying two epgChannelIds that each uniquely resolve to a DIFFERENT logical channel must not arbitrarily pick one."
+  },
+  {
+    "id": "tnt-sports-external-id-collision",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "panel_a",
+            "source_channel_id": "shared-id-1"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      },
+      {
+        "id": "uk_tnt_sports_2",
+        "name": "TNT Sports 2",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "panel_b",
+            "source_channel_id": "shared-id-1"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 2 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "shared-id-1"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_tnt_sports_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Part 2A rule 2 (namespace collision): the same raw id string appears under two different logical channels from two different sources. It is NOT deterministic on its own, but the exact canonical name match independently confirms TNT Sports 1, while Sports 2 gets nothing (name conflicts, collision alone is not enough)."
+  },
+  {
+    "id": "sky-sports-main-event-name-only-confirmed",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "gb_sky_sports_main_event",
+        "name": "Sky Sports Main Event",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Sky Sports Main Event",
+        "groupTitle": "UK| Sports"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_sky_sports_main_event",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "No external ids on this real catalog entry at all — exact canonical name is the only, but sufficient, signal."
+  },
+  {
+    "id": "sky-sports-premier-league-name-only-confirmed",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "gb_sky_sports_premier_league",
+        "name": "Sky Sports Premier League",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Sky Sports Premier League",
+        "groupTitle": "UK| Sports"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_sky_sports_premier_league",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Same as above for a different real Sky Sports entry."
+  },
+  {
+    "id": "sky-sports-plus-not-confused-with-main-event-or-premier-league",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "gb_sky_sports_plus",
+        "name": "Sky Sports+",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "gb_sky_sports_main_event",
+        "name": "Sky Sports Main Event",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "gb_sky_sports_premier_league",
+        "name": "Sky Sports Premier League",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Sky Sports+",
+        "groupTitle": "UK| Sports"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_sky_sports_plus",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "gb_sky_sports_main_event",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "gb_sky_sports_premier_league",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "The \"+\" qualifier is a distinct brand identity (Part 3.3), not a variant of the unrelated Sky siblings."
+  },
+  {
+    "id": "sky-sports-football-exact-id",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_sky_sports_football",
+        "name": "Sky Sports Football",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "Sky.Sports.Football.HD.uk"
+          }
+        ],
+        "source_names": [
+          "Sky Sports Football HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Sky Sports Football",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "Sky.Sports.Football.HD.uk"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_sky_sports_football",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Real external id plus exact name."
+  },
+  {
+    "id": "sky-sports-ultra-hd-1-vs-2",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_sky_sports_ultra_hd_1",
+        "name": "Sky Sports Ultra HD 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "Sky.Sports.Ultra.HD.1.uk"
+          }
+        ],
+        "source_names": [
+          "Sky Sports Ultra HD 1"
+        ]
+      },
+      {
+        "id": "uk_sky_sports_ultra_hd_2",
+        "name": "Sky Sports Ultra HD 2",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "Sky.Sports.Ultra.HD.2.uk"
+          }
+        ],
+        "source_names": [
+          "Sky Sports Ultra HD 2"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Sky Sports Ultra HD 1",
+        "groupTitle": "UK| Sports"
+      },
+      {
+        "id": "p2",
+        "name": "Sky Sports Ultra HD 2",
+        "groupTitle": "UK| Sports"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_sky_sports_ultra_hd_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_sky_sports_ultra_hd_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      }
+    ],
+    "note": "Legitimate distinct numbered siblings, both present — each gets its own exact match."
+  },
+  {
+    "id": "premier-sports-1-vs-2-siblings",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_premier_sports_1",
+        "name": "Premier Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Premier Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "Premier.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "Premier Sports 1 HD"
+        ]
+      },
+      {
+        "id": "uk_premier_sports_2",
+        "name": "Premier Sports 2",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Premier Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "Premier.Sports.2.HD.uk"
+          }
+        ],
+        "source_names": [
+          "Premier Sports 2 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Premier Sports 1",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "Premier.Sports.1.HD.uk"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "Premier Sports 2",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "Premier.Sports.2.HD.uk"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_premier_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "uk_premier_sports_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      }
+    ],
+    "note": "Real ids and names, mandatory number gate satisfied for both."
+  },
+  {
+    "id": "bbc-one-two-and-itv-distinct",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "gb_bbc_one",
+        "name": "BBC One",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "BBC",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "gb_bbc_two",
+        "name": "BBC Two",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "BBC",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "gb_itv1",
+        "name": "ITV1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "ITV",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "gb_itv4",
+        "name": "ITV4",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "ITV",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "BBC One",
+        "groupTitle": "UK| Entertainment"
+      },
+      {
+        "id": "p2",
+        "name": "BBC Two",
+        "groupTitle": "UK| Entertainment"
+      },
+      {
+        "id": "p3",
+        "name": "ITV1",
+        "groupTitle": "UK| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_bbc_one",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "gb_bbc_two",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "gb_itv1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p3"
+        ]
+      },
+      {
+        "logicalChannelId": "gb_itv4",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Public-broadcaster siblings sharing a root brand (BBC) must not cross-match on the shared word alone; ITV4 correctly gets nothing since only ITV1 is present."
+  },
+  {
+    "id": "channel-5-bare-digit-name-not-generic-noise",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "gb_channel_5",
+        "name": "5",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Channel 5",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "gb_channel_4",
+        "name": "Channel 4",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Channel 4",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "5",
+        "groupTitle": "UK| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_channel_5",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "gb_channel_4",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Catalog canonical name is literally \"5\" (real data) — exact match only against the correct channel, not the differently-numbered Channel 4."
+  },
+  {
+    "id": "tv3-no-with-country-disambiguates-from-dk",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv3",
+        "name": "TV3",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3",
+          "TV3 HD (N)"
+        ]
+      },
+      {
+        "id": "dk_tv3",
+        "name": "TV3",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3 HD (D)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV3",
+        "groupTitle": "Norway| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv3",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "dk_tv3",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Two real logical channels literally named \"TV3\" in different countries — an explicit country match/conflict correctly disambiguates when the playlist category names a country."
+  },
+  {
+    "id": "tv3-dk-with-country-disambiguates-from-no",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv3",
+        "name": "TV3",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3",
+          "TV3 HD (N)"
+        ]
+      },
+      {
+        "id": "dk_tv3",
+        "name": "TV3",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3 HD (D)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV3",
+        "groupTitle": "Denmark| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv3",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "dk_tv3",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Mirror of the above with the Danish category prefix."
+  },
+  {
+    "id": "tv3-no-country-info-reverse-collision",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv3",
+        "name": "TV3",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3",
+          "TV3 HD (N)"
+        ]
+      },
+      {
+        "id": "dk_tv3",
+        "name": "TV3",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3 HD (D)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV3",
+        "groupTitle": ""
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv3",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "dk_tv3",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Part 6: with no country signal on either side to disambiguate, the same real playlist channel scores identically for both real \"TV3\" logical channels — must not auto-claim either, both become ambiguous."
+  },
+  {
+    "id": "tv3-plus-not-confused-with-tv3",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv3",
+        "name": "TV3",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3",
+          "TV3 HD (N)"
+        ]
+      },
+      {
+        "id": "no_tv3_plus",
+        "name": "TV3+",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3_plus"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3_plus"
+          }
+        ],
+        "source_names": [
+          "TV3+",
+          "TV3+ HD (N)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV3+",
+        "groupTitle": "Norway| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv3",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "no_tv3_plus",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "The \"+\" qualifier makes this a genuinely different real channel (Part 3.3)."
+  },
+  {
+    "id": "tv3-sport-dk-not-confused-with-tv3-or-tv3-plus",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "dk_tv3",
+        "name": "TV3",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3 HD (D)"
+        ]
+      },
+      {
+        "id": "dk_tv3_plus",
+        "name": "TV3+",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv3_plus"
+          }
+        ],
+        "source_names": [
+          "TV3+ HD (D)"
+        ]
+      },
+      {
+        "id": "dk_tv3_sport",
+        "name": "TV3 Sport",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv3_sport"
+          }
+        ],
+        "source_names": [
+          "TV3 Sport HD (D)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV3 Sport",
+        "groupTitle": "Denmark| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_tv3",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "dk_tv3_plus",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "dk_tv3_sport",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "TV3 / TV3+ / TV3 Sport are three distinct real Danish channels — the SPORT qualifier gate keeps them apart."
+  },
+  {
+    "id": "tv2-sport-1-vs-2-no",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv2_sport_1",
+        "name": "TV 2 Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv2_sport_1"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport 1",
+          "TV 2 Sport 1 HD",
+          "TV 2 Sport 1 Norway (NO,NO)"
+        ]
+      },
+      {
+        "id": "no_tv2_sport_2",
+        "name": "TV 2 Sport 2",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.2.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv2_sport_2"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_2"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport 2",
+          "TV 2 Sport 2 HD",
+          "TV 2 Sport 2 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV 2 Sport 1",
+        "groupTitle": "Norway| Sport",
+        "epgChannelIds": []
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_sport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "no_tv2_sport_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real NO catalog naming \"TV 2 Sport 1\" (space-separated brand token) merges the same as \"TV2\" — regression covered directly in channelMatchCore.ts."
+  },
+  {
+    "id": "tv2-sport-premium-vs-premium-2-no",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv2_sport_premium",
+        "name": "TV 2 Sport Premium",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "fixture_no_sports",
+            "source_channel_id": "TV2SportPremium.no"
+          },
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.Premium.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_premium"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport Premium",
+          "TV 2 Sport Premium HD",
+          "TV 2 Sport Premium (NO,NO)"
+        ]
+      },
+      {
+        "id": "no_tv2_sport_premium_2",
+        "name": "TV 2 Sport Premium 2",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_premium_2"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport Premium 2 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV 2 Sport Premium",
+        "groupTitle": "Norway| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_sport_premium",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "no_tv2_sport_premium_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Numbered Premium sibling must not claim the base Premium entry's playlist channel."
+  },
+  {
+    "id": "tv2-direkte-not-a-sport-channel",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv2_direkte",
+        "name": "TV 2 Direkte",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_direkte"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv2_direkte"
+          }
+        ],
+        "source_names": [
+          "TV 2 Direkte",
+          "TV 2 Direkte HD"
+        ]
+      },
+      {
+        "id": "no_tv2_sport_1",
+        "name": "TV 2 Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv2_sport_1"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport 1",
+          "TV 2 Sport 1 HD",
+          "TV 2 Sport 1 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV 2 Direkte",
+        "groupTitle": "Norway| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_direkte",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "no_tv2_sport_1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "\"Direkte\" and \"Sport 1\" are different brand words entirely, no accidental cross-match via the shared TV2 root."
+  },
+  {
+    "id": "tv2-sport-dk-not-matched-by-tv2-sport-x-extra-word",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "dk_tv2_sport",
+        "name": "TV 2 Sport",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2 Danmark",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv2_sport"
+          }
+        ],
+        "source_names": [
+          "TV 2 SPORT HD"
+        ]
+      },
+      {
+        "id": "dk_tv2_sport_x",
+        "name": "TV 2 Sport X",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2 Danmark",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv2_sport_x"
+          }
+        ],
+        "source_names": [
+          "TV 2 SPORT X"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV 2 Sport",
+        "groupTitle": "Denmark| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_tv2_sport",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "dk_tv2_sport_x",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Extra brand word \"X\" on the sibling channel means it needs its own playlist entry, mirroring the TVP-umbrella extra-word regression. Documented limitation: meaningfulWords (shared, unchanged, with channelMatchCore.ts) drops single-character tokens as noise, so the distinguishing \"X\" is invisible to namesOverlap and this lands as a safe AMBIGUOUS rather than a clean NONE — never a false CONFIRMED, since dk_tv2_sport_x never reaches STRONG_THRESHOLD."
+  },
+  {
+    "id": "vsport-1-no-confirmed",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_vsport_1",
+        "name": "V Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_vsport_1"
+          }
+        ],
+        "source_names": [
+          "V Sport 1",
+          "V sport 1 HD (N)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V Sport 1",
+        "groupTitle": "Norway| Sport",
+        "epgChannelIds": []
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_vsport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Real NO catalog entry, exact name match."
+  },
+  {
+    "id": "vsport-live-siblings-1-through-4-no",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_vsport_live_1",
+        "name": "V Sport Live 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_live_1"
+          }
+        ],
+        "source_names": [
+          "V sport live 1"
+        ]
+      },
+      {
+        "id": "no_vsport_live_2",
+        "name": "V Sport Live 2",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_live_2"
+          }
+        ],
+        "source_names": [
+          "V sport live 2"
+        ]
+      },
+      {
+        "id": "no_vsport_live_3",
+        "name": "V Sport Live 3",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_live_3"
+          }
+        ],
+        "source_names": [
+          "V sport live 3"
+        ]
+      },
+      {
+        "id": "no_vsport_live_4",
+        "name": "V Sport Live 4",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_live_4"
+          }
+        ],
+        "source_names": [
+          "V sport live 4"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V Sport Live 1",
+        "groupTitle": "Norway| Sport"
+      },
+      {
+        "id": "p2",
+        "name": "V Sport Live 2",
+        "groupTitle": "Norway| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_vsport_live_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "no_vsport_live_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "no_vsport_live_3",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "no_vsport_live_4",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Only two of the four real numbered siblings are present in the playlist; the absent two must not be filled in by a neighbor."
+  },
+  {
+    "id": "vsport-premier-league-base-vs-numbered-reverse-collision",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_vsport_premier_league",
+        "name": "V Sport Premier League",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "fixture_no_sports",
+            "source_channel_id": "VSportPremierLeague.no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_premier_league"
+          },
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "V.sport.Premier.League.Norway.(NO,NO).no"
+          }
+        ],
+        "source_names": [
+          "NO | V SPORT PREMIER LEAGUE FHD",
+          "V sport Premier League HD",
+          "V sport Premier League Norway (NO,NO)"
+        ]
+      },
+      {
+        "id": "no_vsport_premier_league_1",
+        "name": "V Sport Premier League 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_premier_league_1"
+          },
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "V.sport.Premier.League.1.Norway.(NO,NO).no"
+          }
+        ],
+        "source_names": [
+          "V sport Premier League 1 HD",
+          "V sport Premier League 1 Norway (NO,NO)"
+        ]
+      },
+      {
+        "id": "no_vsport_premier_league_2",
+        "name": "V Sport Premier League 2",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_premier_league_2"
+          },
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "V.sport.Premier.League.2.Norway.(NO,NO).no"
+          }
+        ],
+        "source_names": [
+          "V sport Premier League 2 HD",
+          "V sport Premier League 2 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V Sport Premier League 1",
+        "groupTitle": "Norway| Sport"
+      },
+      {
+        "id": "p2",
+        "name": "V Sport Premier League 2",
+        "groupTitle": "Norway| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_vsport_premier_league_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "no_vsport_premier_league_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "no_vsport_premier_league",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "The numberless base entry \"V Sport Premier League\" fuzzily overlaps every numbered sibling's playlist channel — each of those channels is a much stronger EXACT match for its own numbered logical channel, so Part 6's reverse collision guard must award them there and leave the base entry with nothing, not a fuzzy STRONG/CONFIRMED steal."
+  },
+  {
+    "id": "viaplay-sport-se-not-confused-with-vsport-premium",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "se_viaplay_sport",
+        "name": "Viaplay Sport",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_viaplay_sport"
+          }
+        ],
+        "source_names": [
+          "Viaplay Sport HD"
+        ]
+      },
+      {
+        "id": "se_vsport_premium",
+        "name": "V Sport Premium",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_vsport_premium"
+          }
+        ],
+        "source_names": [
+          "V sport premium HD (S)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Viaplay Sport",
+        "groupTitle": "Sweden| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_viaplay_sport",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_vsport_premium",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "\"Viaplay Sport\" and \"V Sport Premium\" share no real brand word once SPORT/PREMIUM qualifiers are set aside."
+  },
+  {
+    "id": "vsport-ultra-standalone-se",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "se_vsport_ultra",
+        "name": "V Sport Ultra",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_vsport_ultra"
+          }
+        ],
+        "source_names": [
+          "V sport ultra HD"
+        ]
+      },
+      {
+        "id": "se_vsport_extra",
+        "name": "V Sport Extra",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_vsport_extra"
+          }
+        ],
+        "source_names": [
+          "V sport extra HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V Sport Ultra",
+        "groupTitle": "Sweden| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_vsport_ultra",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_vsport_extra",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Ultra vs Extra are different real SE channels sharing the V Sport root only."
+  },
+  {
+    "id": "eurosport-1-no-exact-id-and-name",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_eurosport_1",
+        "name": "Eurosport 1 Norway",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "Eurosport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_eurosport_1"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_eurosport_1"
+          }
+        ],
+        "source_names": [
+          "Eurosport 1",
+          "Eurosport 1 HD (N)",
+          "Eurosport 1 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Eurosport 1",
+        "groupTitle": "Norway| Sport",
+        "epgChannelIds": [
+          "no_eurosport_1"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_eurosport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Real external id (iptv_org_rikstv_no namespace) plus exact canonical name."
+  },
+  {
+    "id": "eurosport-1-vs-2-se-siblings",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "se_eurosport_1",
+        "name": "Eurosport 1",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_eurosport_1"
+          }
+        ],
+        "source_names": [
+          "Eurosport 1 HD (S)"
+        ]
+      },
+      {
+        "id": "se_eurosport_2",
+        "name": "Eurosport 2",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_eurosport_2"
+          }
+        ],
+        "source_names": [
+          "Eurosport 2 HD (S/F)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Eurosport 1",
+        "groupTitle": "Sweden| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_eurosport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_eurosport_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real SE numbered siblings."
+  },
+  {
+    "id": "eurosport-norge-via-source-name-only",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_eurosport_n",
+        "name": "Eurosport Norge",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "Eurosport.N.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_eurosport_n"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_eurosport_n"
+          }
+        ],
+        "source_names": [
+          "Eurosport N Norway (NO,NO)",
+          "Eurosport Norge",
+          "Eurosport Norge HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Eurosport Norway",
+        "groupTitle": "Norway| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_eurosport_n",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Canonical name \"Eurosport Norge\" does not overlap the English-spelled playlist name \"Eurosport Norway\" at all (NORGE != NORWAY as tokens) — only the real source_name \"Eurosport N Norway (NO,NO)\" bridges them (Part 2B), and that fuzzy source-name-only signal correctly lands as plausible-but-uncertain rather than an outright confirmation."
+  },
+  {
+    "id": "canal-plus-foot-vs-sport-fr",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "fr_canal_plus_foot",
+        "name": "Canal+ Foot",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "Canal+",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "CANAL+FOOT.fr"
+          }
+        ],
+        "source_names": [
+          "CANAL+FOOT"
+        ]
+      },
+      {
+        "id": "fr_canal_plus_sport",
+        "name": "Canal+ Sport",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "Canal+",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "CANAL+SPORT.fr"
+          }
+        ],
+        "source_names": [
+          "CANAL+SPORT"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Canal+ Foot",
+        "groupTitle": "France| Sport",
+        "epgChannelIds": []
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "fr_canal_plus_foot",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "fr_canal_plus_sport",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real FR catalog: Foot and Sport are different Canal+ channels, not quality variants of one another."
+  },
+  {
+    "id": "bein-sports-1-2-3-fr-numbered-siblings",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "fr_bein_sports_1",
+        "name": "beIN Sports 1",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "beIN Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "beIN.SPORTS.1.fr"
+          }
+        ],
+        "source_names": [
+          "beIN SPORTS 1"
+        ]
+      },
+      {
+        "id": "fr_bein_sports_2",
+        "name": "beIN Sports 2",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "beIN Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "beIN.SPORTS.2.fr"
+          }
+        ],
+        "source_names": [
+          "beIN SPORTS 2"
+        ]
+      },
+      {
+        "id": "fr_bein_sports_3",
+        "name": "beIN Sports 3",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "beIN Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "beIN.SPORTS.3.fr"
+          }
+        ],
+        "source_names": [
+          "beIN SPORTS 3"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "beIN Sports 1",
+        "groupTitle": "France| Sport"
+      },
+      {
+        "id": "p2",
+        "name": "beIN Sports 3",
+        "groupTitle": "France| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "fr_bein_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "fr_bein_sports_2",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "fr_bein_sports_3",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      }
+    ],
+    "note": "Real single-brand-word broadcaster (beIN) with mandatory numbered-sibling gating; the missing \"2\" must not be filled in."
+  },
+  {
+    "id": "rmc-sport-1-vs-live-siblings-fr",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "fr_rmc_sport_1",
+        "name": "RMC Sport 1",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "RMC Sport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "RMC.Sport.1.fr"
+          }
+        ],
+        "source_names": [
+          "RMC Sport 1"
+        ]
+      },
+      {
+        "id": "fr_rmc_sport_live_2",
+        "name": "RMC Sport Live 2",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "RMC Sport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "RMC.Sport.Live.2.fr"
+          }
+        ],
+        "source_names": [
+          "RMC Sport Live 2"
+        ]
+      },
+      {
+        "id": "fr_rmc_sport_live_3",
+        "name": "RMC Sport Live 3",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "RMC Sport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "RMC.Sport.Live.3.fr"
+          }
+        ],
+        "source_names": [
+          "RMC Sport Live 3"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "RMC Sport 1",
+        "groupTitle": "France| Sport"
+      },
+      {
+        "id": "p2",
+        "name": "RMC Sport Live 2",
+        "groupTitle": "France| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "fr_rmc_sport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "fr_rmc_sport_live_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "fr_rmc_sport_live_3",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "\"RMC Sport 1\" (no LIVE qualifier) vs \"RMC Sport Live 2/3\" (LIVE qualifier — not in BRAND_QUALIFIER_WORDS, so it is a real brand word, not a qualifier gate) are genuinely different real siblings."
+  },
+  {
+    "id": "arena-sport-premium-1-vs-fight-and-esport",
+    "provenance": "real-regression-derived",
+    "catalog": [
+      {
+        "id": "ba_arena_sport_premium_1",
+        "name": "Arena Sport Premium 1",
+        "country": "BA",
+        "broadcast_type": "LINEAR",
+        "network_name": "United Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "ba_arena_fight",
+        "name": "Arena Fight",
+        "country": "BA",
+        "broadcast_type": "LINEAR",
+        "network_name": "United Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "ba_arena_esport",
+        "name": "Arena eSport",
+        "country": "BA",
+        "broadcast_type": "LINEAR",
+        "network_name": "United Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Arena Sport Premium 1",
+        "groupTitle": "Bosnia and Herzegovina| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "ba_arena_sport_premium_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "ba_arena_fight",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "ba_arena_esport",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real-world false positive this project already fixed once: \"Arena Sport Premium 1\" must not match Arena Fight/eSport merely via the shared brand root \"Arena\"."
+  },
+  {
+    "id": "arena-sport-1-vs-2-mandatory-number",
+    "provenance": "real-regression-derived",
+    "catalog": [
+      {
+        "id": "ba_arena_sport_1",
+        "name": "Arena Sport 1",
+        "country": "BA",
+        "broadcast_type": "LINEAR",
+        "network_name": "United Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "synthetic_ba",
+            "source_channel_id": "arena.sport.1.ba"
+          }
+        ],
+        "source_names": []
+      },
+      {
+        "id": "ba_arena_sport_2",
+        "name": "Arena Sport 2",
+        "country": "BA",
+        "broadcast_type": "LINEAR",
+        "network_name": "United Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "synthetic_ba",
+            "source_channel_id": "arena.sport.2.ba"
+          }
+        ],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Arena Sport 1",
+        "groupTitle": "Bosnia and Herzegovina| Sport",
+        "epgChannelIds": [
+          "arena.sport.1.ba"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "ba_arena_sport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "ba_arena_sport_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Numbered siblings, id and name agreeing."
+  },
+  {
+    "id": "arena-sport-1-external-id-points-elsewhere",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "ba_arena_sport_1",
+        "name": "Arena Sport 1",
+        "country": "BA",
+        "broadcast_type": "LINEAR",
+        "network_name": "United Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "synthetic_ba",
+            "source_channel_id": "arena.sport.1.ba"
+          }
+        ],
+        "source_names": []
+      },
+      {
+        "id": "ba_arena_sport_2",
+        "name": "Arena Sport 2",
+        "country": "BA",
+        "broadcast_type": "LINEAR",
+        "network_name": "United Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "synthetic_ba",
+            "source_channel_id": "arena.sport.2.ba"
+          }
+        ],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Arena Sport 1",
+        "groupTitle": "Bosnia and Herzegovina| Sport",
+        "epgChannelIds": [
+          "arena.sport.2.ba"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "ba_arena_sport_1",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "ba_arena_sport_2",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Part 3.4 + Part 4 together: the id deterministically says this playlist entry IS Arena Sport 2 — strong negative evidence against Arena Sport 1 (gets nothing), while Arena Sport 2 itself is exactly the Part 4 id-vs-name contradiction (id says \"2\", visible name explicitly says \"1\") and must surface as AMBIGUOUS for confirmation, never a silent CONFIRMED."
+  },
+  {
+    "id": "tvp-2-not-confused-with-historia-2-or-abc-2",
+    "provenance": "real-regression-derived",
+    "catalog": [
+      {
+        "id": "pl_tvp2",
+        "name": "TVP 2",
+        "country": "PL",
+        "broadcast_type": "LINEAR",
+        "network_name": "TVP",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "pl_tvp_historia_2",
+        "name": "TVP Historia 2",
+        "country": "PL",
+        "broadcast_type": "LINEAR",
+        "network_name": "TVP",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TVP 2",
+        "groupTitle": "Poland| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "pl_tvp2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "pl_tvp_historia_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real-world false positive this project already fixed once: umbrella-broadcaster siblings sharing both a root word AND a coincidental number must not collapse together."
+  },
+  {
+    "id": "tvp-sport-not-confused-with-tvp-1-or-tvp-historia",
+    "provenance": "real-regression-derived",
+    "catalog": [
+      {
+        "id": "pl_tvp_sport",
+        "name": "TVP Sport",
+        "country": "PL",
+        "broadcast_type": "LINEAR",
+        "network_name": "TVP",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "pl_tvp1",
+        "name": "TVP 1",
+        "country": "PL",
+        "broadcast_type": "LINEAR",
+        "network_name": "TVP",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      },
+      {
+        "id": "pl_tvp_historia",
+        "name": "TVP Historia",
+        "country": "PL",
+        "broadcast_type": "LINEAR",
+        "network_name": "TVP",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TVP Sport",
+        "groupTitle": "Poland| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "pl_tvp_sport",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "pl_tvp1",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "pl_tvp_historia",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "The single-brand-word false-positive shape (TVP Sport matching every unrelated TVP sibling) — TVP alone is too generic to establish identity across an umbrella broadcaster's unrelated channels."
+  },
+  {
+    "id": "country-conflict-hard-reject-no-channel-under-dk-category",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "no_tv2_sport_1",
+        "name": "TV 2 Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv2_sport_1"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport 1",
+          "TV 2 Sport 1 HD",
+          "TV 2 Sport 1 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV 2 Sport 1",
+        "groupTitle": "Denmark| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_sport_1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Part 3.1: explicit, reliable countries on both sides that disagree is a hard reject for name-based matching, even though the name itself matches perfectly."
+  },
+  {
+    "id": "missing-country-does-not-block-a-genuinely-unique-name",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "Sports (Unsorted)"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "No country can be parsed from this category at all — Part 3.1 says never infer a country when neither side supplies one, so the exact name match still confirms cleanly."
+  },
+  {
+    "id": "garbage-provider-prefix-still-resolves-after-normalization",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "fr_bein_sports_1",
+        "name": "beIN Sports 1",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "beIN Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "beIN.SPORTS.1.fr"
+          }
+        ],
+        "source_names": [
+          "beIN SPORTS 1"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "beIN Sports 1",
+        "groupTitle": "France| Sport",
+        "rawNames": [
+          "⭐️🔥 FR | BEIN SPORTS 1 4K 🔥⭐️"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "fr_bein_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Decorative/emoji provider noise around the raw name is already stripped by the time Channel.name reaches the resolver (mergeChannelSources -> normalizeChannelName); rawNames retains it only for source-name fallback matching."
+  },
+  {
+    "id": "wrong-country-code-in-group-title-still-conflicts",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "dk_dr1",
+        "name": "DR1",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "DR",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_dr1"
+          }
+        ],
+        "source_names": [
+          "DR1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "DR1",
+        "groupTitle": "SE| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_dr1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "A wrong-but-explicit country prefix (Sweden instead of Denmark) is still an explicit conflict, not treated as \"no country supplied\"."
+  },
+  {
+    "id": "quality-tags-ignored-for-identity",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "se_tv4",
+        "name": "TV4",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4"
+          }
+        ],
+        "source_names": [
+          "TV4 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV4",
+        "groupTitle": "Sweden| Entertainment",
+        "rawNames": [
+          "TV4 RAW",
+          "TV4 FHD",
+          "TV4 UHD"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_tv4",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "RAW/FHD/UHD quality variants merge into one Channel upstream (mergeChannelSources); the resolver never sees them as separate identity signals."
+  },
+  {
+    "id": "generic-sport-tv-noise-channel-resolves-to-nothing",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv2_sport_1",
+        "name": "TV 2 Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv2_sport_1"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport 1",
+          "TV 2 Sport 1 HD",
+          "TV 2 Sport 1 Norway (NO,NO)"
+        ]
+      },
+      {
+        "id": "no_tv3",
+        "name": "TV3",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3",
+          "TV3 HD (N)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "SPORT TV",
+        "groupTitle": "Norway| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_sport_1",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "no_tv3",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "A generic, brandless \"SPORT TV\" listing (GENERIC_CHANNEL_WORDS strips TV; SPORT alone is a qualifier, never a distinguishing brand word) must not attach to any real station."
+  },
+  {
+    "id": "unknown-channel-no-catalog-match",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "no_tv3",
+        "name": "TV3",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv3"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv3"
+          }
+        ],
+        "source_names": [
+          "TV3",
+          "TV3 HD (N)"
+        ]
+      },
+      {
+        "id": "no_nrk1",
+        "name": "NRK1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "NRK",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_nrk1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_nrk1"
+          }
+        ],
+        "source_names": [
+          "NRK1",
+          "NRK1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Local Access Channel 88",
+        "groupTitle": "Norway| Local"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv3",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "no_nrk1",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "A channel genuinely absent from the catalog resolves to nothing for every logical channel — the baseline \"no evidence\" case."
+  },
+  {
+    "id": "nrk1-vs-nrk2-real-siblings-with-ids",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_nrk1",
+        "name": "NRK1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "NRK",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_nrk1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_nrk1"
+          }
+        ],
+        "source_names": [
+          "NRK1",
+          "NRK1 HD"
+        ]
+      },
+      {
+        "id": "no_nrk2",
+        "name": "NRK2",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "NRK",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_nrk2"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_nrk2"
+          }
+        ],
+        "source_names": [
+          "NRK2",
+          "NRK2 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "NRK1",
+        "groupTitle": "Norway| Entertainment",
+        "epgChannelIds": [
+          "no_nrk1"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_nrk1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "no_nrk2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real ids and names for a non-sport public broadcaster pair."
+  },
+  {
+    "id": "legitimate-duplicate-playlist-entries-same-channel",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "TNT.Sports.1.HD.uk"
+        ]
+      },
+      {
+        "id": "p2",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports Backup",
+        "rawNames": [
+          "BACKUP | TNT SPORTS 1"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      }
+    ],
+    "note": "Part 1: more than one playlist Channel MAY legitimately resolve to the same logical channel when the provider genuinely supplies duplicate entries in different groups/packages (e.g. a primary feed and a backup package)."
+  },
+  {
+    "id": "legitimate-duplicate-plus-one-genuinely-different-sibling",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "fr_eurosport_1",
+        "name": "Eurosport 1",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "Eurosport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "Eurosport.1.fr"
+          }
+        ],
+        "source_names": [
+          "Eurosport 1"
+        ]
+      },
+      {
+        "id": "fr_eurosport_2",
+        "name": "Eurosport 2",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "Eurosport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "Eurosport.2.fr"
+          }
+        ],
+        "source_names": [
+          "Eurosport 2"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Eurosport 1",
+        "groupTitle": "France| Sport"
+      },
+      {
+        "id": "p2",
+        "name": "Eurosport 1",
+        "groupTitle": "France| Sport HEVC"
+      },
+      {
+        "id": "p3",
+        "name": "Eurosport 2",
+        "groupTitle": "France| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "fr_eurosport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "fr_eurosport_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p3"
+        ]
+      }
+    ],
+    "note": "Two duplicate entries for Eurosport 1 (different packages) plus one genuinely different numbered sibling, all resolved correctly at once."
+  },
+  {
+    "id": "multiple-verified-source-ids-on-one-real-catalog-entry",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_eurosport_1",
+        "name": "Eurosport 1 Norway",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "Eurosport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_eurosport_1"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_eurosport_1"
+          }
+        ],
+        "source_names": [
+          "Eurosport 1",
+          "Eurosport 1 HD (N)",
+          "Eurosport 1 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Eurosport 1",
+        "groupTitle": "Norway| Sport",
+        "epgChannelIds": [
+          "Eurosport.1.Norway.(NO,NO).no"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_eurosport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Real catalog entry with 3 external ids across different sources (epgshare01/iptv_org rikstv/iptv_org allente) — matching via any single one of them is enough since all are verified and point to the same logical channel."
+  },
+  {
+    "id": "tv6-no-vs-se-cross-country-with-country-signal",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_tv6",
+        "name": "TV6",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv6"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv6"
+          }
+        ],
+        "source_names": [
+          "TV6",
+          "TV6 (N)"
+        ]
+      },
+      {
+        "id": "se_tv6",
+        "name": "TV6",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv6"
+          }
+        ],
+        "source_names": [
+          "TV6 HD (S)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV6",
+        "groupTitle": "Sweden| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv6",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "se_tv6",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Another real same-name-different-country pair (like TV3) — country signal disambiguates correctly."
+  },
+  {
+    "id": "source-name-overlap-alone-below-strong-threshold",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "se_tv4_sportkanalen",
+        "name": "TV4 Sportkanalen",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4_sportkanalen"
+          }
+        ],
+        "source_names": [
+          "TV4 Sportkanalen Extra Feed HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV4 Sportkanalen Extra",
+        "groupTitle": ""
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_tv4_sportkanalen",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "A fuzzy source-name overlap with no country/network corroboration and no exact match anywhere lands as plausible-but-unconfirmed, not an automatic match."
+  },
+  {
+    "id": "vsport-1-no-vs-se-reverse-collision-without-country",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_vsport_1",
+        "name": "V Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_vsport_1"
+          }
+        ],
+        "source_names": [
+          "V Sport 1",
+          "V sport 1 HD (N)"
+        ]
+      },
+      {
+        "id": "se_vsport_1",
+        "name": "V Sport 1",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_vsport_1"
+          }
+        ],
+        "source_names": [
+          "V sport 1 HD (S)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V Sport 1",
+        "groupTitle": ""
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_vsport_1",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_vsport_1",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Same real brand (\"V Sport 1\") genuinely exists as two separate logical channels in NO and SE; with no country evidence at all, this is a true reverse collision."
+  },
+  {
+    "id": "vsport-1-no-vs-se-country-resolves-collision",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_vsport_1",
+        "name": "V Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_vsport_1"
+          }
+        ],
+        "source_names": [
+          "V Sport 1",
+          "V sport 1 HD (N)"
+        ]
+      },
+      {
+        "id": "se_vsport_1",
+        "name": "V Sport 1",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_vsport_1"
+          }
+        ],
+        "source_names": [
+          "V sport 1 HD (S)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V Sport 1",
+        "groupTitle": "Sweden| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_vsport_1",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "se_vsport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Same brand-collision pair as above, but this time the playlist category names Sweden explicitly, hard-rejecting the NO side before reverse collision even needs to consider it."
+  },
+  {
+    "id": "dk-dr1-vs-dr2-and-sport-live-unrelated",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "dk_dr1",
+        "name": "DR1",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "DR",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_dr1"
+          }
+        ],
+        "source_names": [
+          "DR1 HD"
+        ]
+      },
+      {
+        "id": "dk_dr2",
+        "name": "DR2",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "DR",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_dr2"
+          }
+        ],
+        "source_names": [
+          "DR2 HD"
+        ]
+      },
+      {
+        "id": "dk_sport_live",
+        "name": "Sport Live",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_sport_live"
+          }
+        ],
+        "source_names": [
+          "Sport Live HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "DR1",
+        "groupTitle": "Denmark| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_dr1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "dk_dr2",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "dk_sport_live",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real DK public broadcaster siblings plus an unrelated sport channel, all distinct."
+  },
+  {
+    "id": "dk-viaplay-sport-news-vs-vsport-live-siblings",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "dk_viaplay_sport_news",
+        "name": "Viaplay Sport News",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_viaplay_sport_news"
+          }
+        ],
+        "source_names": [
+          "Viaplay Sport News"
+        ]
+      },
+      {
+        "id": "dk_vsport_live_1",
+        "name": "V Sport Live 1",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_vsport_live_1"
+          }
+        ],
+        "source_names": [
+          "V sport live 1"
+        ]
+      },
+      {
+        "id": "dk_vsport_live_2",
+        "name": "V Sport Live 2",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_vsport_live_2"
+          }
+        ],
+        "source_names": [
+          "V sport live 2"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Viaplay Sport News",
+        "groupTitle": "Denmark| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_viaplay_sport_news",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "dk_vsport_live_1",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "dk_vsport_live_2",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "\"Viaplay Sport News\" and \"V Sport Live N\" share only the generic SPORT qualifier once brand words are compared, so they never overlap."
+  },
+  {
+    "id": "se-kanal-5-9-11-real-siblings",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "se_kanal5",
+        "name": "Kanal 5",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_kanal5"
+          }
+        ],
+        "source_names": [
+          "Kanal 5 HD (S)"
+        ]
+      },
+      {
+        "id": "se_kanal9",
+        "name": "Kanal 9",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_kanal9"
+          }
+        ],
+        "source_names": [
+          "Kanal 9 HD"
+        ]
+      },
+      {
+        "id": "se_kanal11",
+        "name": "Kanal 11",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "Warner Bros. Discovery",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_kanal11"
+          }
+        ],
+        "source_names": [
+          "Kanal 11 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Kanal 5",
+        "groupTitle": "Sweden| Entertainment"
+      },
+      {
+        "id": "p2",
+        "name": "Kanal 9",
+        "groupTitle": "Sweden| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_kanal5",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_kanal9",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "se_kanal11",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real SE numbered siblings sharing the brand root \"Kanal\" — mandatory number gate keeps them apart, and the absent \"11\" gets nothing."
+  },
+  {
+    "id": "se-tv4-fotboll-vs-sportkanalen-vs-base-tv4",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "se_tv4",
+        "name": "TV4",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4"
+          }
+        ],
+        "source_names": [
+          "TV4 HD"
+        ]
+      },
+      {
+        "id": "se_tv4_fotboll",
+        "name": "TV4 Fotboll",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4_fotboll"
+          }
+        ],
+        "source_names": [
+          "TV4 Fotboll HD"
+        ]
+      },
+      {
+        "id": "se_tv4_sportkanalen",
+        "name": "TV4 Sportkanalen",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4_sportkanalen"
+          }
+        ],
+        "source_names": [
+          "TV4 Sportkanalen HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV4 Fotboll",
+        "groupTitle": "Sweden| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_tv4",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "se_tv4_fotboll",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_tv4_sportkanalen",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Real SE brand-umbrella siblings (\"Fotboll\" and \"Sportkanalen\" are distinct extra brand words on the shared TV4 root, same shape as the TVP regression)."
+  },
+  {
+    "id": "se-tv4-sport-live-siblings-1-through-4",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "se_tv4_sport_live_1",
+        "name": "TV4 Sport Live 1",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4_sport_live_1"
+          }
+        ],
+        "source_names": [
+          "TV4 Sport Live 1 HD"
+        ]
+      },
+      {
+        "id": "se_tv4_sport_live_2",
+        "name": "TV4 Sport Live 2",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4_sport_live_2"
+          }
+        ],
+        "source_names": [
+          "TV4 Sport Live 2 HD"
+        ]
+      },
+      {
+        "id": "se_tv4_sport_live_3",
+        "name": "TV4 Sport Live 3",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4_sport_live_3"
+          }
+        ],
+        "source_names": [
+          "TV4 Sport Live 3 HD"
+        ]
+      },
+      {
+        "id": "se_tv4_sport_live_4",
+        "name": "TV4 Sport Live 4",
+        "country": "SE",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV4 Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_se",
+            "source_channel_id": "se_tv4_sport_live_4"
+          }
+        ],
+        "source_names": [
+          "TV4 Sport Live 4 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV4 Sport Live 1",
+        "groupTitle": "Sweden| Sport"
+      },
+      {
+        "id": "p2",
+        "name": "TV4 Sport Live 3",
+        "groupTitle": "Sweden| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "se_tv4_sport_live_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "se_tv4_sport_live_2",
+        "classification": "NONE",
+        "playlistIds": []
+      },
+      {
+        "logicalChannelId": "se_tv4_sport_live_3",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p2"
+        ]
+      },
+      {
+        "logicalChannelId": "se_tv4_sport_live_4",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Four real numbered siblings, only two present in the playlist — the two absent ones must stay NONE, not fill in via proximity/brand overlap."
+  },
+  {
+    "id": "exact-alias-match-confirms",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "no_tv2_sport_1",
+        "name": "TV 2 Sport 1",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [
+          "TV2 Sporten 1"
+        ],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "TV.2.Sport.1.Norway.(NO,NO).no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_tv2_sport_1"
+          },
+          {
+            "source_id": "iptv_org_rikstv_no",
+            "source_channel_id": "no_tv2_sport_1"
+          }
+        ],
+        "source_names": [
+          "TV 2 Sport 1",
+          "TV 2 Sport 1 HD",
+          "TV 2 Sport 1 Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV2 Sporten 1",
+        "groupTitle": "Norway| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_tv2_sport_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "A trusted alias (seed/accepted status, per ninety-api's trust rules) that exactly matches the playlist name is a strong identity signal even when the canonical name text differs."
+  },
+  {
+    "id": "structured-alias-overlap-below-strong-alone",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "dk_tv2_sport",
+        "name": "TV 2 Sport",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2 Danmark",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [
+          "TV 2 Sporten"
+        ],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv2_sport"
+          }
+        ],
+        "source_names": [
+          "TV 2 SPORT HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "DK: TV 2 Sporten Extra",
+        "groupTitle": ""
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_tv2_sport",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "A fuzzy (non-exact) alias overlap with no country/network corroboration is plausible but not auto-confirmable on its own. Uses an extra non-numeric word (\"Extra\"/\"DK:\") rather than a number so the match is symmetric-overlap-eligible on both the multi-brand-word alias side and the playlist side."
+  },
+  {
+    "id": "alias-does-not-rescue-a-numbered-sibling-conflict",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "dk_tv2_sport",
+        "name": "TV 2 Sport",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2 Danmark",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [
+          "TV 2 Sporten"
+        ],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv2_sport"
+          }
+        ],
+        "source_names": [
+          "TV 2 SPORT HD"
+        ]
+      },
+      {
+        "id": "dk_tv2_sport_x",
+        "name": "TV 2 Sport X",
+        "country": "DK",
+        "broadcast_type": "LINEAR",
+        "network_name": "TV 2 Danmark",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "iptv_org_allente_dk",
+            "source_channel_id": "dk_tv2_sport_x"
+          }
+        ],
+        "source_names": [
+          "TV 2 SPORT X"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TV 2 Sport X",
+        "groupTitle": "Denmark| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "dk_tv2_sport",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "dk_tv2_sport_x",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "Part 3.5: an alias on the wrong sibling must not let an extra-brand-word playlist channel automatically attach to it — \"TV 2 Sport X\" is correctly CONFIRMED for the X sibling instead. dk_tv2_sport itself lands AMBIGUOUS rather than a clean NONE for the same documented reason as tv2-sport-dk-not-matched-by-tv2-sport-x-extra-word (single-character \"X\" invisible to the shared, unchanged meaningfulWords tokenizer) — critically, it never reaches STRONG_THRESHOLD, so the alias does not let it win over the correct sibling."
+  },
+  {
+    "id": "network-name-corroborates-but-cannot-confirm-alone",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "gb_sky_sports_main_event",
+        "name": "Sky Sports Main Event",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "Sky",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [],
+        "source_names": []
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "Sky News",
+        "groupTitle": "UK| Entertainment"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "gb_sky_sports_main_event",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Network-name token overlap (\"Sky\") plus country match alone, with the rest of the real catalog name (\"Sports Main Event\") entirely absent, is not enough evidence to surface even as ambiguous — Part 9's network_match signal is corroboration, never sufficient alone."
+  },
+  {
+    "id": "channel-number-corroboration-plus-fuzzy-name-reaches-strong",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "fr_rmc_sport_live_2",
+        "name": "RMC Sport Live 2",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "RMC Sport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "RMC.Sport.Live.2.fr"
+          }
+        ],
+        "source_names": [
+          "RMC Sport Live 2"
+        ]
+      },
+      {
+        "id": "fr_rmc_sport_live_3",
+        "name": "RMC Sport Live 3",
+        "country": "FR",
+        "broadcast_type": "LINEAR",
+        "network_name": "RMC Sport",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_fr",
+            "source_channel_id": "RMC.Sport.Live.3.fr"
+          }
+        ],
+        "source_names": [
+          "RMC Sport Live 3"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "RMC SPORT LIVE 2 HD",
+        "groupTitle": "France| Sport"
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "fr_rmc_sport_live_2",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      },
+      {
+        "logicalChannelId": "fr_rmc_sport_live_3",
+        "classification": "NONE",
+        "playlistIds": []
+      }
+    ],
+    "note": "Exact match once the HD quality tag is stripped by the same tokenizer, with an explicit channel-number corroboration signal recorded alongside it."
+  },
+  {
+    "id": "case-sensitive-external-id-does-not-match-different-case",
+    "provenance": "synthetic",
+    "catalog": [
+      {
+        "id": "uk_tnt_sports_1",
+        "name": "TNT Sports 1",
+        "country": "GB",
+        "broadcast_type": "LINEAR",
+        "network_name": "TNT Sports",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "epgshare01_uk",
+            "source_channel_id": "TNT.Sports.1.HD.uk"
+          }
+        ],
+        "source_names": [
+          "TNT Sports 1 HD"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "TNT Sports 1",
+        "groupTitle": "UK| Sports",
+        "epgChannelIds": [
+          "tnt.sports.1.hd.uk"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "uk_tnt_sports_1",
+        "classification": "CONFIRMED",
+        "playlistIds": [
+          "p1"
+        ]
+      }
+    ],
+    "note": "The lowercased id does not raw-match the catalog's exact-case id string at all (Part 2A: exact case-sensitive match only, no folding) — this still confirms, but purely via the exact canonical name signal, not the id."
+  },
+  {
+    "id": "two-similarly-scored-playlist-candidates-insufficient-margin",
+    "provenance": "real-sanitized",
+    "catalog": [
+      {
+        "id": "no_vsport_premier_league",
+        "name": "V Sport Premier League",
+        "country": "NO",
+        "broadcast_type": "LINEAR",
+        "network_name": "Viaplay Group",
+        "channel_number": null,
+        "channel_variant": null,
+        "aliases": [],
+        "external_ids": [
+          {
+            "source_id": "fixture_no_sports",
+            "source_channel_id": "VSportPremierLeague.no"
+          },
+          {
+            "source_id": "iptv_org_allente_no",
+            "source_channel_id": "no_vsport_premier_league"
+          },
+          {
+            "source_id": "epgshare01_no",
+            "source_channel_id": "V.sport.Premier.League.Norway.(NO,NO).no"
+          }
+        ],
+        "source_names": [
+          "NO | V SPORT PREMIER LEAGUE FHD",
+          "V sport Premier League HD",
+          "V sport Premier League Norway (NO,NO)"
+        ]
+      }
+    ],
+    "playlist": [
+      {
+        "id": "p1",
+        "name": "V Sport Premier League Backup",
+        "groupTitle": ""
+      },
+      {
+        "id": "p2",
+        "name": "V Sport Premier League Extra",
+        "groupTitle": ""
+      }
+    ],
+    "expected": [
+      {
+        "logicalChannelId": "no_vsport_premier_league",
+        "classification": "AMBIGUOUS",
+        "playlistIds": [
+          "p1",
+          "p2"
+        ]
+      }
+    ],
+    "note": "Two different playlist channels both fuzzily resemble the same multi-word-brand logical channel (namesOverlap's >=2-shared-word branch allows the extra trailing word) with neither reaching the strong bar cleanly nor separating from the other — genuinely unclear which (if either) is real, so both surface together rather than an arbitrary pick."
+  }
+]

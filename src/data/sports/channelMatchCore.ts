@@ -76,7 +76,10 @@ export const GENERIC_CHANNEL_WORDS = new Set(['TV', 'HD', 'FHD', 'UHD', 'SD', 'L
 // denote different sibling channels (present in only one).
 export const BRAND_QUALIFIER_WORDS = new Set(['SPORT', 'SPORTS', 'PLUS', 'PREMIUM', 'CHANNEL', 'NETWORK'])
 
-function qualifierWords(words: string[]): Set<string> {
+// Exported for channelIdentityResolver.ts, which needs the same
+// qualifier-word extraction to build its own structured-conflict signals
+// rather than re-deriving this logic independently.
+export function qualifierWords(words: string[]): Set<string> {
   return new Set(words.filter((w) => BRAND_QUALIFIER_WORDS.has(w)))
 }
 
@@ -114,7 +117,11 @@ function expandPlusMarker(text: string): string {
   return text.replace(/\+/g, ' PLUS ')
 }
 
-function meaningfulWords(text: string): string[] {
+// Exported for channelIdentityResolver.ts — same tokenization (generic-word
+// stripping, TV+digit brand merging, "+" -> PLUS expansion) that encodes
+// this file's real-world regression knowledge, reused rather than
+// reimplemented so the resolver doesn't drift from namesOverlap's behavior.
+export function meaningfulWords(text: string): string[] {
   const words = mergeTvBrandTokens(
     expandPlusMarker(foldForMatching(text))
       .replace(/[^A-Z0-9 ]+/g, ' ')
@@ -173,7 +180,8 @@ function meaningfulWords(text: string): string[] {
 //    accounted for, nothing else may be left over. A real extra word
 //    (HISTORIA, ABC, INFO, KULTURA...) always means it's a genuinely
 //    different sibling channel, never the same station.
-function sameSet(a: Set<string>, b: Set<string>): boolean {
+// Exported for channelIdentityResolver.ts's own qualifier-conflict check.
+export function sameSet(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false
   for (const w of a) if (!b.has(w)) return false
   return true

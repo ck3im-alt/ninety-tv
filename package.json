@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "build:tizen": "tsc -b && node scripts/build-tizen.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "evaluate:channel-identity": "tsx scripts/evaluate-channel-identity.ts"
   },
   "dependencies": {
     "@noriginmedia/norigin-spatial-navigation": "^3.3.0",
@@ -25,6 +26,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
+    "tsx": "^4.23.12",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
