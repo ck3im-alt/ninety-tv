@@ -16,13 +16,15 @@ export interface LeagueDef {
   staticBackground?: string
   // Ninety's own competition id (ninety-api's src/sports/leagues.ts) —
   // only set for leagues ninety-api's fixture source (footballdata.io)
-  // actually covers. Sportmonks (€80/month) was dropped entirely
-  // 2026-08-17 in favor of ninety-api, whose free-tier fixture source only
-  // covers 5 leagues (Premier League, La Liga, Champions League, Europa
-  // League, World Cup) — Bundesliga/Serie A/Ligue 1/Conference League have
-  // no ninetyCompetitionId below and simply won't show fixtures until
-  // ninety-api gains a source that covers them. Accepted gap, not a bug —
-  // see docs/THIRD_PARTY.md in ninety-api.
+  // actually covers, per a live authenticated check against the API (not
+  // hardcoded from marketing tier numbers, which have been unreliable).
+  // Sportmonks (€80/month) was dropped entirely 2026-08-17 in favor of
+  // ninety-api. Ninety upgraded footballdata.io from Free to Starter on
+  // 2026-08-17→18, which added Bundesliga/Serie A/Ligue 1 coverage (all
+  // three now set below). UEFA Conference League still has no
+  // ninetyCompetitionId — verified live that footballdata.io's Starter
+  // catalog does not carry it at all (not a Ninety omission) — see
+  // docs/THIRD_PARTY.md in ninety-api.
   ninetyCompetitionId?: string
 }
 
@@ -59,21 +61,24 @@ export const LEAGUES: LeagueDef[] = [
     sportLabel: 'FOOTBALL',
     tsdbSport: 'Soccer',
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/67q3q21679951383.png',
-  }, // Italian Serie A — no ninety-api coverage yet, see ninetyCompetitionId comment above
+    ninetyCompetitionId: 'football_serie_a',
+  }, // Italian Serie A
   {
     id: '4331',
     sportKey: 'football',
     sportLabel: 'FOOTBALL',
     tsdbSport: 'Soccer',
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/teqh1b1679952008.png',
-  }, // German Bundesliga — no ninety-api coverage yet
+    ninetyCompetitionId: 'football_bundesliga',
+  }, // German Bundesliga
   {
     id: '4334',
     sportKey: 'football',
     sportLabel: 'FOOTBALL',
     tsdbSport: 'Soccer',
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/9f7z9d1742983155.png',
-  }, // French Ligue 1 — no ninety-api coverage yet
+    ninetyCompetitionId: 'football_ligue_1',
+  }, // French Ligue 1
   {
     id: '4481',
     sportKey: 'football',
