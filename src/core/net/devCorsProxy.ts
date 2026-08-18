@@ -15,15 +15,28 @@ export function toDevHlsProxyUrl(url: string): string {
   return `/dev-proxy/hls?url=${encodeURIComponent(url)}`
 }
 
-export async function fetchWithDevCorsFallback(url: string): Promise<Response> {
+// Carries the HTTP status through the CORS-fallback dance so callers that
+// care about the exact code (e.g. xtreamClient distinguishing 401 from 500)
+// don't have to parse it back out of an error string.
+export class HttpStatusError extends Error {
+  status: number
+  constructor(status: number) {
+    super(`Server returned ${status}`)
+    this.name = 'HttpStatusError'
+    this.status = status
+  }
+}
+
+export async function fetchWithDevCorsFallback(url: string, signal?: AbortSignal): Promise<Response> {
   try {
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`Server returned ${response.status}`)
+    const response = await fetch(url, { signal })
+    if (!response.ok) throw new HttpStatusError(response.status)
     return response
   } catch (err) {
     if (!import.meta.env.DEV) throw err
-    const proxied = await fetch(`/dev-proxy/m3u?url=${encodeURIComponent(url)}`)
-    if (!proxied.ok) throw new Error(`Server returned ${proxied.status}`)
+    if (err instanceof DOMException && err.name === 'AbortError') throw err
+    const proxied = await fetch(`/dev-proxy/m3u?url=${encodeURIComponent(url)}`, { signal })
+    if (!proxied.ok) throw new HttpStatusError(proxied.status)
     return proxied
   }
 }
