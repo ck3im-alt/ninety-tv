@@ -91,8 +91,11 @@ export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
     backgroundUrl: league.staticBackground ?? GENERAL_BACKGROUND,
     isLive,
     isLiveHeuristic: isLive,
+    // BOTH means the channel is available as linear AND streaming, so it
+    // still counts as a valid linear-playlist match; STREAMING-only and
+    // UNKNOWN do not.
     broadcasts: ev.broadcasts
-      .filter((b) => b.broadcast_type === 'LINEAR')
+      .filter((b) => b.broadcast_type === 'LINEAR' || b.broadcast_type === 'BOTH')
       .map((b) => ({ name: b.name, country: b.country })),
   }
 }
