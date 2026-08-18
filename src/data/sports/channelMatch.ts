@@ -16,7 +16,7 @@
 //    hasn't been extended to) — free, but much weaker: guessing from a
 //    programme title is nowhere near as reliable as being told the actual
 //    channel outright.
-import { getShortEpg } from '../xtream/xtreamClient'
+import { getShortEpgLimited } from '../xtream/epgGate'
 import { extractStreamId } from '../xtream/extractStreamId'
 import { broadcastersFor } from './broadcasterMap'
 import { foldForMatching } from '../fancyUnicode'
@@ -199,7 +199,7 @@ function isLikelySportChannel(channel: Channel): boolean {
 // least look sport-related are worth checking at all.
 const MAX_EPG_CANDIDATE_CHANNELS = 40
 
-async function matchViaEpg(event: SportEvent, channels: Channel[], xtreamCreds: XtreamCredentials | null): Promise<ChannelMatch[]> {
+async function matchViaEpg(event: SportEvent, channels: Channel[], xtreamCreds: XtreamCredentials | null, signal?: AbortSignal): Promise<ChannelMatch[]> {
   if (!xtreamCreds) {
     console.log('[channelMatch] EPG fallback skipped: no Xtream credentials (plain M3U playlist)')
     return []
@@ -215,11 +215,12 @@ async function matchViaEpg(event: SportEvent, channels: Channel[], xtreamCreds: 
 
   const results = await Promise.allSettled(
     candidates.map(async (channel) => {
+      if (signal?.aborted) return null
       const source = channel.sources[0]
       const streamId = source ? extractStreamId(source.url) : null
       if (streamId === null) return null
 
-      const listings = await getShortEpg(xtreamCreds, streamId, 4)
+      const listings = await getShortEpgLimited(xtreamCreds, streamId, 4, signal)
       const hit = listings.find((listing) => {
         const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
         if (!withinWindow) return false
@@ -263,7 +264,7 @@ function significantWordSet(text: string): Set<string> {
 // deliberately weaker signal than the other two stages — it exists to
 // surface a plausible guess when nothing better is available, not to be
 // as trustworthy as a real broadcaster mapping.
-async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtreamCreds: XtreamCredentials | null): Promise<ChannelMatch[]> {
+async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtreamCreds: XtreamCredentials | null, signal?: AbortSignal): Promise<ChannelMatch[]> {
   if (!xtreamCreds) return []
   if (!event.homeTeam || !event.awayTeam || !event.dateTimeUtc) return []
 
@@ -276,11 +277,12 @@ async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtreamC
 
   const results = await Promise.allSettled(
     candidates.map(async (channel) => {
+      if (signal?.aborted) return null
       const source = channel.sources[0]
       const streamId = source ? extractStreamId(source.url) : null
       if (streamId === null) return null
 
-      const listings = await getShortEpg(xtreamCreds, streamId, 4)
+      const listings = await getShortEpgLimited(xtreamCreds, streamId, 4, signal)
       const hit = listings.find((listing) => {
         const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
         if (!withinWindow) return false
@@ -336,6 +338,23 @@ function dedupeByChannel(matches: ChannelMatch[]): ChannelMatch[] {
   return [...byChannel.values()]
 }
 
+export interface MatchChannelsOptions {
+  // The two EPG stages are the only ones that cost a real network round
+  // trip against the user's own Xtream panel. Home/hero/live-row matching
+  // (see useHomeFeed.ts) can run for several simultaneously-live matches at
+  // once via Promise.all, so it opts out of the network stages entirely and
+  // relies only on the three free/local ones (ninety-api broadcasts,
+  // broadcasterMap, PPV-name matching) — a live card just won't show up in
+  // that row until one of those free signals covers it. Event Details,
+  // which matches exactly one event at a time, is the only caller that
+  // should ever set this true.
+  allowNetworkFallback?: boolean
+  // Lets a caller (Event Details) cancel in-flight EPG probes once the
+  // screen showing them is closed, rather than letting an already-launched
+  // batch run to completion against the user's panel for no one to see.
+  signal?: AbortSignal
+}
+
 // Only meaningful for team-vs-team fixtures with a real kickoff time —
 // single-entrant events (F1 sessions, golf rounds) have no "home vs away"
 // text to match against and aren't attempted by any stage.
@@ -343,17 +362,19 @@ export async function matchChannelsForEvent(
   event: SportEvent,
   channels: Channel[],
   xtreamCreds: XtreamCredentials | null,
+  options: MatchChannelsOptions = {},
 ): Promise<MatchResult> {
+  const { allowNetworkFallback = false, signal } = options
   const { matches: ninetyMatches, apiHasData, apiStations } = matchViaNinetyApi(event, channels)
   const broadcasterMapMatches = matchViaBroadcasterMap(event, channels)
   const ppvNameMatches = matchViaPpvChannelName(event, channels)
 
   const freeMatches = dedupeByChannel([...ninetyMatches, ...broadcasterMapMatches, ...ppvNameMatches])
-  if (freeMatches.length > 0) return { matches: freeMatches, apiHasData, apiStations }
+  if (freeMatches.length > 0 || !allowNetworkFallback) return { matches: freeMatches, apiHasData, apiStations }
 
-  const epgMatches = await matchViaEpg(event, channels, xtreamCreds)
+  const epgMatches = await matchViaEpg(event, channels, xtreamCreds, signal)
   if (epgMatches.length > 0) return { matches: epgMatches, apiHasData, apiStations }
 
-  const widenedMatches = await matchViaEpgAllPpv(event, channels, xtreamCreds)
+  const widenedMatches = await matchViaEpgAllPpv(event, channels, xtreamCreds, signal)
   return { matches: widenedMatches, apiHasData, apiStations }
 }

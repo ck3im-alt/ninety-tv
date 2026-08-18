@@ -44,8 +44,9 @@ export function EventDetailsScreen({ event, channels, xtreamCreds, onWatch, onBa
     // still worth calling matchChannelsForEvent for every event, not just
     // team fixtures.
     let cancelled = false
+    const controller = new AbortController()
     setState({ status: 'loading' })
-    matchChannelsForEvent(event, channels, xtreamCreds)
+    matchChannelsForEvent(event, channels, xtreamCreds, { allowNetworkFallback: true, signal: controller.signal })
       .then(({ matches, apiStations }) => {
         if (cancelled) return
         setState(matches.length > 0 ? { status: 'ready', matches, apiStations } : { status: 'not-found', apiStations })
@@ -55,6 +56,7 @@ export function EventDetailsScreen({ event, channels, xtreamCreds, onWatch, onBa
       })
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [event, channels, xtreamCreds])
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import {
   namesOverlap,
   namesExactMatch,
@@ -9,6 +9,97 @@ import {
   normalizeCountryKey,
 } from './channelMatchCore'
 import { foldForMatching } from '../fancyUnicode'
+import { matchChannelsForEvent } from './channelMatch'
+import type { SportEvent } from './types'
+import type { Channel } from '../channel'
+import type { XtreamCredentials } from '../xtream/types'
+
+const getShortEpgMock = vi.fn()
+vi.mock('../xtream/xtreamClient', () => ({ getShortEpg: (...args: unknown[]) => getShortEpgMock(...args) }))
+
+beforeEach(() => {
+  getShortEpgMock.mockReset()
+})
+
+const CREDS: XtreamCredentials = { server: 'https://panel.example', username: 'u', password: 'p' }
+
+function unmatchedEvent(): SportEvent {
+  return {
+    id: 'evt-1',
+    sportKey: 'football',
+    sportLabel: 'Football',
+    league: 'Test League',
+    leagueId: 'test-league',
+    title: 'Home vs Away',
+    homeTeam: 'Home',
+    awayTeam: 'Away',
+    dateTimeUtc: '2026-08-18T20:00:00Z',
+    timeLabel: '20:00',
+    isLive: true,
+  }
+}
+
+function ppvChannel(): Channel {
+  return {
+    id: 'ch-1',
+    name: 'PPV Sports Channel',
+    groupTitle: 'PPV',
+    sources: [{ label: 'Default', url: 'http://example.com/live/u/p/123.ts' }],
+  }
+}
+
+describe('matchChannelsForEvent network fallback gating', () => {
+  it('does not hit the EPG network fallback by default (home/live-row usage)', async () => {
+    const result = await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS)
+    expect(result.matches).toEqual([])
+    expect(getShortEpgMock).not.toHaveBeenCalled()
+  })
+
+  it('only hits the EPG network fallback when explicitly allowed (Event Details usage)', async () => {
+    getShortEpgMock.mockResolvedValue([])
+    await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS, { allowNetworkFallback: true })
+    expect(getShortEpgMock).toHaveBeenCalled()
+  })
+
+  it('runs the normal and widened PPV EPG stages sequentially, never simultaneously', async () => {
+    // 40 unique non-PPV "sport" channels fill MAX_EPG_CANDIDATE_CHANNELS
+    // for the normal stage; the PPV channel appended after them gets
+    // sliced out of that stage's candidate list (it's isLikelySportChannel
+    // too, via its PPV category, but ranks 41st) yet is still picked up by
+    // the widened stage, which scans PPV channels independently. That gives
+    // a call this test can attribute to the widened stage alone.
+    const normalChannels: Channel[] = Array.from({ length: 40 }, (_, i) => ({
+      id: `sport-${i}`,
+      name: `Sport Channel ${i}`,
+      groupTitle: 'Sport',
+      sources: [{ label: 'Default', url: `http://example.com/live/u/p/${i + 1}.ts` }],
+    }))
+    const widenedOnlyChannel: Channel = {
+      id: 'ppv-only',
+      name: 'PPV Widened Channel',
+      groupTitle: 'PPV',
+      sources: [{ label: 'Default', url: 'http://example.com/live/u/p/999.ts' }],
+    }
+
+    const normalStageEnd = { t: 0 }
+    let widenedStageStart = -1
+    getShortEpgMock.mockImplementation(async (_creds: XtreamCredentials, streamId: number) => {
+      if (streamId === 999) {
+        widenedStageStart = Date.now()
+        return []
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      normalStageEnd.t = Math.max(normalStageEnd.t, Date.now())
+      return []
+    })
+
+    await matchChannelsForEvent(unmatchedEvent(), [...normalChannels, widenedOnlyChannel], CREDS, {
+      allowNetworkFallback: true,
+    })
+
+    expect(widenedStageStart).toBeGreaterThanOrEqual(normalStageEnd.t)
+  })
+})
 
 describe('namesOverlap', () => {
   // "TV3", "TV3 Sport", and "TV3+" are three distinct real channels — see
