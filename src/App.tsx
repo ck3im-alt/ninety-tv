@@ -123,7 +123,14 @@ function App() {
   // nothing and keeps this effect honest about what it's for).
   useEffect(() => {
     if (channels.length === 0) return
-    savePlaylist(channels, xtreamCreds)
+    const persisted = savePlaylist(channels, xtreamCreds)
+    if (!persisted) {
+      // localStore.ts already logs the underlying error. This is the one
+      // write in the app large enough to plausibly hit a storage quota —
+      // when it happens, the connected playlist silently won't survive a
+      // reload, so it's worth a distinct, findable log line here too.
+      console.error('Playlist did not persist — it will need to be reconnected after a reload.')
+    }
   }, [channels, xtreamCreds])
 
   useEffect(() => {
