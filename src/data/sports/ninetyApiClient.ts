@@ -31,6 +31,7 @@ export interface NinetyEvent {
   start_time_utc: string
   status: string | null
   round_code: string | null
+  competition_id: string | null
   competition_name: string | null
   home_team_name: string | null
   home_team_logo: string | null

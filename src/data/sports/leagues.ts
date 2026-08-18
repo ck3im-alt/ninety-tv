@@ -24,13 +24,6 @@ export interface LeagueDef {
   // ninety-api gains a source that covers them. Accepted gap, not a bug —
   // see docs/THIRD_PARTY.md in ninety-api.
   ninetyCompetitionId?: string
-  // ninety-api's exact `competitions.canonical_name` string for this
-  // league — /v1/events has no per-competition filter yet, so an event is
-  // matched back to a followed LeagueDef by comparing its
-  // `competition_name` against this rather than a second network
-  // round-trip. Must stay byte-identical to ninety-api's own
-  // src/sports/leagues.ts canonicalName values.
-  ninetyCompetitionName?: string
 }
 
 export const LEAGUES: LeagueDef[] = [
@@ -42,7 +35,6 @@ export const LEAGUES: LeagueDef[] = [
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/gasy9d1737743125.png',
     staticBackground: '/backgrounds/premier-league.jpg',
     ninetyCompetitionId: 'football_premier_league',
-    ninetyCompetitionName: 'Premier League',
   }, // English Premier League
   {
     id: '4480',
@@ -52,7 +44,6 @@ export const LEAGUES: LeagueDef[] = [
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/facv1u1742998896.png',
     staticBackground: '/backgrounds/Champions_League.jpeg',
     ninetyCompetitionId: 'football_champions_league',
-    ninetyCompetitionName: 'UEFA Champions League',
   }, // UEFA Champions League
   {
     id: '4335',
@@ -61,7 +52,6 @@ export const LEAGUES: LeagueDef[] = [
     tsdbSport: 'Soccer',
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/ja4it51687628717.png',
     ninetyCompetitionId: 'football_la_liga',
-    ninetyCompetitionName: 'La Liga',
   }, // Spanish La Liga
   {
     id: '4332',
@@ -92,7 +82,6 @@ export const LEAGUES: LeagueDef[] = [
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/mlsr7d1718774547.png',
     staticBackground: '/backgrounds/test_image.png',
     ninetyCompetitionId: 'football_europa_league',
-    ninetyCompetitionName: 'UEFA Europa League',
   }, // UEFA Europa League
   {
     id: '5071',

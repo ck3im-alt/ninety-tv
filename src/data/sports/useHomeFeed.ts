@@ -64,7 +64,7 @@ export function useHomeFeed(preferences: SportPreferences, channels: Channel[], 
           try {
             const { events } = await getEvents()
             footballAll = events.flatMap((ev) => {
-              const league = footballLeagues.find((l) => l.ninetyCompetitionName === ev.competition_name)
+              const league = footballLeagues.find((l) => l.ninetyCompetitionId === ev.competition_id)
               return league ? [mapNinetyEvent(ev, league)] : []
             })
           } catch (err) {

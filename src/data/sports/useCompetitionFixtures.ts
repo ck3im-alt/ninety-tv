@@ -26,11 +26,11 @@ export function useCompetitionFixtures(league: LeagueDef | null): CompetitionFix
       setState({ status: 'loading' })
       return
     }
-    if (league.ninetyCompetitionName == null) {
+    if (league.ninetyCompetitionId == null) {
       setState({ status: 'error', message: 'This competition has no fixture-listing source yet.' })
       return
     }
-    const competitionName = league.ninetyCompetitionName
+    const competitionId = league.ninetyCompetitionId
     const activeLeague = league
     let cancelled = false
     setState({ status: 'loading' })
@@ -41,7 +41,7 @@ export function useCompetitionFixtures(league: LeagueDef | null): CompetitionFix
         // one call — no per-day paging needed (see useHomeFeed.ts).
         const { events } = await getEvents()
         const fixtures = events
-          .filter((ev) => ev.competition_name === competitionName)
+          .filter((ev) => ev.competition_id === competitionId)
           .map((ev) => mapNinetyEvent(ev, activeLeague))
           .sort((a, b) => new Date(a.dateTimeUtc ?? 0).getTime() - new Date(b.dateTimeUtc ?? 0).getTime())
 
