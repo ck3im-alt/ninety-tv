@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://ninety.tv/app"
+        version="0.0.1"
+        viewmodes="fullscreen">
+    <tizen:application id="AbCdEfGhIj.NinetyTV"
+                        package="AbCdEfGhIj"
+                        required_version="6.0"/>
+    <name>NINETY</name>
+    <icon src="icon.png"/>
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <tizen:profile name="tv-samsung"/>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <!-- WARP access policy: grants the packaged widget permission to make
+         cross-origin XHR/fetch requests (e.g. to users' own IPTV/Xtream
+         panels) without those servers needing to send CORS headers.
+         Packaged widget content isn't subject to the same-origin policy a
+         browser tab enforces — this is the production equivalent of the
+         dev-only proxy in vite.config.ts (see TIZEN-PLAN.md). -->
+    <access origin="*" subdomains="true"/>
+    <tizen:setting screen-orientation="landscape"
+                   context-menu="disable"
+                   background-support="disable"
+                   encryption="disable"
+                   install-location="auto"
+                   hwkey-event="enable"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.remote" value="true"/>
+</widget>

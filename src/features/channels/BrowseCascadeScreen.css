@@ -1,0 +1,358 @@
+.browse-cascade {
+  padding: 0 var(--space-24) var(--space-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: calc(1080px - 84px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.cascade-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.cascade-title {
+  font-size: var(--font-display-lg);
+  font-weight: var(--weight-light);
+  margin-bottom: var(--space-2);
+}
+
+.cascade-search-row {
+  display: flex;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.cascade-search-row .search-field {
+  flex: 1;
+}
+
+/* Shared button/section styles moved in from the retired ChannelsRootScreen
+   (this screen replaced it as the primary Channels entry point). */
+.filter-btn {
+  font: inherit;
+  height: 68px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-btn.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+}
+
+.ppv-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--warning);
+  margin-top: var(--space-4);
+}
+
+.ppv-explainer {
+  font-size: 14px;
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+.empty-state {
+  color: var(--text-muted);
+  padding: var(--space-4) 0;
+}
+
+.cascade-columns {
+  display: flex;
+  gap: var(--space-6);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Same panel treatment for every column: dark surface, thin border,
+   restrained radius, no shadow. Width is driven entirely by how many
+   columns are currently visible (data-cols below), not by which one is
+   individually active. */
+.cascade-col,
+.cascade-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 0%;
+  box-sizing: border-box;
+  padding: var(--space-6);
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: flex-basis 220ms ease, flex-grow 220ms ease, flex-shrink 220ms ease;
+}
+
+/* 1 column — just Countries, before anything is picked. Kept narrow (not
+   full-bleed) — Countries stays a slim list at every stage, this one
+   included, rather than only narrowing once other columns show up. */
+.cascade-columns[data-cols='1'] .cascade-col.country {
+  flex: 0 1 40%;
+}
+
+/* 2 columns — Countries + Categories. Categories gets the rest of the
+   width instead of splitting evenly. Countries gets flex-grow: 0 so it
+   holds its narrow basis instead of soaking up leftover space the way an
+   even flex-grow: 1 split would. */
+.cascade-columns[data-cols='2'] .cascade-col.country {
+  flex: 0 1 24%;
+}
+.cascade-columns[data-cols='2'] .cascade-col.category {
+  flex-basis: 76%;
+}
+
+/* Search mode also renders 2 columns (Channels + Preview) — a different
+   pairing than Countries+Categories above, so it gets its own ratio:
+   Preview leads here since that's the point of picking a search result.
+   The video itself stays locked to 16:9 regardless (aspect-ratio below),
+   this only changes how much width the column gets. */
+.cascade-columns[data-cols='2'] .cascade-col.channels {
+  flex-basis: 38%;
+}
+.cascade-columns[data-cols='2'] .cascade-preview {
+  flex-basis: 62%;
+}
+
+/* 3 columns — + Channels, Countries stays slim and the freed-up width goes
+   to Channels instead. */
+.cascade-columns[data-cols='3'] .cascade-col.country {
+  flex: 0 1 20%;
+}
+.cascade-columns[data-cols='3'] .cascade-col.category {
+  flex-basis: 32%;
+}
+.cascade-columns[data-cols='3'] .cascade-col.channels {
+  flex-basis: 48%;
+}
+
+/* 4 columns — + Preview. Countries stays the same width/row style as the
+   3-column state (not a further-collapsed flag-only state) — it's kept
+   narrow throughout already, so there's no separate "even narrower" state
+   once Preview shows up. Preview's width just follows its locked 16:9
+   aspect ratio rather than needing to be the widest pane, so Channels and
+   Categories get more room instead. */
+.cascade-columns[data-cols='4'] .cascade-col.country {
+  flex: 0 1 20%;
+}
+.cascade-columns[data-cols='4'] .cascade-col.category {
+  flex-basis: 26%;
+}
+.cascade-columns[data-cols='4'] .cascade-col.channels {
+  flex-basis: 34%;
+}
+.cascade-columns[data-cols='4'] .cascade-preview {
+  flex-basis: 30%;
+}
+
+/* Countries/Categories keep the same row sizing as the classic screens at
+   every column count — nothing shrinks to squeeze in more; the list just
+   scrolls (.cascade-list already does). */
+.cascade-col.category {
+  min-width: 260px;
+}
+.cascade-col.country {
+  min-width: 220px;
+}
+
+/* Countries never shows the channel-count badge, at any column count —
+   it's the widest/least-narrow list otherwise, and the count doesn't earn
+   its keep once the column is meant to stay slim throughout. */
+.cascade-col.country .list-row-count {
+  display: none;
+}
+.cascade-col.channels {
+  min-width: 340px;
+}
+.cascade-preview {
+  min-width: 340px;
+}
+
+/* Fully expanded (country + category + channels + preview): Categories'
+   row-count badge and everyone's favorite stars are dropped to keep the
+   four-pane view calm — Watch/Favorite in the Preview pane is the only
+   favoriting action left at that point. (Countries' count is already
+   hidden at every column count, above.) */
+.cascade-columns[data-cols='4'] .cascade-col.category .list-row-count,
+.cascade-columns[data-cols='4'] .cascade-col .list-row-favorite,
+.cascade-columns[data-cols='4'] .cascade-col .ch-row-favorite {
+  display: none;
+}
+
+.cascade-col-header {
+  font-size: 20px;
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.cascade-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Country, category, and channel rows all share one row height, padding,
+   and label size here — the classic screens keep their own taller 88px
+   channel row untouched. */
+.cascade-col .ch-row {
+  height: 68px;
+  padding: 0 var(--space-6);
+}
+
+.cascade-col .ch-row-logo {
+  width: 56px;
+  height: 40px;
+}
+
+.cascade-col .ch-row-logo img {
+  max-width: 40px;
+  max-height: 32px;
+}
+
+.cascade-col .ch-row-name {
+  font-size: 21px;
+  font-weight: var(--weight-regular);
+}
+
+.cascade-col .ch-row-source-count {
+  font-size: var(--font-meta);
+}
+
+/* Selected vs focused — kept visually distinct per the design system:
+   selected is a quiet, permanent marker (tinted background + left rail);
+   focused is the brighter, temporary keyboard-cursor state. Scoped to this
+   screen only — the classic screens' plain color-only active style, and
+   their full-box focus style, are untouched. */
+.cascade-col .list-row.active,
+.cascade-col .ch-row.active {
+  background: var(--accent-dark);
+  border-left: 3px solid var(--accent);
+  border-radius: 0;
+}
+
+.cascade-col .list-row.focused,
+.cascade-col .ch-row.focused {
+  background: var(--surface-elevated);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-md);
+}
+
+.cascade-col .list-row.active.focused,
+.cascade-col .ch-row.active.focused {
+  background: var(--surface-focus);
+  border: 1.5px solid var(--accent);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+}
+
+/* Preview / EPG card */
+
+.cascade-preview {
+  overflow: hidden;
+}
+
+.cascade-preview .preview-video {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.preview-name {
+  font-size: 26px;
+  font-weight: var(--weight-regular);
+  margin: 0;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-subtitle.muted {
+  color: var(--text-muted);
+  font-size: var(--font-meta);
+  white-space: normal;
+}
+
+.preview-next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview-next-title {
+  font-size: var(--font-meta);
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-1);
+}
+
+.preview-next-row {
+  display: flex;
+  gap: var(--space-3);
+  padding: 4px 0;
+  border-top: 1px solid var(--divider);
+  flex-shrink: 0;
+}
+
+.preview-next-time {
+  color: var(--accent);
+  font-size: var(--font-meta);
+  min-width: 44px;
+  flex-shrink: 0;
+}
+
+.preview-next-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--font-meta);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-top: auto;
+}

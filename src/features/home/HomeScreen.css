@@ -1,0 +1,441 @@
+.home-screen {
+  position: relative;
+  padding: 0 var(--space-24) var(--space-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+/* Hero height/positioning constants, referenced by both .hero and
+   .hero-spacer below — keep these two in sync if either changes. TopNav's
+   own height (84px, see TopNav.css) is what .hero pulls itself up by so
+   it reaches the true top of the app (y=0) rather than starting below the
+   nav bar. */
+.hero {
+  position: absolute;
+  top: -84px;
+  left: 0;
+  right: 0;
+  height: 560px;
+  padding: 0 var(--space-24);
+  display: flex;
+  align-items: flex-end;
+  /* No radius/clip — full-bleed to both viewport edges and the top of the
+     app, with the bottom fade below dissolving it into the page instead
+     of ending at a visible box edge. */
+}
+
+.hero-spacer {
+  /* Reserves the flow space .hero would otherwise occupy, now that it's
+     position:absolute and out of flow — height = hero's own height minus
+     the 84px it pulls up over TopNav, so Live Now/Tonight land exactly
+     where they would have if .hero were still in normal flow. */
+  height: calc(560px - 84px);
+}
+
+.hero-background {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 75% 30%, #14304a 0%, #0a1826 55%, #050d16 100%);
+  /* Fallback gradient for events TheSportsDB has no banner/thumb/poster
+     for (common outside football) — .hero-background-image below covers
+     it when a real image is available. */
+}
+
+.hero-background-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.hero::before {
+  /* Left-to-right darkening so title text stays legible over the photo. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(5, 13, 22, 0.92) 0%, rgba(5, 13, 22, 0.55) 45%, rgba(5, 13, 22, 0.15) 100%);
+}
+
+.hero-nav-scrim {
+  /* Darkens just the strip behind TopNav (which now floats over the top
+     of this image) so the logo/nav text stays legible regardless of what
+     the photo looks like at its very top edge. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 160px;
+  background: linear-gradient(180deg, rgba(3, 10, 18, 0.85) 0%, rgba(3, 10, 18, 0) 100%);
+}
+
+.hero::after {
+  /* Bottom fade into the page background — this is what makes the hero
+     dissolve into "Live Now" below instead of ending at a visible box
+     edge, matching the reference screenshot. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 55%, var(--bg-primary) 100%);
+}
+
+.hero-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--live-red);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.hero-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-primary);
+}
+
+.hero-score {
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+  margin-left: var(--space-3);
+}
+
+.hero-league {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: var(--space-2);
+}
+
+.hero-league-name {
+  color: var(--text-primary);
+  font-size: var(--font-section);
+  font-weight: var(--weight-medium);
+  line-height: 1.15;
+  /* No max-width: it was forcing ordinary names like "UEFA Europa League"
+     onto two lines and cramping the row. Long-tail names just run as far
+     as .hero-content's own width allows instead. */
+  white-space: nowrap;
+}
+
+.hero-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.meta-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.hero-empty .hero-content {
+  padding-bottom: var(--space-12);
+}
+
+.feed-status {
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+  margin: 0;
+}
+
+.feed-status-error {
+  color: var(--live-red);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  /* Horizontal alignment already comes from .hero's own padding —
+     padding here would double-inset the text. */
+  padding: var(--space-12) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.hero-competition {
+  color: var(--accent);
+  font-size: var(--font-meta);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.hero-title {
+  font-size: var(--font-display-lg);
+  font-weight: var(--weight-light);
+}
+
+.hero-title .vs {
+  color: var(--text-secondary);
+  font-size: 0.6em;
+}
+
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+}
+
+.watch-now {
+  font: inherit;
+  margin-top: var(--space-2);
+  height: 64px;
+  padding: 0 var(--space-8);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #061006;
+  font-size: 20px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.watch-now.focused {
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--border-focus);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row-title {
+  font-size: var(--font-section);
+}
+
+.scroll-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.scroll-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  /* Scrolling here is driven by focus/the remote's D-pad, not a mouse or
+     touch drag — the browser's scrollbar track is a desktop affordance
+     that's meaningless on a TV, so it's hidden while overflow scrolling
+     (used by the chevron button and focus-follow) still works normally. */
+  scrollbar-width: none;
+}
+
+.scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll-chevron {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.scroll-chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+.scroll-chevron.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+  color: var(--accent);
+}
+
+.event-card {
+  flex: 0 0 340px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: border-color var(--motion-duration) var(--motion-ease);
+}
+
+.event-card.focused {
+  border-color: var(--border-focus);
+}
+
+.event-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.event-card-header .sport-label {
+  flex: 1;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--live-red);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--text-primary);
+}
+
+.sport-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.event-card-clock {
+  color: var(--text-primary);
+  font-size: var(--font-meta);
+  font-weight: var(--weight-medium);
+}
+
+.event-card-time {
+  color: var(--accent);
+  font-size: var(--font-meta);
+  font-weight: var(--weight-medium);
+}
+
+.card-teams {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.card-team-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.card-team-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-team-badge {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.card-team-score {
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  font-weight: var(--weight-medium);
+  flex-shrink: 0;
+}
+
+.card-single {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.card-single-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.card-single-title {
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-competition {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--divider);
+}
+
+.card-competition img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.favorite-channel-card {
+  cursor: pointer;
+}
+
+.favorite-channel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.favorite-channel-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.favorite-channel-name {
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorite-channel-title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

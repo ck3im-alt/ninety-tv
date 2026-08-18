@@ -1,0 +1,300 @@
+/* Shared across all onboarding steps (Sports & Leagues, Countries,
+   You're all set) — layout skeleton, left info panel, and the generic
+   selectable-card grid look. Step-specific grids/sections live in each
+   step's own stylesheet. */
+
+.onboarding-screen {
+  width: 1920px;
+  height: 1080px;
+  box-sizing: border-box;
+  padding: var(--space-12) var(--space-24);
+  display: grid;
+  grid-template-columns: 560px 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 0 var(--space-24);
+  /* stretch (not start): the right panel needs the full row height to
+     center content in when a step has less to show than others. */
+  align-items: stretch;
+}
+
+.onboarding-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.onboarding-logo {
+  font-size: var(--font-logo-size);
+  font-weight: var(--weight-regular);
+  letter-spacing: 9px;
+  color: var(--text-primary);
+}
+
+.onboarding-headline {
+  font-size: var(--font-display-lg);
+  font-weight: var(--weight-light);
+  line-height: 1.15;
+  margin: var(--space-8) 0 0;
+}
+
+.onboarding-headline .accent {
+  color: var(--accent);
+}
+
+.onboarding-description {
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+  line-height: 1.5;
+  max-width: 420px;
+  margin: 0;
+}
+
+.onboarding-features {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.onboarding-features li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.onboarding-features svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.feature-title {
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  font-weight: var(--weight-medium);
+  margin: 0;
+}
+
+.feature-desc {
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  margin: var(--space-1) 0 0;
+  line-height: 1.4;
+}
+
+.onboarding-footer-actions {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.skip-button,
+.back-button {
+  font: inherit;
+  height: 56px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.skip-button.focused,
+.back-button.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
+
+.back-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.onboarding-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.picker-section-title {
+  color: var(--text-muted);
+  font-size: var(--font-meta);
+  font-weight: var(--weight-medium);
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.picker-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.picker-section-header .picker-section-title {
+  /* Countries step: a real heading with Select/Deselect-all actions
+     alongside it, not the small muted caps label the Sports step uses. */
+  color: var(--text-primary);
+  font-size: var(--font-section);
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+}
+
+.picker-section-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.picker-section-action {
+  font: inherit;
+  height: 40px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  font-size: var(--font-meta);
+  cursor: pointer;
+}
+
+.picker-section-action.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
+
+.picker-section-action.primary {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.picker-section-action.primary.focused {
+  background: var(--accent);
+  color: #061006;
+}
+
+.pick-card {
+  position: relative;
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 148px;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: border-color var(--motion-duration) var(--motion-ease), background var(--motion-duration) var(--motion-ease);
+}
+
+.pick-card.selected {
+  border-color: var(--border-focus);
+}
+
+.pick-card.focused {
+  background: var(--surface-focus);
+  border-color: var(--border-focus);
+}
+
+.pick-card-checkbox {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #061006;
+}
+
+.pick-card.selected .pick-card-checkbox {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pick-card-checkbox svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pick-card-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pick-card-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pick-card-icon.round img {
+  border-radius: 999px;
+}
+
+.pick-card-label {
+  color: var(--text-primary);
+  font-size: var(--font-meta);
+  text-align: center;
+}
+
+.pick-card-sublabel {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  margin-top: calc(var(--space-1) * -1);
+}
+
+.continue-button {
+  font: inherit;
+  align-self: flex-end;
+  margin-top: var(--space-6);
+  height: 64px;
+  padding: 0 var(--space-8);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #061006;
+  font-size: 20px;
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.continue-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.continue-button.focused {
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--border-focus);
+}
+
+.continue-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

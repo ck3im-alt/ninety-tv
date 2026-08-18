@@ -1,0 +1,265 @@
+.filter-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 10, 18, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.filter-popup {
+  width: 960px;
+  max-height: 800px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-sizing: border-box;
+}
+
+.filter-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.filter-title {
+  font-size: 28px;
+  font-weight: var(--weight-regular);
+  margin: 0 0 var(--space-1);
+}
+
+.filter-close {
+  font: inherit;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.filter-close.focused {
+  border-color: var(--border-focus);
+  color: var(--accent);
+}
+
+.filter-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-meta);
+  line-height: 1.5;
+}
+
+/* Purely a visual guide ("do countries first, then categories") — both
+   panels are interactive at once, this isn't a hard gate. */
+.filter-steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.filter-step {
+  font-size: var(--font-meta);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.filter-step.active {
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.filter-step-track {
+  flex: 1;
+  height: 2px;
+  background: var(--divider);
+  position: relative;
+}
+
+.filter-step-dot {
+  position: absolute;
+  left: 40%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+}
+
+.filter-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.filter-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-sizing: border-box;
+}
+
+.filter-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.filter-column-title {
+  font-size: var(--font-body);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.filter-column-title-scope {
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+}
+
+.filter-column-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Select all / Deselect all reuse .filter-action but need their own look
+   here: at the bottom-bar size (flex: 1, 56px tall) they'd be oversized for
+   a header row, and — since .filter-column shares the exact same
+   background as .filter-action's default state — an unfocused one was
+   nearly invisible against its own column, only a 1px border away from the
+   background. Compact sizing + a surface a shade lighter than the column
+   fixes both. */
+.filter-column-actions .filter-action {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 0 var(--space-3);
+  font-size: var(--font-meta);
+  color: var(--accent);
+  background: rgba(118, 240, 75, 0.1);
+  border-color: rgba(118, 240, 75, 0.4);
+}
+
+.filter-column-actions .filter-action.focused {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #061006;
+}
+
+.filter-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filter-row {
+  height: 52px;
+  min-height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+}
+
+.filter-row.focused {
+  background: var(--surface-focus);
+}
+
+.filter-row.active {
+  border-color: var(--accent);
+  background: var(--accent-dark);
+}
+
+.filter-checkbox {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #061006;
+  cursor: pointer;
+}
+
+.filter-checkbox.checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.filter-row-label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-body);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-row-count {
+  font-size: var(--font-meta);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.filter-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.filter-action {
+  font: inherit;
+  flex: 1;
+  height: 56px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  cursor: pointer;
+}
+
+.filter-action.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
+
+.filter-action.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #061006;
+  font-weight: var(--weight-medium);
+}
+
+.filter-action.primary.focused {
+  background: var(--accent-soft);
+}

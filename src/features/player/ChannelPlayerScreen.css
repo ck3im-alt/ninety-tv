@@ -1,0 +1,221 @@
+.channel-player {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  background: #000;
+  overflow: hidden;
+}
+
+.video-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.player-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-8) var(--space-16);
+  box-sizing: border-box;
+  background: linear-gradient(
+    to bottom,
+    rgba(3, 10, 18, 0.85) 0%,
+    rgba(3, 10, 18, 0) 22%,
+    rgba(3, 10, 18, 0) 62%,
+    rgba(3, 10, 18, 0.9) 100%
+  );
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition:
+    opacity var(--motion-duration) var(--motion-ease),
+    transform var(--motion-duration) var(--motion-ease);
+}
+
+.player-overlay.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.overlay-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.overlay-channel-info {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.overlay-channel-name {
+  font-size: var(--font-section);
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+}
+
+.overlay-channel-group {
+  font-size: var(--font-section);
+  font-weight: var(--weight-regular);
+  color: var(--accent);
+}
+
+.player-error {
+  align-self: center;
+  color: var(--live-red);
+  font-size: var(--font-body);
+  background: var(--surface-elevated);
+  border: 1px solid var(--live-red);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+}
+
+/* Toolbar */
+
+.toolbar {
+  display: flex;
+  align-self: center;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) 0;
+}
+
+.toolbar-item {
+  position: relative;
+  display: flex;
+}
+
+.toolbar-btn {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: 108px;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  position: relative;
+}
+
+.toolbar > :not(:first-child) .toolbar-btn::before,
+.toolbar > .toolbar-btn:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: var(--divider);
+}
+
+.toolbar-btn-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.toolbar-btn-label {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.toolbar-btn.active {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
+
+.toolbar-btn.active .toolbar-btn-icon,
+.toolbar-btn.active .toolbar-btn-label {
+  color: var(--accent);
+}
+
+.toolbar-btn.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+  color: var(--text-primary);
+}
+
+/* Source / subtitles popups — anchored directly above their own button */
+
+.options-popup {
+  position: absolute;
+  bottom: calc(100% + var(--space-3));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.options-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: 360px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.options-empty {
+  margin: 0;
+  padding: var(--space-4);
+  font-size: var(--font-meta);
+  color: var(--text-muted);
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 56px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+}
+
+.option-row:last-child {
+  border-bottom: none;
+}
+
+.option-row.focused {
+  background: var(--surface-focus);
+}
+
+.option-row-chip {
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  min-width: 34px;
+  text-align: center;
+}
+
+.option-row-label {
+  flex: 1;
+  font-size: var(--font-body);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-row-check {
+  color: var(--accent);
+  font-size: var(--font-body);
+}

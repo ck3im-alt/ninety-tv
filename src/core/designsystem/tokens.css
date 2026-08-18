@@ -1,0 +1,64 @@
+/* NINETY design tokens — source of truth: NINETY_Channels_Design_System.md.
+   TV-only, dark-only (no light-mode / prefers-color-scheme branching). */
+:root {
+  --bg-primary: #030a12;
+  --bg-secondary: #050d16;
+
+  --surface-primary: #0a121c;
+  --surface-secondary: #08111a;
+  --surface-elevated: #0d1722;
+  --surface-focus: #101c27;
+
+  --text-primary: #f3f5f6;
+  --text-secondary: #a6adb5;
+  --text-muted: #747d87;
+  --text-disabled: #59616a;
+
+  --accent: #76f04b;
+  --accent-soft: #6eeb47;
+  --accent-dark: #17331a;
+
+  --live-red: #f33c4d;
+  --warning: #f0a52a;
+
+  --divider: #18222d;
+  --border: #1b2630;
+  --border-focus: #76f04b;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  --font-ui: 'Inter', 'Roboto', sans-serif;
+
+  --font-logo-size: 24px;
+  --font-nav-size: 19px;
+
+  --font-display-xl: 60px;
+  --font-display-lg: 52px;
+
+  --font-section: 24px;
+
+  --font-channel: 22px;
+  --font-body: 18px;
+  --font-meta: 16px;
+
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+
+  --motion-duration: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}

@@ -1,0 +1,19 @@
+.breadcrumb {
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crumb-first {
+  color: var(--accent);
+}
+
+.crumb {
+  color: #8c949d;
+}
+
+.crumb-separator {
+  margin: 0 4px;
+  color: #8c949d;
+}

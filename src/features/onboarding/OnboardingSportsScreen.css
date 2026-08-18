@@ -1,0 +1,38 @@
+/* Step-specific to Sports & Leagues — shared layout/card rules live in
+   onboardingShared.css. */
+
+.sports-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sports-section.centered {
+  /* No Football Leagues section to fill the rest of the column when
+     football isn't selected — center the sports grid in that space
+     instead of leaving it pinned to the top with empty space below. */
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+}
+
+.sports-section.centered .picker-section-title {
+  text-align: center;
+}
+
+.sports-section.centered .popular-sports-grid {
+  width: 100%;
+}
+
+.popular-sports-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.league-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-4);
+}

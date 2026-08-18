@@ -1,0 +1,86 @@
+.top-nav {
+  position: relative;
+  /* Establishes a stacking context above the Home screen's hero image,
+     which pulls itself up underneath the nav bar (see HomeScreen.css) —
+     without this, the nav would render behind that image instead of
+     floating on top of it. Harmless on every other screen: nothing else
+     competes for stacking there. */
+  z-index: 5;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-24);
+  box-sizing: border-box;
+}
+
+.logo {
+  font-size: var(--font-logo-size);
+  font-weight: var(--weight-regular);
+  letter-spacing: 9px;
+  color: var(--text-primary);
+}
+
+.nav-items {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.nav-item {
+  position: relative;
+  font-size: var(--font-nav-size);
+  color: var(--text-secondary);
+  padding-bottom: var(--space-2);
+  transition: color var(--motion-duration) var(--motion-ease);
+}
+
+.nav-item.active {
+  color: var(--accent);
+}
+
+.nav-item.focused {
+  color: var(--accent);
+  text-shadow: 0 0 0 var(--accent);
+}
+
+.nav-item.clickable {
+  cursor: pointer;
+}
+
+.nav-underline {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: -10px;
+  height: 2px;
+  background: var(--accent);
+}
+
+.nav-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: box-shadow var(--motion-duration) var(--motion-ease);
+}
+
+.avatar.clickable {
+  cursor: pointer;
+}
+
+.avatar.focused {
+  box-shadow: 0 0 0 3px var(--surface-focus), 0 0 0 5px var(--border-focus);
+}

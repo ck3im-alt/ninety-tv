@@ -1,0 +1,24 @@
+/* Step-specific to Countries — shared layout/card rules live in
+   onboardingShared.css. */
+
+.countries-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-4);
+  overflow-y: auto;
+}
+
+.countries-empty {
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+  line-height: 1.5;
+  max-width: 640px;
+}
+
+.pick-card-icon.round {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-elevated);
+}

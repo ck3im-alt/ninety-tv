@@ -1,0 +1,38 @@
+.onboarding-done-screen {
+  grid-template-columns: 1fr;
+}
+
+.onboarding-done-content {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-4);
+}
+
+.done-check {
+  width: 96px;
+  height: 96px;
+  color: var(--accent);
+  margin-bottom: var(--space-4);
+}
+
+.done-check svg {
+  width: 100%;
+  height: 100%;
+}
+
+.onboarding-done-content .onboarding-headline {
+  margin: 0;
+}
+
+.done-summary {
+  max-width: 480px;
+}
+
+.done-actions {
+  margin-top: var(--space-8);
+  justify-content: center;
+}

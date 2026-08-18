@@ -1,0 +1,66 @@
+@import './core/designsystem/tokens.css';
+
+/* NINETY is TV-only and dark-only by design — no light mode, no responsive
+   breakpoints. The app renders on a fixed 1920x1080 canvas; Tizen (and
+   Google TV/webOS) present the web view already sized to that resolution
+   and scale it to the physical panel at the OS level, so no JS-driven
+   viewport scaling is needed here. */
+:root {
+  font: var(--font-body) / 1.45 var(--font-ui);
+  letter-spacing: 0.18px;
+  color-scheme: dark;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  min-height: 100vh;
+}
+
+#root {
+  width: 1920px;
+  height: 1080px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+h1,
+h2 {
+  font-family: var(--font-ui);
+  font-weight: var(--weight-light);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--font-display-xl);
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+
+h2 {
+  font-size: var(--font-section);
+  font-weight: var(--weight-regular);
+  line-height: 1.2;
+}
+
+p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 15px;
+  line-height: 135%;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
