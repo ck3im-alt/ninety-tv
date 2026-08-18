@@ -1,0 +1,58 @@
+name: CI / Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - name: Check required repository variables
+        run: |
+          if [ -z "${{ vars.VITE_NINETY_API_URL }}" ]; then
+            echo "::error::Repository variable VITE_NINETY_API_URL is not set. Configure it under Settings > Secrets and variables > Actions > Variables before this workflow can build."
+            exit 1
+          fi
+      - run: npm run build
+        env:
+          GITHUB_PAGES: "true"
+          VITE_NINETY_API_URL: ${{ vars.VITE_NINETY_API_URL }}
+      - run: npm run build:tizen
+        env:
+          VITE_NINETY_API_URL: ${{ vars.VITE_NINETY_API_URL }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
