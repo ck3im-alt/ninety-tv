@@ -74,3 +74,30 @@ describe('mapNinetyEvent broadcasts filtering', () => {
     expect(result.broadcasts?.map((b) => b.name).sort()).toEqual(['Sky Sports', 'TV3 Plus'])
   })
 })
+
+describe('mapNinetyEvent broadcasts identity preservation', () => {
+  it('carries logicalChannelId, confidence, and classification through onto SportEvent.broadcasts', () => {
+    const result = mapNinetyEvent(
+      event([
+        broadcast({
+          logical_channel_id: 'lc-sky-sports-main',
+          name: 'Sky Sports Main Event',
+          country: 'GB',
+          confidence: 0.87,
+          classification: 'PROBABLE',
+          broadcast_type: 'LINEAR',
+        }),
+      ]),
+      league,
+    )
+    expect(result.broadcasts).toEqual([
+      {
+        logicalChannelId: 'lc-sky-sports-main',
+        name: 'Sky Sports Main Event',
+        country: 'GB',
+        confidence: 0.87,
+        classification: 'PROBABLE',
+      },
+    ])
+  })
+})

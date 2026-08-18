@@ -21,7 +21,16 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
   const order: string[] = []
   const groups = new Map<
     string,
-    { name: string; logo?: string; groupTitle?: string; sources: ChannelSource[]; hasEpgChannelId: boolean }
+    {
+      name: string
+      logo?: string
+      groupTitle?: string
+      sources: ChannelSource[]
+      epgChannelIds: string[]
+      seenEpgChannelIds: Set<string>
+      rawNames: string[]
+      seenRawNames: Set<string>
+    }
   >()
 
   for (const entry of raw) {
@@ -31,13 +40,34 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
 
     let group = groups.get(key)
     if (!group) {
-      group = { name: canonicalName, logo: entry.logo, groupTitle: entry.groupTitle, sources: [], hasEpgChannelId: false }
+      group = {
+        name: canonicalName,
+        logo: entry.logo,
+        groupTitle: entry.groupTitle,
+        sources: [],
+        epgChannelIds: [],
+        seenEpgChannelIds: new Set(),
+        rawNames: [],
+        seenRawNames: new Set(),
+      }
       groups.set(key, group)
       order.push(key)
     }
     if (!group.logo && entry.logo) group.logo = entry.logo
-    if (entry.epgChannelId) group.hasEpgChannelId = true
-    group.sources.push({ label: qualityTag ?? 'Default', url: entry.url })
+    if (entry.epgChannelId && !group.seenEpgChannelIds.has(entry.epgChannelId)) {
+      group.seenEpgChannelIds.add(entry.epgChannelId)
+      group.epgChannelIds.push(entry.epgChannelId)
+    }
+    if (entry.name && !group.seenRawNames.has(entry.name)) {
+      group.seenRawNames.add(entry.name)
+      group.rawNames.push(entry.name)
+    }
+    group.sources.push({
+      label: qualityTag ?? 'Default',
+      url: entry.url,
+      epgChannelId: entry.epgChannelId,
+      originalName: entry.name,
+    })
   }
 
   return order.map((key) => {
@@ -48,7 +78,9 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
       logo: group.logo,
       groupTitle: group.groupTitle,
       sources: group.sources,
-      hasEpgChannelId: group.hasEpgChannelId,
+      epgChannelIds: group.epgChannelIds,
+      rawNames: group.rawNames,
+      hasEpgChannelId: group.epgChannelIds.length > 0,
     }
   })
 }

@@ -96,7 +96,13 @@ export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
     // UNKNOWN do not.
     broadcasts: ev.broadcasts
       .filter((b) => b.broadcast_type === 'LINEAR' || b.broadcast_type === 'BOTH')
-      .map((b) => ({ name: b.name, country: b.country })),
+      .map((b) => ({
+        logicalChannelId: b.logical_channel_id,
+        name: b.name,
+        country: b.country,
+        confidence: b.confidence,
+        classification: b.classification,
+      })),
   }
 }
 

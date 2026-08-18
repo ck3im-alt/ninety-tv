@@ -59,8 +59,12 @@ const FILTERS_KEY = 'ninety.channelFilters'
 const PLAYLIST_SOURCE_SCHEMA_VERSION = 1
 
 // Bump when Channel's shape or the merge/normalization logic changes in a
-// way that makes previously-cached channels stale or invalid.
-const PLAYLIST_CHANNELS_SCHEMA_VERSION = 1
+// way that makes previously-cached channels stale or invalid. Bumped to 2
+// when Channel gained epgChannelIds/rawNames (Channel Identity Resolver v2
+// Phase 1) — old cached entries lack those fields, so they're treated as
+// invalid and rebuilt via loadPlaylistState()'s recovery path rather than
+// silently served without the new identity data.
+const PLAYLIST_CHANNELS_SCHEMA_VERSION = 2
 
 // How to reconnect a playlist without the user retyping anything, for the
 // two source kinds that support it — plus a third kind that deliberately

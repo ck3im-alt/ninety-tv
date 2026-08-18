@@ -103,6 +103,36 @@ describe('recovery outcomes', () => {
     localStorage.removeItem('ninety.playlist.channels')
     expect(loadPlaylistState()).toEqual({ kind: 'unrecoverable-file-source', source: fileSource })
   })
+
+  // Regression guard for the Channel Identity Resolver v2 Phase 1 cache
+  // bump: an old-shape cached Channel[] (pre-epgChannelIds/rawNames, same
+  // shape a real pre-upgrade cache would have) must be treated as invalid
+  // rather than served as-is, so the app rebuilds it (recovering via the
+  // still-valid source record for Xtream/M3U) instead of silently running
+  // with channels that lack the new identity fields.
+  it('a pre-upgrade channel cache (old schema version) is invalid, but Xtream credentials are retained for rebuild', () => {
+    savePlaylist(makeChannels(2), xtreamSource)
+    const raw = JSON.parse(localStorage.getItem('ninety.playlist.channels')!)
+    raw.version = 1 // the pre-Phase-1 PLAYLIST_CHANNELS_SCHEMA_VERSION
+    localStorage.setItem('ninety.playlist.channels', JSON.stringify(raw))
+    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-invalid', source: xtreamSource })
+  })
+
+  it('a pre-upgrade channel cache (old schema version) is invalid, but the M3U URL is retained for rebuild', () => {
+    savePlaylist(makeChannels(2), m3uUrlSource)
+    const raw = JSON.parse(localStorage.getItem('ninety.playlist.channels')!)
+    raw.version = 1
+    localStorage.setItem('ninety.playlist.channels', JSON.stringify(raw))
+    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-invalid', source: m3uUrlSource })
+  })
+
+  it('a pre-upgrade channel cache with a file source stays honestly unrecoverable, not silently rebuilt', () => {
+    savePlaylist(makeChannels(2), fileSource)
+    const raw = JSON.parse(localStorage.getItem('ninety.playlist.channels')!)
+    raw.version = 1
+    localStorage.setItem('ninety.playlist.channels', JSON.stringify(raw))
+    expect(loadPlaylistState()).toEqual({ kind: 'unrecoverable-file-source', source: fileSource })
+  })
 })
 
 describe('storage failure', () => {

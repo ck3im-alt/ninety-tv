@@ -57,5 +57,11 @@ export interface SportEvent {
   // Sportmonks flow, which had to re-fetch and re-find the fixture just to
   // get its broadcaster list). Undefined for non-football events, which
   // have no ninety-api resolution at all.
-  broadcasts?: { name: string; country: string | null }[]
+  broadcasts?: {
+    logicalChannelId: string
+    name: string
+    country: string | null
+    confidence: number
+    classification: 'CONFIRMED' | 'PROBABLE' | 'AMBIGUOUS' | 'UNKNOWN' | 'REJECTED'
+  }[]
 }

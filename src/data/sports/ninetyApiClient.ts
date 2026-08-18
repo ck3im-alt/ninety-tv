@@ -40,11 +40,22 @@ export interface NinetyEvent {
   broadcasts: NinetyBroadcast[]
 }
 
+export interface NinetyExternalChannelId {
+  source_id: string
+  source_channel_id: string
+}
+
 export interface NinetyLogicalChannel {
   id: string
   name: string
   country: string | null
   broadcast_type: 'LINEAR' | 'STREAMING' | 'BOTH' | 'UNKNOWN'
+  network_name: string | null
+  channel_number: string | null
+  channel_variant: string | null
+  aliases: string[]
+  external_ids: NinetyExternalChannelId[]
+  source_names: string[]
 }
 
 export interface NinetyEventsPagination {
