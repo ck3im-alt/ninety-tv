@@ -8,11 +8,17 @@
 // proper CORS headers — no dev-proxy fallback needed here, direct fetch
 // works both in `vite dev` and the packaged Tizen widget.
 
-const BASE_URL = import.meta.env.VITE_NINETY_API_URL as string | undefined
+// Read lazily (not as a module-level const) so `vi.stubEnv` in tests can
+// override it per-test -- a top-level const would freeze whatever
+// VITE_NINETY_API_URL was at first import, before any test's beforeEach runs.
+function getBaseUrl(): string | undefined {
+  return import.meta.env.VITE_NINETY_API_URL as string | undefined
+}
 
 async function getJson<T>(path: string): Promise<T> {
-  if (!BASE_URL) throw new Error('VITE_NINETY_API_URL is not set (see .env.example)')
-  const res = await fetch(`${BASE_URL}${path}`)
+  const baseUrl = getBaseUrl()
+  if (!baseUrl) throw new Error('VITE_NINETY_API_URL is not set (see .env.example)')
+  const res = await fetch(`${baseUrl}${path}`)
   if (!res.ok) throw new Error(`ninety-api ${path} failed: ${res.status}`)
   return (await res.json()) as T
 }
