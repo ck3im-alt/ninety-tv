@@ -7,6 +7,7 @@ import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
 import type { XtreamCredentials, XtreamEpgListing } from '../../data/xtream/types'
 import { Breadcrumb } from './Breadcrumb'
+import { VirtualChannelList } from './VirtualChannelList'
 import './CategoryChannelsScreen.css'
 
 interface Props {
@@ -24,87 +25,6 @@ interface Props {
   title?: string
   breadcrumb?: string[]
   emptyMessage?: string
-}
-
-export function ChannelRow({
-  channel,
-  active,
-  favorited,
-  onSelect,
-  onToggleFavorite,
-  forceFocus,
-  onFocus,
-  onArrowLeft,
-  onArrowUp,
-}: {
-  channel: Channel
-  active: boolean
-  favorited: boolean
-  onSelect: () => void
-  onToggleFavorite: () => void
-  // The initial-focus target norigin's setFocus(ROOT_FOCUS_KEY) lands on —
-  // set on the first row so arrow keys have something to navigate from.
-  forceFocus?: boolean
-  // Fires as the row gains keyboard/remote focus (arrow-scrolling), not
-  // just on Enter — lets the preview pane show live as you scroll instead
-  // of requiring a commit press first.
-  onFocus?: () => void
-  // Left-arrow steps back to the previous cascade column instead of the
-  // default spatial-nav search, which — since this row also nests a
-  // focusable favorite star — can otherwise land on that star instead of
-  // leaving the column at all.
-  onArrowLeft?: () => void
-  // Up-arrow from the topmost row steps out to the toolbar above (Filter/
-  // Recently Watched/Favorites).
-  onArrowUp?: () => void
-}) {
-  const { ref, focused } = useFocusable({
-    onEnterPress: onSelect,
-    onFocus,
-    forceFocus,
-    onArrowPress: (direction) => {
-      if (direction === 'left' && onArrowLeft) {
-        onArrowLeft()
-        return false
-      }
-      if (direction === 'up' && onArrowUp) {
-        onArrowUp()
-        return false
-      }
-      return true
-    },
-  })
-  const { ref: starRef, focused: starFocused } = useFocusable({ onEnterPress: onToggleFavorite })
-
-  // Spatial nav moves focus but never scrolls its container for you.
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
-
-  return (
-    <div ref={ref} className={`ch-row ${active ? 'active' : ''} ${focused ? 'focused' : ''}`} onClick={onSelect}>
-      <div className="ch-row-logo">
-        {channel.logo ? <img src={channel.logo} alt="" /> : <span className="ch-row-logo-fallback">{channel.name.slice(0, 2).toUpperCase()}</span>}
-      </div>
-      <span className="ch-row-name">{channel.name}</span>
-      {channel.sources.length > 1 ? (
-        <span className="ch-row-source-count">{channel.sources.length} sources</span>
-      ) : (
-        channel.sources[0] && <span className="ch-row-source-count">{channel.sources[0].label}</span>
-      )}
-      <button
-        ref={starRef}
-        className={`ch-row-favorite ${favorited ? 'active' : ''} ${starFocused ? 'focused' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleFavorite()
-        }}
-        aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        {favorited ? '★' : '☆'}
-      </button>
-    </div>
-  )
 }
 
 function formatTime(datetime: string): string {
@@ -280,12 +200,19 @@ export function CategoryChannelsScreen({
     return true
   })
 
-  const filtered = [...channels].sort((a, b) => {
-    const aFav = favoriteChannels.has(a.id)
-    const bFav = favoriteChannels.has(b.id)
-    if (aFav !== bFav) return aFav ? -1 : 1
-    return 0
-  })
+  // Was an unmemoized [...channels].sort(...) directly in the render body —
+  // re-cloned/re-sorted on every render (including every debounced preview
+  // change), not just when `channels`/`favoriteChannels` actually changed.
+  const filtered = useMemo(
+    () =>
+      [...channels].sort((a, b) => {
+        const aFav = favoriteChannels.has(a.id)
+        const bFav = favoriteChannels.has(b.id)
+        if (aFav !== bFav) return aFav ? -1 : 1
+        return 0
+      }),
+    [channels, favoriteChannels],
+  )
   const title = titleOverride ?? (category || 'General')
 
   return (
@@ -301,19 +228,17 @@ export function CategoryChannelsScreen({
       </div>
       <div className="split">
         <div className="ch-list">
-          {filtered.map((channel, index) => (
-            <ChannelRow
-              key={channel.id}
-              channel={channel}
-              active={channel.id === selected?.id}
-              favorited={favoriteChannels.has(channel.id)}
-              onSelect={() => channel.sources[0] && onWatch(channel, channel.sources[0])}
-              onFocus={() => previewDebounced(channel)}
-              onToggleFavorite={() => onToggleFavoriteChannel(channel.id)}
-              forceFocus={index === 0}
-            />
-          ))}
-          {filtered.length === 0 && emptyMessage && <p className="empty-state">{emptyMessage}</p>}
+          <VirtualChannelList
+            channels={filtered}
+            favoriteChannels={favoriteChannels}
+            selectedChannelId={selected?.id}
+            focusKeyPrefix="category-channel-row"
+            onSelect={(channel) => channel.sources[0] && onWatch(channel, channel.sources[0])}
+            onFocusChannel={previewDebounced}
+            onToggleFavorite={onToggleFavoriteChannel}
+            forceFocusFirst
+            emptyMessage={emptyMessage}
+          />
         </div>
         <InfoPanel
           channel={selected}

@@ -7,46 +7,6 @@
     <title>NINETY</title>
   </head>
   <body>
-    <script>
-      // TEMPORARY BOOT DIAGNOSTIC — remove once the Tizen blank-screen bug is
-      // found. Plain ES5, classic (non-module) script, so it still runs even
-      // if the main bundle fails to load or throws before React ever mounts
-      // — module scripts always execute after every earlier classic script,
-      // regardless of engine, so this is guaranteed to be visible first.
-      (function () {
-        var box = document.createElement('div')
-        box.id = 'boot-diag'
-        box.style.position = 'fixed'
-        box.style.top = '0'
-        box.style.left = '0'
-        box.style.right = '0'
-        box.style.zIndex = '999999'
-        box.style.background = '#ffeb3b'
-        box.style.color = '#000'
-        box.style.font = '20px monospace'
-        box.style.whiteSpace = 'pre-wrap'
-        box.style.padding = '12px'
-        box.textContent = 'HTML LOADED — waiting for JS bundle...'
-        document.body.appendChild(box)
-
-        function report(label, detail) {
-          box.style.background = '#f44336'
-          box.style.color = '#fff'
-          box.textContent += '\n[' + label + '] ' + detail
-        }
-
-        window.onerror = function (message, source, lineno, colno, error) {
-          report(
-            'window.onerror',
-            message + ' @ ' + source + ':' + lineno + ':' + colno + (error && error.stack ? '\n' + error.stack : ''),
-          )
-        }
-        window.onunhandledrejection = function (event) {
-          var reason = event.reason
-          report('unhandledrejection', reason && reason.stack ? reason.stack : String(reason))
-        }
-      })()
-    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

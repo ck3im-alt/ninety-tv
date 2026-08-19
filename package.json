@@ -11,7 +11,8 @@
     "build:tizen": "tsc -b && node scripts/build-tizen.mjs",
     "test": "vitest run",
     "evaluate:channel-identity": "tsx scripts/evaluate-channel-identity.ts",
-    "evaluate:real-playlist-channel-identity": "tsx scripts/evaluate-real-playlist-channel-identity.ts"
+    "evaluate:real-playlist-channel-identity": "tsx scripts/evaluate-real-playlist-channel-identity.ts",
+    "benchmark:channel-index": "tsx scripts/benchmarkChannelIndex.ts"
   },
   "dependencies": {
     "@noriginmedia/norigin-spatial-navigation": "^3.3.0",

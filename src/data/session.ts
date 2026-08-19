@@ -18,8 +18,8 @@
 // (tiny, essentially free) source record. For Xtream and M3U-URL sources
 // that source record is enough to automatically refetch and rebuild the
 // channel cache without asking the user to type anything again — see
-// loadPlaylistState()'s 'source-available-cache-missing'/'-invalid' cases
-// and src/data/playlistRecovery.ts, which App.tsx drives on startup. A
+// hydratePlaylistState()'s 'recovering' case and src/data/playlistRecovery.ts,
+// which App.tsx drives on startup. A
 // file-upload source can't be auto-reacquired (we never keep the file's
 // contents around after the initial parse), so that case is reported
 // separately ('unrecoverable-file-source') and the UI asks the user to
@@ -46,11 +46,19 @@
 // panel / M3U host, not through our backend).
 
 import { readStored, writeStored } from '../core/storage/localStore'
+import { idbReadChannels, idbWriteChannels, idbClearChannels } from '../core/storage/idbChannelStore'
 import type { Channel } from './channel'
 import type { XtreamCredentials } from './xtream/types'
 
 const PLAYLIST_SOURCE_KEY = 'ninety.playlist.source'
-const PLAYLIST_CHANNELS_KEY = 'ninety.playlist.channels'
+// The old (pre-IndexedDB) localStorage key for the full merged Channel[]
+// cache. Never read again — hydratePlaylistState() below reads exclusively
+// from IndexedDB now — but the constant is kept so
+// removeLegacyPlaylistChannelsCache() can explicitly delete any leftover
+// copy once the new architecture proves itself, rather than letting an
+// obsolete multi-MB JSON string sit in localStorage forever consuming
+// Tizen's (often tighter, shared) quota.
+const LEGACY_PLAYLIST_CHANNELS_KEY = 'ninety.playlist.channels'
 const FILTERS_KEY = 'ninety.channelFilters'
 
 // Bump when the *source record* shape changes in a way that makes
@@ -62,9 +70,9 @@ const PLAYLIST_SOURCE_SCHEMA_VERSION = 1
 // way that makes previously-cached channels stale or invalid. Bumped to 2
 // when Channel gained epgChannelIds/rawNames (Channel Identity Resolver v2
 // Phase 1) — old cached entries lack those fields, so they're treated as
-// invalid and rebuilt via loadPlaylistState()'s recovery path rather than
+// invalid and rebuilt via hydratePlaylistState()'s recovery path rather than
 // silently served without the new identity data.
-const PLAYLIST_CHANNELS_SCHEMA_VERSION = 2
+export const PLAYLIST_CHANNELS_SCHEMA_VERSION = 2
 
 // How to reconnect a playlist without the user retyping anything, for the
 // two source kinds that support it — plus a third kind that deliberately
@@ -85,7 +93,7 @@ export interface M3uUrlSourceRecord {
 }
 
 // No file contents here, ever — only enough to explain to the user what
-// needs reconnecting. See loadPlaylistState()'s 'unrecoverable-file-source'
+// needs reconnecting. See hydratePlaylistState()'s 'unrecoverable-file-source'
 // outcome: this source type is never auto-refetched.
 export interface FileSourceRecord {
   type: 'file'
@@ -99,40 +107,64 @@ interface StoredPlaylistSource {
   source: PlaylistSourceRecord
 }
 
-interface StoredPlaylistChannels {
-  version: number
-  channels: Channel[]
+// The small, cheap half of playlist state — reconnect source only. Read/
+// written synchronously via localStorage, same as before; this never grew
+// large enough to need IndexedDB.
+export function loadPlaylistSource(): PlaylistSourceRecord | null {
+  const stored = readStored<StoredPlaylistSource | null>(PLAYLIST_SOURCE_KEY, null)
+  return stored && stored.version === PLAYLIST_SOURCE_SCHEMA_VERSION ? stored.source : null
 }
 
-// The five outcomes loading persisted playlist state can land on:
-//   - ready: valid cache (+ source, when one was recorded) — use it as-is.
-//   - source-available-cache-missing: cache was never written (e.g. this is
-//     the very first load after a channel-cache write failure) but the
-//     source is intact — auto-recoverable for xtream/m3u-url.
-//   - source-available-cache-invalid: cache exists but its version is
-//     stale — same recovery path as above, just a different cause.
+export function saveSource(source: PlaylistSourceRecord | null): boolean {
+  if (!source) return true
+  return writeStored<StoredPlaylistSource>(PLAYLIST_SOURCE_KEY, { version: PLAYLIST_SOURCE_SCHEMA_VERSION, source })
+}
+
+// Idempotent and cheap (a single localStorage key removal, not the large
+// payload itself) — safe to call opportunistically any time a channel-cache
+// read or write has just succeeded. Removes the obsolete, no-longer-read
+// multi-MB JSON string left over from before the IndexedDB migration so it
+// stops occupying Tizen's (often tighter, shared-with-other-apps)
+// localStorage quota once the new architecture is confirmed working.
+export function removeLegacyPlaylistChannelsCache(): void {
+  try {
+    localStorage.removeItem(LEGACY_PLAYLIST_CHANNELS_KEY)
+  } catch {
+    // Storage unavailable — nothing to clear.
+  }
+}
+
+// The four outcomes hydrating playlist state can land on:
+//   - ready: a valid IndexedDB channel cache exists — use it as-is, along
+//     with its generationId (see data/playlistGeneration.ts) and whatever
+//     source record was recorded alongside it.
+//   - recovering: the (large) channel cache is missing or stale-versioned,
+//     but the (small, essentially-never-fails) Xtream/M3U-URL source record
+//     survived — auto-recoverable via recoverChannelsFromSource.
 //   - unrecoverable-file-source: the only source on record is a file
 //     upload and there's no valid cache — nothing to auto-refetch from,
 //     the UI must ask the user to re-add the file.
 //   - no-source: nothing usable was ever persisted (or it's all been
 //     cleared) — normal first-run / post-reset state.
-export type PlaylistState =
-  | { kind: 'ready'; channels: Channel[]; source: PlaylistSourceRecord | null }
-  | { kind: 'source-available-cache-missing'; source: XtreamSourceRecord | M3uUrlSourceRecord }
-  | { kind: 'source-available-cache-invalid'; source: XtreamSourceRecord | M3uUrlSourceRecord }
+export type PlaylistHydrationResult =
+  | { kind: 'ready'; channels: Channel[]; generationId: string; source: PlaylistSourceRecord | null }
+  | { kind: 'recovering'; source: XtreamSourceRecord | M3uUrlSourceRecord }
   | { kind: 'unrecoverable-file-source'; source: FileSourceRecord }
   | { kind: 'no-source' }
 
-export function loadPlaylistState(): PlaylistState {
-  const storedSource = readStored<StoredPlaylistSource | null>(PLAYLIST_SOURCE_KEY, null)
-  const storedChannels = readStored<StoredPlaylistChannels | null>(PLAYLIST_CHANNELS_KEY, null)
-
-  const source =
-    storedSource && storedSource.version === PLAYLIST_SOURCE_SCHEMA_VERSION ? storedSource.source : null
-  const cacheValid = storedChannels != null && storedChannels.version === PLAYLIST_CHANNELS_SCHEMA_VERSION
+// Async — reads the (small) source record synchronously from localStorage
+// and the (large) channel cache from IndexedDB, never blocking the main
+// thread on a multi-MB JSON.parse the way the old synchronous
+// loadPlaylistState() did. Called once from App.tsx's bootstrap effect,
+// post-mount, never at module load — Home can paint and accept input before
+// this resolves.
+export async function hydratePlaylistState(): Promise<PlaylistHydrationResult> {
+  const source = loadPlaylistSource()
+  const cached = await idbReadChannels()
+  const cacheValid = cached != null && cached.version === PLAYLIST_CHANNELS_SCHEMA_VERSION
 
   if (cacheValid) {
-    return { kind: 'ready', channels: storedChannels.channels, source }
+    return { kind: 'ready', channels: cached.channels, generationId: cached.generationId, source }
   }
   if (!source) {
     return { kind: 'no-source' }
@@ -140,10 +172,7 @@ export function loadPlaylistState(): PlaylistState {
   if (source.type === 'file') {
     return { kind: 'unrecoverable-file-source', source }
   }
-  return {
-    kind: storedChannels == null ? 'source-available-cache-missing' : 'source-available-cache-invalid',
-    source,
-  }
+  return { kind: 'recovering', source }
 }
 
 // Backward/simple-compatible helper for call sites that only care about
@@ -155,43 +184,45 @@ export function xtreamCredsFromSource(source: PlaylistSourceRecord | null): Xtre
   return { server: source.server, username: source.username, password: source.password }
 }
 
-// Returns whether both parts persisted. The channel cache (the large,
-// quota-risky part) is written first — if it fails, the caller should
-// treat this playlist as not durably saved, and callers that care can log
-// or surface that instead of assuming a reload will find it. Critically,
-// the source record is still written (and still returned as part of a
-// combined success/failure signal only for the caller's own bookkeeping)
-// even when the channel-cache write fails, so a subsequent reload can find
-// 'source-available-cache-missing' and recover instead of 'no-source'.
-export function savePlaylist(channels: Channel[], source: PlaylistSourceRecord | null): boolean {
-  const channelsOk = writeStored<StoredPlaylistChannels>(PLAYLIST_CHANNELS_KEY, {
-    version: PLAYLIST_CHANNELS_SCHEMA_VERSION,
-    channels,
-  })
-  if (!source) return channelsOk
-  const sourceOk = writeStored<StoredPlaylistSource>(PLAYLIST_SOURCE_KEY, {
-    version: PLAYLIST_SOURCE_SCHEMA_VERSION,
-    source,
-  })
-  return channelsOk && sourceOk
+// Writes the (large, quota-risky) channel cache to IndexedDB — structured
+// clone, no JSON.stringify pass over the whole array. Called from exactly
+// one place (App.tsx's playlist-persistence effect) so a fresh
+// connect/recovery performs exactly one large write, never two — see that
+// effect's own comments for why the write must not also happen inline in
+// the recovery path.
+export function savePlaylistChannels(channels: Channel[], generationId: string): Promise<boolean> {
+  return idbWriteChannels({ version: PLAYLIST_CHANNELS_SCHEMA_VERSION, generationId, channels })
 }
 
-// Clears only the cached, already-merged channel list — not onboarding,
-// preferences, or the Channels filter selection. Needed because the merge
-// (country-prefix stripping, quality-tag collapsing — see mergeChannels.ts)
-// runs once at connect time and is cached here; a normalization fix
-// landing later (e.g. recognizing a new country-code prefix) has no effect
-// on an already-cached playlist until it's re-fetched and re-merged. The
-// full "Reset onboarding & preferences" admin action already covered this
-// as a side effect of wiping everything, but that's a bigger hammer than
-// this specific, common need.
-export function clearPlaylist(): void {
+// Clears the connected playlist (source + cached channel list) — not
+// onboarding, preferences, or the Channels filter selection. Needed because
+// the merge (country-prefix stripping, quality-tag collapsing — see
+// mergeChannels.ts) runs once at connect time and is cached; a
+// normalization fix landing later (e.g. recognizing a new country-code
+// prefix) has no effect on an already-cached playlist until it's re-fetched
+// and re-merged. The full "Reset onboarding & preferences" admin action
+// already covers this as a side effect of wiping everything, but that's a
+// bigger hammer than this specific, common need.
+//
+// IndexedDB is cleared FIRST, and only removes the localStorage source/
+// legacy keys once that's confirmed complete — a failed IndexedDB delete
+// must not partially destroy playlist state (i.e. never end up with the
+// source record gone but the large channel cache still sitting in
+// IndexedDB with nothing pointing away from it). Returns whether the clear
+// fully succeeded; every caller that reloads/reconnects afterward MUST
+// check this and skip doing so on `false`, or a stale cached playlist can
+// silently reappear on the next hydration.
+export async function clearPlaylist(): Promise<boolean> {
+  const channelsCleared = await idbClearChannels()
+  if (!channelsCleared) return false
+  let sourceOk = true
   try {
     localStorage.removeItem(PLAYLIST_SOURCE_KEY)
-    localStorage.removeItem(PLAYLIST_CHANNELS_KEY)
   } catch {
-    // Storage unavailable — nothing to clear.
+    sourceOk = false
   }
+  removeLegacyPlaylistChannelsCache()
+  return sourceOk
 }
 
 interface StoredFilters {

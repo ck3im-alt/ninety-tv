@@ -40,6 +40,10 @@
   line-height: 1.5;
 }
 
+.admin-note.error {
+  color: var(--color-danger, #e5484d);
+}
+
 .admin-close {
   font: inherit;
   width: 40px;

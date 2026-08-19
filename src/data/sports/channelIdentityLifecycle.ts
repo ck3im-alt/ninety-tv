@@ -38,6 +38,7 @@ import { ChannelIdentityIndex } from './channelIdentityIndex'
 import { runChannelIdentityResolution, ChannelIdentityJobCancelled } from './channelIdentityWorkerClient'
 import type { WorkerFactory } from './channelIdentityWorkerClient'
 import { projectChannelIdentity } from './channelIdentityProjection'
+import { recordPerf } from '../../core/perf/devPerf'
 import type { LogicalChannelResolution } from './channelIdentityResolver'
 import type { NinetyLogicalChannel } from './ninetyApiClient'
 import type { Channel } from '../channel'
@@ -95,6 +96,12 @@ export function makeWorkerResolveIdentities(createWorker?: WorkerFactory): Resol
             `worker round-trip ${r.timings.workerRoundTripMs.toFixed(1)}ms (compute ${r.timings.workerComputeMs.toFixed(1)}ms), ` +
             `${playlistIdentityRecords.length} playlist channels / ${catalog.length} catalog channels`,
         )
+        // Same values already computed above/inside the Worker client for
+        // the console.info line — recorded into window.__ninetyPerf too so
+        // a physical-TV trace can be extracted as one JSON object instead
+        // of only appearing in the console log.
+        recordPerf('identity:projection', projectionMs)
+        recordPerf('identity:worker-round-trip', r.timings.workerRoundTripMs)
         return r.resolutions
       })
       .finally(() => signal.removeEventListener('abort', onAbort))

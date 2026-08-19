@@ -1,15 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  clearPlaylist,
-  loadPlaylistState,
-  savePlaylist,
-  xtreamCredsFromSource,
-  type FileSourceRecord,
-  type M3uUrlSourceRecord,
-  type XtreamSourceRecord,
-} from './session'
 import { makeFakeLocalStorage } from '../core/storage/testFakeLocalStorage'
 import type { Channel } from './channel'
+import type { FileSourceRecord, M3uUrlSourceRecord, XtreamSourceRecord } from './session'
 
 const xtreamSource: XtreamSourceRecord = { type: 'xtream', server: 'https://example.com', username: 'u', password: 'p' }
 const m3uUrlSource: M3uUrlSourceRecord = { type: 'm3u-url', url: 'https://example.com/playlist.m3u' }
@@ -24,8 +16,30 @@ function makeChannels(count: number): Channel[] {
   }))
 }
 
-beforeEach(() => {
+// The channel cache now lives in IndexedDB (see idbChannelStore.ts) — mocked
+// here (same vi.mock idiom playlistRecovery.test.ts already uses for its own
+// I/O boundaries) so session.ts's orchestration logic (ordering, outcome
+// selection, exactly-what-gets-called-when) can be tested without a real
+// IndexedDB engine. idbChannelStore.test.ts separately covers the wrapper
+// functions themselves against an injected fake store, and idb.test.ts
+// covers the "IndexedDB unavailable" degradation path.
+const idbReadChannels = vi.fn()
+const idbWriteChannels = vi.fn()
+const idbClearChannels = vi.fn()
+vi.mock('../core/storage/idbChannelStore', () => ({
+  idbReadChannels: (...args: unknown[]) => idbReadChannels(...args),
+  idbWriteChannels: (...args: unknown[]) => idbWriteChannels(...args),
+  idbClearChannels: (...args: unknown[]) => idbClearChannels(...args),
+}))
+
+let session: typeof import('./session')
+
+beforeEach(async () => {
   vi.stubGlobal('localStorage', makeFakeLocalStorage())
+  idbReadChannels.mockReset().mockResolvedValue(null)
+  idbWriteChannels.mockReset().mockResolvedValue(true)
+  idbClearChannels.mockReset().mockResolvedValue(true)
+  session = await import('./session')
 })
 
 afterEach(() => {
@@ -33,157 +47,154 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('savePlaylist / loadPlaylistState — ready', () => {
-  it('round-trips channels and an xtream source as "ready"', () => {
-    const channels = makeChannels(3)
-    expect(savePlaylist(channels, xtreamSource)).toBe(true)
-    expect(loadPlaylistState()).toEqual({ kind: 'ready', channels, source: xtreamSource })
+describe('hydratePlaylistState', () => {
+  it('returns "ready" with channels + generationId from IndexedDB when the cache is valid', async () => {
+    session.saveSource(xtreamSource)
+    idbReadChannels.mockResolvedValue({
+      version: session.PLAYLIST_CHANNELS_SCHEMA_VERSION,
+      generationId: 'gen-1',
+      channels: makeChannels(3),
+    })
+    await expect(session.hydratePlaylistState()).resolves.toEqual({
+      kind: 'ready',
+      channels: makeChannels(3),
+      generationId: 'gen-1',
+      source: xtreamSource,
+    })
   })
 
-  it('round-trips a null source (plain M3U playlists with no recorded source) as "ready"', () => {
-    const channels = makeChannels(1)
-    savePlaylist(channels, null)
-    expect(loadPlaylistState()).toEqual({ kind: 'ready', channels, source: null })
+  it('returns "ready" with a null source when only channels were ever recorded', async () => {
+    idbReadChannels.mockResolvedValue({ version: session.PLAYLIST_CHANNELS_SCHEMA_VERSION, generationId: 'gen-1', channels: makeChannels(1) })
+    await expect(session.hydratePlaylistState()).resolves.toEqual({
+      kind: 'ready',
+      channels: makeChannels(1),
+      generationId: 'gen-1',
+      source: null,
+    })
   })
 
-  it('returns "no-source" when nothing has been saved', () => {
-    expect(loadPlaylistState()).toEqual({ kind: 'no-source' })
+  it('returns "no-source" when nothing has ever been saved', async () => {
+    await expect(session.hydratePlaylistState()).resolves.toEqual({ kind: 'no-source' })
   })
 
-  it('persists the source separately from the channel cache', () => {
-    savePlaylist(makeChannels(1), xtreamSource)
-    expect(localStorage.getItem('ninety.playlist.source')).not.toBeNull()
-    expect(localStorage.getItem('ninety.playlist.channels')).not.toBeNull()
+  it('returns "recovering" for an Xtream source with a missing IndexedDB cache', async () => {
+    session.saveSource(xtreamSource)
+    await expect(session.hydratePlaylistState()).resolves.toEqual({ kind: 'recovering', source: xtreamSource })
   })
 
-  it('never writes the merged Channel[] into the source record', () => {
-    savePlaylist(makeChannels(50), xtreamSource)
-    const rawSource = localStorage.getItem('ninety.playlist.source')!
-    expect(rawSource).not.toContain('"channels"')
-    expect(rawSource).not.toContain('stream.example.com')
-    const parsed = JSON.parse(rawSource)
-    expect(parsed.source).toEqual(xtreamSource)
-  })
-})
-
-describe('recovery outcomes', () => {
-  it('Xtream source + missing cache -> source-available-cache-missing', () => {
-    // Only write the source, simulating a channel-cache write that never
-    // happened (or failed) while the source write succeeded.
-    savePlaylist([], xtreamSource)
-    localStorage.removeItem('ninety.playlist.channels')
-    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-missing', source: xtreamSource })
+  it('returns "recovering" for an M3U-URL source with a missing IndexedDB cache', async () => {
+    session.saveSource(m3uUrlSource)
+    await expect(session.hydratePlaylistState()).resolves.toEqual({ kind: 'recovering', source: m3uUrlSource })
   })
 
-  it('M3U URL source + missing cache -> source-available-cache-missing', () => {
-    savePlaylist([], m3uUrlSource)
-    localStorage.removeItem('ninety.playlist.channels')
-    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-missing', source: m3uUrlSource })
+  it('returns "recovering" when the cached channel record is a stale schema version', async () => {
+    session.saveSource(xtreamSource)
+    idbReadChannels.mockResolvedValue({ version: 0, generationId: 'gen-1', channels: makeChannels(2) })
+    await expect(session.hydratePlaylistState()).resolves.toEqual({ kind: 'recovering', source: xtreamSource })
   })
 
-  it('stale-versioned channel cache -> source retained, reported as cache-invalid (not lost)', () => {
-    savePlaylist(makeChannels(2), xtreamSource)
-    const raw = JSON.parse(localStorage.getItem('ninety.playlist.channels')!)
-    raw.version = 0
-    localStorage.setItem('ninety.playlist.channels', JSON.stringify(raw))
-    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-invalid', source: xtreamSource })
+  it('returns "unrecoverable-file-source" for a file source with no valid cache', async () => {
+    session.saveSource(fileSource)
+    await expect(session.hydratePlaylistState()).resolves.toEqual({ kind: 'unrecoverable-file-source', source: fileSource })
   })
 
-  it('stale-versioned source record is treated as absent', () => {
-    savePlaylist(makeChannels(2), xtreamSource)
+  it('treats a stale-versioned source record as fully absent -> "no-source"', async () => {
+    session.saveSource(xtreamSource)
     const raw = JSON.parse(localStorage.getItem('ninety.playlist.source')!)
     raw.version = 0
     localStorage.setItem('ninety.playlist.source', JSON.stringify(raw))
-    localStorage.removeItem('ninety.playlist.channels')
-    expect(loadPlaylistState()).toEqual({ kind: 'no-source' })
+    await expect(session.hydratePlaylistState()).resolves.toEqual({ kind: 'no-source' })
   })
 
-  it('file-upload source + missing cache -> unrecoverable-file-source, not auto-recoverable', () => {
-    savePlaylist([], fileSource)
-    localStorage.removeItem('ninety.playlist.channels')
-    expect(loadPlaylistState()).toEqual({ kind: 'unrecoverable-file-source', source: fileSource })
-  })
-
-  // Regression guard for the Channel Identity Resolver v2 Phase 1 cache
-  // bump: an old-shape cached Channel[] (pre-epgChannelIds/rawNames, same
-  // shape a real pre-upgrade cache would have) must be treated as invalid
-  // rather than served as-is, so the app rebuilds it (recovering via the
-  // still-valid source record for Xtream/M3U) instead of silently running
-  // with channels that lack the new identity fields.
-  it('a pre-upgrade channel cache (old schema version) is invalid, but Xtream credentials are retained for rebuild', () => {
-    savePlaylist(makeChannels(2), xtreamSource)
-    const raw = JSON.parse(localStorage.getItem('ninety.playlist.channels')!)
-    raw.version = 1 // the pre-Phase-1 PLAYLIST_CHANNELS_SCHEMA_VERSION
-    localStorage.setItem('ninety.playlist.channels', JSON.stringify(raw))
-    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-invalid', source: xtreamSource })
-  })
-
-  it('a pre-upgrade channel cache (old schema version) is invalid, but the M3U URL is retained for rebuild', () => {
-    savePlaylist(makeChannels(2), m3uUrlSource)
-    const raw = JSON.parse(localStorage.getItem('ninety.playlist.channels')!)
-    raw.version = 1
-    localStorage.setItem('ninety.playlist.channels', JSON.stringify(raw))
-    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-invalid', source: m3uUrlSource })
-  })
-
-  it('a pre-upgrade channel cache with a file source stays honestly unrecoverable, not silently rebuilt', () => {
-    savePlaylist(makeChannels(2), fileSource)
-    const raw = JSON.parse(localStorage.getItem('ninety.playlist.channels')!)
-    raw.version = 1
-    localStorage.setItem('ninety.playlist.channels', JSON.stringify(raw))
-    expect(loadPlaylistState()).toEqual({ kind: 'unrecoverable-file-source', source: fileSource })
+  it('never inspects localStorage for the channel cache — reads it exclusively via idbReadChannels', async () => {
+    await session.hydratePlaylistState()
+    expect(idbReadChannels).toHaveBeenCalledTimes(1)
   })
 })
 
-describe('storage failure', () => {
-  it('reports failure without throwing when the channel cache write fails', () => {
-    const fake = makeFakeLocalStorage()
-    const realSetItem = fake.setItem.bind(fake)
-    Object.defineProperty(fake, 'setItem', {
-      value: (key: string, value: string) => {
-        if (key === 'ninety.playlist.channels') throw new DOMException('quota exceeded', 'QuotaExceededError')
-        realSetItem(key, value)
-      },
-    })
-    vi.stubGlobal('localStorage', fake)
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    expect(() => savePlaylist(makeChannels(1), xtreamSource)).not.toThrow()
-    expect(savePlaylist(makeChannels(1), xtreamSource)).toBe(false)
-  })
-
-  it('a failed channel-cache write does not lose the small source record', () => {
-    const fake = makeFakeLocalStorage()
-    const realSetItem = fake.setItem.bind(fake)
-    Object.defineProperty(fake, 'setItem', {
-      value: (key: string, value: string) => {
-        if (key === 'ninety.playlist.channels') throw new DOMException('quota exceeded', 'QuotaExceededError')
-        realSetItem(key, value)
-      },
-    })
-    vi.stubGlobal('localStorage', fake)
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    savePlaylist(makeChannels(500), xtreamSource)
-
-    // The cache write failed, but the source record is still there — a
-    // reload should be able to recover, not force manual re-entry.
-    expect(loadPlaylistState()).toEqual({ kind: 'source-available-cache-missing', source: xtreamSource })
+describe('source record isolation', () => {
+  it('persists the source separately from the channel cache, and never embeds channel/stream data', () => {
+    session.saveSource(xtreamSource)
+    const raw = localStorage.getItem('ninety.playlist.source')!
+    expect(raw).not.toContain('"channels"')
+    expect(raw).not.toContain('stream.example.com')
+    expect(JSON.parse(raw).source).toEqual(xtreamSource)
   })
 })
 
-describe('clearPlaylist', () => {
-  it('removes both source and channel keys', () => {
-    savePlaylist(makeChannels(1), xtreamSource)
-    clearPlaylist()
-    expect(loadPlaylistState()).toEqual({ kind: 'no-source' })
+describe('savePlaylistChannels', () => {
+  it('writes to IndexedDB with the current schema version, generationId, and channels', async () => {
+    const channels = makeChannels(4)
+    await expect(session.savePlaylistChannels(channels, 'gen-42')).resolves.toBe(true)
+    expect(idbWriteChannels).toHaveBeenCalledWith({
+      version: session.PLAYLIST_CHANNELS_SCHEMA_VERSION,
+      generationId: 'gen-42',
+      channels,
+    })
+  })
+
+  it('reports failure without throwing when the IndexedDB write fails', async () => {
+    idbWriteChannels.mockResolvedValue(false)
+    await expect(session.savePlaylistChannels(makeChannels(1), 'gen-1')).resolves.toBe(false)
+  })
+})
+
+describe('clearPlaylist — IndexedDB cleared first, ordering is load-bearing', () => {
+  it('clears IndexedDB before touching any localStorage key', async () => {
+    const callOrder: string[] = []
+    idbClearChannels.mockImplementation(async () => {
+      callOrder.push('idb-clear')
+      return true
+    })
+    session.saveSource(xtreamSource)
+    const realRemoveItem = localStorage.removeItem.bind(localStorage)
+    vi.spyOn(localStorage, 'removeItem').mockImplementation((key: string) => {
+      callOrder.push(`localStorage-remove:${key}`)
+      realRemoveItem(key)
+    })
+
+    await session.clearPlaylist()
+
+    expect(callOrder[0]).toBe('idb-clear')
+    expect(callOrder).toContain('localStorage-remove:ninety.playlist.source')
+  })
+
+  it('returns true and removes the source key on full success', async () => {
+    session.saveSource(xtreamSource)
+    await expect(session.clearPlaylist()).resolves.toBe(true)
     expect(localStorage.getItem('ninety.playlist.source')).toBeNull()
+  })
+
+  it('a failed IndexedDB clear stops immediately and leaves the source record intact — must not partially destroy playlist state', async () => {
+    idbClearChannels.mockResolvedValue(false)
+    session.saveSource(xtreamSource)
+
+    await expect(session.clearPlaylist()).resolves.toBe(false)
+
+    // The existing playlist must remain recoverable: the source record was
+    // never touched because the IndexedDB clear failed first.
+    expect(localStorage.getItem('ninety.playlist.source')).not.toBeNull()
+    await expect(session.hydratePlaylistState()).resolves.toEqual({ kind: 'recovering', source: xtreamSource })
+  })
+})
+
+describe('removeLegacyPlaylistChannelsCache', () => {
+  it('removes only the legacy channels key, leaving the source key untouched', () => {
+    localStorage.setItem('ninety.playlist.channels', '{"old":"data"}')
+    session.saveSource(xtreamSource)
+    session.removeLegacyPlaylistChannelsCache()
     expect(localStorage.getItem('ninety.playlist.channels')).toBeNull()
+    expect(localStorage.getItem('ninety.playlist.source')).not.toBeNull()
+  })
+
+  it('is a harmless no-op when nothing legacy is stored', () => {
+    expect(() => session.removeLegacyPlaylistChannelsCache()).not.toThrow()
   })
 })
 
 describe('xtreamCredsFromSource', () => {
-  it('extracts credentials from an xtream source', () => {
-    expect(xtreamCredsFromSource(xtreamSource)).toEqual({
+  it('extracts credentials from an xtream source', async () => {
+    expect(session.xtreamCredsFromSource(xtreamSource)).toEqual({
       server: 'https://example.com',
       username: 'u',
       password: 'p',
@@ -191,26 +202,16 @@ describe('xtreamCredsFromSource', () => {
   })
 
   it('returns null for m3u-url, file, and null sources', () => {
-    expect(xtreamCredsFromSource(m3uUrlSource)).toBeNull()
-    expect(xtreamCredsFromSource(fileSource)).toBeNull()
-    expect(xtreamCredsFromSource(null)).toBeNull()
+    expect(session.xtreamCredsFromSource(m3uUrlSource)).toBeNull()
+    expect(session.xtreamCredsFromSource(fileSource)).toBeNull()
+    expect(session.xtreamCredsFromSource(null)).toBeNull()
   })
 })
 
-describe('serialized size (documents the actual persistence risk)', () => {
-  // A real IPTV playlist can run into the tens of thousands of channels.
-  // This isn't a pass/fail budget (localStorage quotas vary by browser/TV
-  // firmware, commonly 5-10MB) — it's here so the shape of the risk is
-  // visible in the test suite rather than only discovered on a real TV:
-  // large playlists are within the same order of magnitude as typical
-  // quotas, which is why savePlaylist()'s return value matters.
-  it('stays within an order of magnitude of typical localStorage quotas at realistic scale', () => {
+describe('serialized size of a realistic-scale channel cache (documents the risk the IndexedDB migration exists to remove)', () => {
+  it('stays within an order of magnitude of typical localStorage quotas — the exact risk no longer applies since this data now lives in IndexedDB, not localStorage', () => {
     const channels = makeChannels(20_000)
     const bytes = new Blob([JSON.stringify(channels)]).size
-    // ~20k channels serializes to a few MB in this shape — comfortably
-    // within a typical 5-10MB quota today, but close enough that a bigger
-    // playlist or added fields could tip over it, which is the whole
-    // reason savePlaylist()'s return value exists.
     expect(bytes).toBeLessThan(10 * 1024 * 1024)
   })
 })

@@ -18,9 +18,9 @@
 //    channel outright.
 import { getShortEpgLimited } from '../xtream/epgGate'
 import { extractStreamId } from '../xtream/extractStreamId'
-import { broadcastersFor } from './broadcasterMap'
+import { broadcastersFor, countriesForBroadcasterMap } from './broadcasterMap'
 import { foldForMatching } from '../fancyUnicode'
-import { parseCategory, isPpvCategory } from '../../features/channels/parseCategory'
+import { getChannelIndex } from '../channelIndex'
 import {
   namesOverlap,
   namesExactMatch,
@@ -160,14 +160,22 @@ function matchViaNinetyApi(event: SportEvent, identityIndex: ChannelIdentityInde
 // it's a season-long "this league always airs on this channel in this
 // country" fact, so it applies just as well to single-entrant events (F1
 // sessions) as it does to team fixtures.
+// Restricted to the countries BROADCASTER_MAP could possibly match for this
+// event (via ChannelIndex.getChannelsForCountry) instead of scanning the
+// whole ~30,925-channel playlist — countriesForBroadcasterMap and
+// broadcastersFor share one selector (see broadcasterMap.ts), so skipping a
+// country here is provably safe: broadcastersFor would have returned []
+// for it anyway.
 function matchViaBroadcasterMap(event: SportEvent, channels: Channel[]): ChannelMatch[] {
+  const index = getChannelIndex(channels)
   const matches: ChannelMatch[] = []
-  for (const channel of channels) {
-    const channelCountry = parseCategory(channel.groupTitle ?? '').countryName
-    if (!channelCountry) continue
-    const stationNames = broadcastersFor(event.sportKey, event.leagueId, channelCountry)
-    const hit = stationNames.find((name) => namesOverlap(name, channel.name))
-    if (hit) matches.push({ channel, source: 'broadcasterMap', label: hit, isExactMatch: namesExactMatch(hit, channel.name) })
+  for (const country of countriesForBroadcasterMap(event.sportKey, event.leagueId)) {
+    const stationNames = broadcastersFor(event.sportKey, event.leagueId, country)
+    if (stationNames.length === 0) continue
+    for (const channel of index.getChannelsForCountry(country)) {
+      const hit = stationNames.find((name) => namesOverlap(name, channel.name))
+      if (hit) matches.push({ channel, source: 'broadcasterMap', label: hit, isExactMatch: namesExactMatch(hit, channel.name) })
+    }
   }
   return matches
 }
@@ -186,24 +194,25 @@ function matchViaBroadcasterMap(event: SportEvent, channels: Channel[]): Channel
 function matchViaPpvChannelName(event: SportEvent, channels: Channel[]): ChannelMatch[] {
   if (!event.homeTeam || !event.awayTeam) return []
   const kickoff = event.dateTimeUtc ? new Date(event.dateTimeUtc) : null
+  const index = getChannelIndex(channels)
   const matches: ChannelMatch[] = []
-  for (const channel of channels) {
-    // A one-off event entry can be identified two ways, since not every
-    // provider spells it "PPV":
-    // 1. Text: the category or the channel's own name literally says PPV
-    //    (see the Deportivo/Elche example above).
-    // 2. Structure: the entry carries no source EPG-channel id at all
-    //    (M3U tvg-id / Xtream epg_channel_id — see RawChannel/Channel).
-    //    Real 24/7 linear channels are almost always EPG-mapped by the
-    //    provider; a synthetically-generated per-match stream usually
-    //    isn't, since there's no recurring programme to map it to. This
-    //    catches providers that never write "PPV" anywhere at all.
-    // Either way, the actual match still requires BOTH team names to
-    // literally appear in the channel's name — that's what keeps this from
-    // false-matching ordinary channels once the gate is broadened this far.
-    const isTaggedPpv = isPpvCategory(parseCategory(channel.groupTitle ?? '')) || /\bPPV\b/.test(foldForMatching(channel.name))
-    const isUnmappedEntry = !channel.hasEpgChannelId
-    if (!isTaggedPpv && !isUnmappedEntry) continue
+  // A one-off event entry can be identified two ways, since not every
+  // provider spells it "PPV":
+  // 1. Text: the category or the channel's own name literally says PPV
+  //    (see the Deportivo/Elche example above).
+  // 2. Structure: the entry carries no source EPG-channel id at all
+  //    (M3U tvg-id / Xtream epg_channel_id — see RawChannel/Channel).
+  //    Real 24/7 linear channels are almost always EPG-mapped by the
+  //    provider; a synthetically-generated per-match stream usually
+  //    isn't, since there's no recurring programme to map it to. This
+  //    catches providers that never write "PPV" anywhere at all.
+  // ChannelIndex.getPpvOrUnmappedChannels() is exactly this "isTaggedPpv ||
+  // isUnmappedEntry" gate, precomputed once per playlist generation instead
+  // of every channel per event — see data/channelIndex.ts.
+  for (const channel of index.getPpvOrUnmappedChannels()) {
+    // The actual match still requires BOTH team names to literally appear
+    // in the channel's name — that's what keeps this from false-matching
+    // ordinary channels once the gate is broadened this far.
     const foldedName = foldForMatching(channel.name)
     if (STALE_STATUS_WORDS.test(foldedName.trim())) continue
     if (!textMatchesTeam(foldedName, event.homeTeam) || !textMatchesTeam(foldedName, event.awayTeam)) continue
@@ -216,16 +225,6 @@ function matchViaPpvChannelName(event: SportEvent, channels: Channel[]): Channel
     matches.push({ channel, source: 'ppvName', label: channel.name, isExactMatch: false })
   }
   return matches
-}
-
-function isLikelySportChannel(channel: Channel): boolean {
-  const text = foldForMatching(`${channel.groupTitle ?? ''} ${channel.name}`)
-  // A one-off event like an obscure qualifier is exactly the kind of thing
-  // that ends up on a standalone PPV stream rather than a channel with
-  // "Sport" in its name (see the PPV explanation logged earlier in this
-  // project) — excluding those was silently dropping a real category of
-  // candidates.
-  return text.includes('SPORT') || isPpvCategory(parseCategory(channel.groupTitle ?? ''))
 }
 
 // Bounds worst-case EPG request volume against the user's own Xtream
@@ -241,7 +240,11 @@ async function matchViaEpg(event: SportEvent, channels: Channel[], xtreamCreds: 
   if (!event.homeTeam || !event.awayTeam || !event.dateTimeUtc) return []
 
   const kickoff = new Date(event.dateTimeUtc).getTime()
-  const candidates = channels.filter(isLikelySportChannel).slice(0, MAX_EPG_CANDIDATE_CHANNELS)
+  // getLikelySportChannels() is exactly the "SPORT-in-groupTitle/name, or
+  // PPV-categorized" predicate this stage used to compute fresh per channel
+  // per event — precomputed once per playlist generation instead (see
+  // data/channelIndex.ts).
+  const candidates = getChannelIndex(channels).getLikelySportChannels().slice(0, MAX_EPG_CANDIDATE_CHANNELS)
   console.log(
     `[channelMatch] EPG fallback: ${candidates.length} sport/PPV candidate channels out of ${channels.length} total. ` +
       `Sample: ${candidates.slice(0, 8).map((c) => c.name).join(', ')}`,
@@ -304,9 +307,7 @@ async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtreamC
 
   const kickoff = new Date(event.dateTimeUtc).getTime()
   const eventWords = significantWordSet(`${event.homeTeam} ${event.awayTeam}`)
-  const candidates = channels
-    .filter((c) => isPpvCategory(parseCategory(c.groupTitle ?? '')))
-    .slice(0, MAX_PPV_EPG_CANDIDATES)
+  const candidates = getChannelIndex(channels).getPpvChannels().slice(0, MAX_PPV_EPG_CANDIDATES)
   console.log(`[channelMatch] Widened PPV EPG search: ${candidates.length} PPV candidate channels (of ${channels.length} total).`)
 
   const results = await Promise.allSettled(

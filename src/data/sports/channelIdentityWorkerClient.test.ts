@@ -4,9 +4,10 @@
 // resolver-integration task's requirement that this stay unit-testable
 // without one.
 import { describe, expect, it, vi } from 'vitest'
-import { runChannelIdentityResolution, ChannelIdentityJobCancelled, resolveChannelIdentityWorkerRequest } from './channelIdentityWorkerClient'
+import { runChannelIdentityResolution, ChannelIdentityJobCancelled } from './channelIdentityWorkerClient'
 import type { WorkerLike, WorkerFactory } from './channelIdentityWorkerClient'
-import type { ChannelIdentityWorkerRequest, ChannelIdentityWorkerResponse } from './channelIdentityWorker'
+import { resolveChannelIdentityWorkerRequest } from './channelIdentityWorkerProtocol'
+import type { ChannelIdentityWorkerRequest, ChannelIdentityWorkerResponse } from './channelIdentityWorkerProtocol'
 import type { NinetyLogicalChannel } from './ninetyApiClient'
 
 function logical(overrides: Partial<NinetyLogicalChannel> & Pick<NinetyLogicalChannel, 'id' | 'name'>): NinetyLogicalChannel {

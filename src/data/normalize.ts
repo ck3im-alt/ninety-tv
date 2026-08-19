@@ -33,24 +33,37 @@ export const QUALITY_TAGS = [
 
 const EDGE_SEPARATOR = '[\\s:|\\-_/]*'
 
+// Precompiled once at module init rather than per-call/per-loop-iteration —
+// stripEdgeTags/extractQualityTag used to construct up to ~2 fresh RegExp
+// objects per tag on every single call (dozens of allocations per channel
+// name/category label), which dominated ingestion cost at ~30k-channel
+// playlist scale. Same tags, same order (QUALITY_TAGS is already
+// longest-match-first), same leading/trailing pattern shape as before — this
+// is purely a "when is the RegExp built" change, not a behavior change.
+const QUALITY_TAG_PATTERNS = QUALITY_TAGS.map((tag) => ({
+  tag,
+  leading: new RegExp(`^${tag}\\b${EDGE_SEPARATOR}`),
+  trailing: new RegExp(`${EDGE_SEPARATOR}\\b${tag}$`),
+}))
+
 // Matches against a fancy-Unicode-folded copy (see fancyUnicode.ts) so tags
 // written with "aesthetic" superscript/small-caps glyphs (ⱽᴵᴾ, ᴴᴰ, ᴿᴬᵂ — very
 // common in real IPTV category names) are recognized the same as plain
 // ASCII ones, then slices the ORIGINAL text by the same offsets.
-function stripEdgeTags(input: string, tags: string[]): string {
+function stripEdgeTags(input: string, patterns: typeof QUALITY_TAG_PATTERNS): string {
   let text = stripDecorativeEdges(input)
   let changed = true
   while (changed) {
     changed = false
     const folded = foldForMatching(text)
-    for (const tag of tags) {
-      const leadingMatch = folded.match(new RegExp(`^${tag}\\b${EDGE_SEPARATOR}`))
+    for (const { leading, trailing } of patterns) {
+      const leadingMatch = folded.match(leading)
       if (leadingMatch) {
         text = stripDecorativeEdges(text.slice(leadingMatch[0].length))
         changed = true
         break
       }
-      const trailingMatch = folded.match(new RegExp(`${EDGE_SEPARATOR}\\b${tag}$`))
+      const trailingMatch = folded.match(trailing)
       if (trailingMatch) {
         text = stripDecorativeEdges(text.slice(0, text.length - trailingMatch[0].length))
         changed = true
@@ -65,9 +78,9 @@ function stripEdgeTags(input: string, tags: string[]): string {
 // human-readable label for the source picker (e.g. "RAW", "UHD").
 export function extractQualityTag(input: string): string | null {
   const folded = foldForMatching(stripDecorativeEdges(input))
-  for (const tag of QUALITY_TAGS) {
-    if (new RegExp(`${EDGE_SEPARATOR}\\b${tag}$`).test(folded)) return tag
-    if (new RegExp(`^${tag}\\b${EDGE_SEPARATOR}`).test(folded)) return tag
+  for (const { tag, leading, trailing } of QUALITY_TAG_PATTERNS) {
+    if (trailing.test(folded)) return tag
+    if (leading.test(folded)) return tag
   }
   return null
 }
@@ -82,7 +95,7 @@ export function extractQualityTag(input: string): string | null {
 // "ˢᵘᵖᵉʳ" in "VIAPLAY PPV super". Nothing shown to the user should still be
 // in tiny modifier-letter glyphs even when we don't treat it as a tag.
 export function normalizeCategoryLabel(label: string): string {
-  return foldForDisplay(stripEdgeTags(label, QUALITY_TAGS))
+  return foldForDisplay(stripEdgeTags(label, QUALITY_TAG_PATTERNS))
 }
 
 export interface NormalizedChannelName {
@@ -95,7 +108,7 @@ export function normalizeChannelName(rawName: string): NormalizedChannelName {
   const countryMatch = matchLeadingCountry(cleaned)
   const withoutCountry = countryMatch ? countryMatch.rest : cleaned
   const qualityTag = extractQualityTag(withoutCountry)
-  const canonicalName = stripEdgeTags(withoutCountry, QUALITY_TAGS)
+  const canonicalName = stripEdgeTags(withoutCountry, QUALITY_TAG_PATTERNS)
   // A channel always needs a name, so this fallback (unlike the category
   // one above) is load-bearing: falls back to the pre-tag-stripped name if
   // stripping happened to consume everything.

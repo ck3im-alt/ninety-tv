@@ -77,6 +77,14 @@ for (const [code, name] of Object.entries(COUNTRY_NAMES)) {
 }
 const NAME_ENTRIES = [...NAME_TO_CODE.keys()].sort((a, b) => b.length - a.length)
 
+// Precompiled once at module init — matchLeadingCountry used to construct a
+// fresh RegExp per name/code on every single call (up to ~90 allocations in
+// the worst case, for a playlist with tens of thousands of channel/category
+// strings to match against). Same entries, same longest-match-first order,
+// same pattern shape as before — purely a "when is the RegExp built" change.
+const NAME_PATTERNS = NAME_ENTRIES.map((name) => ({ name, re: new RegExp(`^${name}\\b${SEPARATOR}?`) }))
+const CODE_PATTERNS = CODE_ENTRIES.map((code) => ({ code, re: new RegExp(`^${code}\\b${SEPARATOR}`) }))
+
 export interface LeadingCountryMatch {
   code: string
   countryName: string
@@ -93,15 +101,15 @@ export function matchLeadingCountry(text: string): LeadingCountryMatch | null {
   const cleaned = stripDecorativeEdges(text)
   const folded = foldForMatching(cleaned)
 
-  for (const name of NAME_ENTRIES) {
-    const match = folded.match(new RegExp(`^${name}\\b${SEPARATOR}?`))
+  for (const { name, re } of NAME_PATTERNS) {
+    const match = folded.match(re)
     if (!match) continue
     const code = NAME_TO_CODE.get(name)!
     return { code, countryName: COUNTRY_NAMES[code], rest: cleaned.slice(match[0].length).trim() }
   }
 
-  for (const code of CODE_ENTRIES) {
-    const match = folded.match(new RegExp(`^${code}\\b${SEPARATOR}`))
+  for (const { code, re } of CODE_PATTERNS) {
+    const match = folded.match(re)
     if (!match) continue
     return { code, countryName: COUNTRY_NAMES[code], rest: cleaned.slice(match[0].length).trim() }
   }

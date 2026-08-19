@@ -2,6 +2,7 @@ import type { Channel, ChannelSource } from '../../data/channel'
 import type { RawChannel } from '../../data/rawChannel'
 import { normalizeChannelName } from '../../data/normalize'
 import { parseCategory } from './parseCategory'
+import { markPerf, measurePerf } from '../../core/perf/devPerf'
 
 // Same real channel is sometimes spelled with the brand word singular in
 // one playlist entry and plural in another ("TNT Sport 1" vs "TNT Sports
@@ -18,6 +19,7 @@ function foldPluralSport(name: string): string {
 // country) stays a separate channel, since that's a real distinction, not a
 // quality artifact.
 export function mergeChannelSources(raw: RawChannel[]): Channel[] {
+  markPerf('mergeChannels:start')
   const order: string[] = []
   const groups = new Map<
     string,
@@ -70,7 +72,7 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
     })
   }
 
-  return order.map((key) => {
+  const result = order.map((key) => {
     const group = groups.get(key)!
     return {
       id: key,
@@ -83,4 +85,7 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
       hasEpgChannelId: group.epgChannelIds.length > 0,
     }
   })
+  markPerf('mergeChannels:end')
+  measurePerf('mergeChannels', 'mergeChannels:start', 'mergeChannels:end')
+  return result
 }

@@ -16,7 +16,19 @@ export interface ParsedCategory {
   raw: string
 }
 
-export function parseCategory(raw: string): ParsedCategory {
+// Real playlists reuse the same raw groupTitle across hundreds/thousands of
+// channels (one category, many channels in it) — memoized by the raw string
+// so a ~30k-channel playlist only ever pays for the (regex-heavy)
+// matchLeadingCountry/normalizeCategoryLabel work once per DISTINCT category
+// string, not once per channel. Pure function, so this is 100%
+// behavior-preserving. Capped and cleared wholesale on overflow rather than
+// evicted piecemeal — same discipline as channelMatchCore.ts's memoize()
+// helper (not reused directly here to avoid a features/channels ->
+// data/sports dependency in the wrong direction).
+const CACHE_LIMIT = 200_000
+const cache = new Map<string, ParsedCategory>()
+
+function computeParseCategory(raw: string): ParsedCategory {
   const match = matchLeadingCountry(raw)
   if (match) {
     return {
@@ -28,6 +40,15 @@ export function parseCategory(raw: string): ParsedCategory {
     }
   }
   return { countryCode: null, countryName: null, label: raw, mergedLabel: normalizeCategoryLabel(raw), raw }
+}
+
+export function parseCategory(raw: string): ParsedCategory {
+  const cached = cache.get(raw)
+  if (cached) return cached
+  if (cache.size >= CACHE_LIMIT) cache.clear()
+  const result = computeParseCategory(raw)
+  cache.set(raw, result)
+  return result
 }
 
 // PPV (pay-per-view) is never stripped by normalizeCategoryLabel, so it's

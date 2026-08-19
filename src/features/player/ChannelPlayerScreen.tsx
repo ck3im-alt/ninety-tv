@@ -24,6 +24,29 @@ function sourceIndexFor(channel: Channel | null, label?: string): number {
   return index === -1 ? 0 : index
 }
 
+// Only compares the fields this screen actually reads in its JSX — status,
+// error (code/message), muted, subtitleTracks, activeSubtitleTrack.
+// Deliberately excludes currentTime/duration: fixing this at the shared
+// PlayerState type (or splitting playback telemetry out of it) would touch
+// a contract documented as staying stable for a future Tizen AVPlay
+// implementation, for no benefit today — this is the only PlayerState
+// subscriber in the app (PreviewPlayer, the other createHtmlVideoPlayer()
+// consumer, never subscribes to state at all).
+function playerUiStateEqual(a: PlayerState, b: PlayerState): boolean {
+  if (a === b) return true
+  if (a.status !== b.status) return false
+  if (a.muted !== b.muted) return false
+  if (a.activeSubtitleTrack !== b.activeSubtitleTrack) return false
+  if ((a.error?.code ?? null) !== (b.error?.code ?? null)) return false
+  if ((a.error?.message ?? null) !== (b.error?.message ?? null)) return false
+  if (a.subtitleTracks.length !== b.subtitleTracks.length) return false
+  for (let i = 0; i < a.subtitleTracks.length; i++) {
+    if (a.subtitleTracks[i].id !== b.subtitleTracks[i].id) return false
+    if (a.subtitleTracks[i].label !== b.subtitleTracks[i].label) return false
+  }
+  return true
+}
+
 function ToolbarButton({
   icon,
   label,
@@ -184,7 +207,17 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
 
   useEffect(() => {
     if (videoRef.current) player.attach(videoRef.current)
-    const unsubscribe = player.subscribe(setPlayerState)
+    // The player emits a new PlayerState on every native `timeupdate`
+    // (~4x/sec during playback) for currentTime/duration alone — fields
+    // this screen never reads in its JSX (grep confirms zero uses). Setting
+    // state directly from every emission forced a full re-render on every
+    // tick; comparing only the fields this component actually cares about
+    // (status/error/mute/subtitles) means React bails out of re-rendering
+    // for pure playback-clock ticks, while those fields still update
+    // immediately, with no debounce.
+    const unsubscribe = player.subscribe((next) => {
+      setPlayerState((prev) => (playerUiStateEqual(prev, next) ? prev : next))
+    })
     return () => {
       unsubscribe()
       player.dispose()

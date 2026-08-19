@@ -1,11 +1,12 @@
 // Tests the worker's request-handling logic directly, with no real Worker
-// involved — see channelIdentityWorker.ts's header for why
+// involved — see channelIdentityWorkerProtocol.ts's header for why
 // resolveChannelIdentityWorkerRequest is a plain, Worker-global-free
-// function. The real Worker bootstrap (self.onmessage wiring) is exercised
+// function kept separate from channelIdentityWorker.ts's actual
+// self.onmessage bootstrap. The real Worker bootstrap is exercised
 // indirectly via channelIdentityWorkerClient.test.ts's fake-worker tests.
 import { describe, expect, it } from 'vitest'
-import { resolveChannelIdentityWorkerRequest } from './channelIdentityWorker'
-import type { ChannelIdentityWorkerRequest } from './channelIdentityWorker'
+import { resolveChannelIdentityWorkerRequest } from './channelIdentityWorkerProtocol'
+import type { ChannelIdentityWorkerRequest } from './channelIdentityWorkerProtocol'
 import type { NinetyLogicalChannel } from './ninetyApiClient'
 import type { PlaylistChannelIdentity } from './channelIdentityProjection'
 

@@ -12,8 +12,7 @@
 import type { NinetyLogicalChannel } from './ninetyApiClient'
 import type { LogicalChannelResolution } from './channelIdentityResolver'
 import type { PlaylistChannelIdentity } from './channelIdentityProjection'
-import { resolveChannelIdentityWorkerRequest } from './channelIdentityWorker'
-import type { ChannelIdentityWorkerRequest, ChannelIdentityWorkerResponse } from './channelIdentityWorker'
+import type { ChannelIdentityWorkerRequest, ChannelIdentityWorkerResponse } from './channelIdentityWorkerProtocol'
 
 // Deliberately narrower than the DOM Worker type — only what this module
 // actually uses, so a test fake doesn't need to be a real Worker.
@@ -139,7 +138,3 @@ export function runChannelIdentityResolution(
     },
   }
 }
-
-// Re-exported so a fake WorkerFactory in a test can compute a realistic
-// response (via the real resolver) without needing a real Worker thread.
-export { resolveChannelIdentityWorkerRequest }

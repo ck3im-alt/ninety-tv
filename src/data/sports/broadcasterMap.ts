@@ -36,13 +36,42 @@ export const BROADCASTER_MAP: BroadcasterMapping[] = [
   { sportKey: 'f1', country: 'United States', stationNames: ['ESPN'] },
 ]
 
+// Every BROADCASTER_MAP entry potentially relevant to this event: matching
+// sportKey is required for EVERY entry (including league-specific ones —
+// today's real BROADCASTER_MAP data has zero leagueId entries, so this is a
+// no-op tightening for current data, but it's the correct, defensive
+// reading now that entries are selected as a whole set here rather than
+// only ever compared one at a time), plus either a matching leagueId or a
+// sport-wide (no leagueId) entry. This is a superset filter, not a
+// decision: for a country with BOTH kinds of entry, broadcastersFor below
+// still applies the same league-over-sport precedence it always has,
+// scoped per country. Single source of truth for both broadcastersFor
+// (station names) and countriesForBroadcasterMap (country buckets, used by
+// channelMatch.ts to restrict its channel scan to relevant countries
+// instead of the whole playlist) — neither reimplements this precedence
+// independently.
+function relevantEntries(sportKey: SportKey, leagueId: string): BroadcasterMapping[] {
+  return BROADCASTER_MAP.filter((m) => m.sportKey === sportKey && (m.leagueId === leagueId || !m.leagueId))
+}
+
 // Whole-sport mappings apply to every league in that sport unless a
 // leagueId-specific entry exists for the same country, in which case the
 // narrower one wins (e.g. a golf major with its own single broadcaster
 // deal, distinct from the sport's general coverage).
 export function broadcastersFor(sportKey: SportKey, leagueId: string, country: string): string[] {
-  const leagueMatch = BROADCASTER_MAP.find((m) => m.leagueId === leagueId && m.country === country)
+  const candidates = relevantEntries(sportKey, leagueId).filter((m) => m.country === country)
+  const leagueMatch = candidates.find((m) => m.leagueId === leagueId)
   if (leagueMatch) return leagueMatch.stationNames
-  const sportMatch = BROADCASTER_MAP.find((m) => m.sportKey === sportKey && !m.leagueId && m.country === country)
+  const sportMatch = candidates.find((m) => !m.leagueId)
   return sportMatch?.stationNames ?? []
+}
+
+// Every country broadcastersFor could possibly return a non-empty result
+// for, given this sportKey/leagueId — lets channelMatch.ts's
+// matchViaBroadcasterMap restrict its channel scan to just these countries'
+// buckets (via ChannelIndex.getChannelsForCountry) instead of the whole
+// playlist. Skipping any other country is provably safe: broadcastersFor
+// would have returned [] for it anyway, contributing zero matches.
+export function countriesForBroadcasterMap(sportKey: SportKey, leagueId: string): string[] {
+  return [...new Set(relevantEntries(sportKey, leagueId).map((m) => m.country))]
 }

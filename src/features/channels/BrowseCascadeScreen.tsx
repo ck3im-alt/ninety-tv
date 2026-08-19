@@ -2,16 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials, XtreamEpgListing } from '../../data/xtream/types'
+import type { ChannelIndex } from '../../data/channelIndex'
 import { useBackHandler } from '../../core/platform'
 import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
 import { flagSrc } from '../../data/countryCodes'
-import { parseCategory, isPpvCategory } from './parseCategory'
 import { categoryFavoriteKey } from './favorites'
 import { ListRow } from './ListRow'
 import { SearchField } from './SearchField'
 import { Breadcrumb } from './Breadcrumb'
-import { ChannelRow, PreviewPlayer } from './CategoryChannelsScreen'
+import { PreviewPlayer } from './CategoryChannelsScreen'
+import { VirtualChannelList } from './VirtualChannelList'
+import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import './BrowseCascadeScreen.css'
 
 // Primary Channels browsing screen — Country → Category → Channel →
@@ -43,7 +45,12 @@ const TOOLBAR_FOCUS_KEY = 'cascade-toolbar'
 const OTHER = 'Other'
 
 interface Props {
-  channels: Channel[]
+  // Prepared/indexed view of the playlist, built once per playlist
+  // generation (see data/channelIndex.ts) — every country/category/channel
+  // lookup below reads from this instead of rescanning the full playlist on
+  // every focus move. The raw Channel[] itself isn't needed here — every
+  // use in this screen goes through the index.
+  channelIndex: ChannelIndex
   xtreamCreds: XtreamCredentials | null
   hiddenCountries: Set<string>
   // Composite `${country}::${category}` keys (categoryFavoriteKey) — a
@@ -201,7 +208,7 @@ function PreviewCard({
 }
 
 export function BrowseCascadeScreen({
-  channels,
+  channelIndex,
   xtreamCreds,
   hiddenCountries,
   hiddenCategories,
@@ -234,6 +241,14 @@ export function BrowseCascadeScreen({
 
   const isSearching = query.trim() !== ''
 
+  // DEV-perf: companion to App.tsx's markPerf('channels:open-start') fired
+  // when the user presses "Channels" — this fires once this screen has
+  // actually mounted and rendered.
+  useEffect(() => {
+    markPerf('channels:open-end')
+    measurePerf('channels:open', 'channels:open-start', 'channels:open-end')
+  }, [])
+
   useBackHandler(() => {
     if (isSearching) {
       setQuery('')
@@ -255,45 +270,54 @@ export function BrowseCascadeScreen({
     return true
   })
 
-  const searchResults = useMemo(() => {
-    if (!isSearching) return []
-    const q = query.toLowerCase()
-    return channels
-      .filter((c) => c.name.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const aFav = favoriteChannels.has(a.id)
-        const bFav = favoriteChannels.has(b.id)
-        if (aFav !== bFav) return aFav ? -1 : 1
-        return 0
-      })
-  }, [channels, isSearching, query, favoriteChannels])
+  function favoriteChannelFirst(a: Channel, b: Channel): number {
+    const aFav = favoriteChannels.has(a.id)
+    const bFav = favoriteChannels.has(b.id)
+    if (aFav !== bFav) return aFav ? -1 : 1
+    return 0
+  }
 
-  const countries = useMemo(() => {
-    const entries = new Map<string, { code: string | null; count: number }>()
-    for (const channel of channels) {
-      const { countryName, countryCode } = parseCategory(channel.groupTitle || '')
-      const key = countryName ?? OTHER
-      const existing = entries.get(key)
-      entries.set(key, { code: countryCode, count: (existing?.count ?? 0) + 1 })
+  // Search recompute is debounced (~200ms) so fast typing doesn't run a
+  // playlist-wide scan per keystroke — but `isSearching` itself (which swaps
+  // the whole columns block for the search-results block) stays keyed off
+  // the RAW query, so the UI switches to search mode the instant the first
+  // character is typed. See ChannelIndex.search — one O(n) pass over
+  // precomputed folded names, not a fresh .toLowerCase() per channel.
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const searchDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (searchDebounceTimer.current) clearTimeout(searchDebounceTimer.current)
+    searchDebounceTimer.current = setTimeout(() => setDebouncedQuery(query), 200)
+    return () => {
+      if (searchDebounceTimer.current) clearTimeout(searchDebounceTimer.current)
     }
-    return [...entries.entries()]
-      .map(([name, { code, count }]) => ({ name, code, count }))
+  }, [query])
+
+  const searchResults = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase()
+    if (!q) return []
+    return channelIndex.search(q).sort(favoriteChannelFirst)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelIndex, debouncedQuery, favoriteChannels])
+
+  // Countries/categories/channels-in-category all read from the prepared
+  // ChannelIndex (built once per playlist generation — see
+  // data/channelIndex.ts) instead of rescanning the full `channels` array
+  // and re-parseCategory-ing every channel on every focus movement. Each of
+  // these is now O(k) (k = countries, or categories/channels within ONE
+  // country) rather than O(playlist size).
+  const countries = useMemo(() => {
+    return channelIndex
+      .getCountries()
       .filter((c) => !hiddenCountries.has(c.name))
       .sort((a, b) => (a.name === OTHER ? 1 : b.name === OTHER ? -1 : b.count - a.count))
-  }, [channels, hiddenCountries])
+  }, [channelIndex, hiddenCountries])
 
   const { regularCategories, ppvCategories } = useMemo(() => {
     if (!selectedCountry) return { regularCategories: [], ppvCategories: [] }
-    const counts = new Map<string, number>()
-    const ppvLabels = new Set<string>()
-    for (const channel of channels) {
-      const parsed = parseCategory(channel.groupTitle || '')
-      if ((parsed.countryName ?? OTHER) !== selectedCountry) continue
-      if (hiddenCategories.has(categoryFavoriteKey(selectedCountry, parsed.mergedLabel))) continue
-      counts.set(parsed.mergedLabel, (counts.get(parsed.mergedLabel) ?? 0) + 1)
-      if (isPpvCategory(parsed)) ppvLabels.add(parsed.mergedLabel)
-    }
-    const all = [...counts.entries()].map(([label, count]) => ({ label, count }))
+    const all = channelIndex
+      .getCategoriesForCountry(selectedCountry)
+      .filter((c) => !hiddenCategories.has(categoryFavoriteKey(selectedCountry, c.label)))
     const sortWithFavorites = (a: { label: string; count: number }, b: { label: string; count: number }) => {
       const aFav = favoriteCategories.has(categoryFavoriteKey(selectedCountry, a.label))
       const bFav = favoriteCategories.has(categoryFavoriteKey(selectedCountry, b.label))
@@ -301,25 +325,19 @@ export function BrowseCascadeScreen({
       return b.count - a.count
     }
     return {
-      regularCategories: all.filter((c) => !ppvLabels.has(c.label)).sort(sortWithFavorites),
-      ppvCategories: all.filter((c) => ppvLabels.has(c.label)).sort(sortWithFavorites),
+      regularCategories: all.filter((c) => !c.isPpv).sort(sortWithFavorites),
+      ppvCategories: all.filter((c) => c.isPpv).sort(sortWithFavorites),
     }
-  }, [channels, selectedCountry, hiddenCategories, favoriteCategories])
+  }, [channelIndex, selectedCountry, hiddenCategories, favoriteCategories])
 
+  // selectedCategory === null means nothing selected yet (-> []);
+  // selectedCategory === '' means the country's general/unlabeled bucket —
+  // these are deliberately distinct, do not conflate them.
   const channelsInCategory = useMemo(() => {
     if (!selectedCountry || selectedCategory === null) return []
-    return channels
-      .filter((c) => {
-        const parsed = parseCategory(c.groupTitle || '')
-        return (parsed.countryName ?? OTHER) === selectedCountry && parsed.mergedLabel === selectedCategory
-      })
-      .sort((a, b) => {
-        const aFav = favoriteChannels.has(a.id)
-        const bFav = favoriteChannels.has(b.id)
-        if (aFav !== bFav) return aFav ? -1 : 1
-        return 0
-      })
-  }, [channels, selectedCountry, selectedCategory, favoriteChannels])
+    return channelIndex.getChannelsForCategory(selectedCountry, selectedCategory).sort(favoriteChannelFirst)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelIndex, selectedCountry, selectedCategory, favoriteChannels])
 
   // Previewing (scrolling with arrows) updates the next column's contents
   // immediately, without moving focus/level there — that only happens on
@@ -327,6 +345,7 @@ export function BrowseCascadeScreen({
   // move through the country/category lists, not just on commit.
   function previewCountry(name: string) {
     if (name === selectedCountry) return
+    markPerf('cascade:country-to-category-start')
     setSelectedCategory(null)
     setSelectedChannel(null)
     setSelectedCountry(name)
@@ -334,6 +353,7 @@ export function BrowseCascadeScreen({
 
   function previewCategory(label: string) {
     if (label === selectedCategory) return
+    markPerf('cascade:category-to-channel-start')
     setSelectedChannel(null)
     setSelectedCategory(label)
   }
@@ -433,6 +453,20 @@ export function BrowseCascadeScreen({
     }
   }, [countries, selectedCountry, setSelectedCountry])
 
+  // DEV-perf: country-focus -> updated category presentation, and
+  // category-focus -> updated channel presentation (§13 instrumentation —
+  // these are the two transitions the O(N)->O(k) ChannelIndex rewrite above
+  // exists to make cheap).
+  useEffect(() => {
+    markPerf('cascade:country-to-category-end')
+    measurePerf('cascade:country-to-category', 'cascade:country-to-category-start', 'cascade:country-to-category-end')
+  }, [regularCategories, ppvCategories])
+
+  useEffect(() => {
+    markPerf('cascade:category-to-channel-end')
+    measurePerf('cascade:category-to-channel', 'cascade:category-to-channel-start', 'cascade:category-to-channel-end')
+  }, [channelsInCategory])
+
   const colCount = 1 + (selectedCountry ? 1 : 0) + (selectedCategory !== null ? 1 : 0) + (selectedChannel ? 1 : 0)
   const searchColCount = 1 + (selectedChannel ? 1 : 0)
 
@@ -468,18 +502,16 @@ export function BrowseCascadeScreen({
                 <span>Channels matching “{query}”</span>
               </div>
               <div className="cascade-list">
-                {searchResults.map((channel) => (
-                  <ChannelRow
-                    key={channel.id}
-                    channel={channel}
-                    active={channel.id === selectedChannel?.id}
-                    favorited={favoriteChannels.has(channel.id)}
-                    onSelect={() => watchChannel(channel)}
-                    onFocus={() => previewChannelDebounced(channel)}
-                    onToggleFavorite={() => onToggleFavoriteChannel(channel.id)}
-                  />
-                ))}
-                {searchResults.length === 0 && <p className="empty-state">No channels match “{query}”.</p>}
+                <VirtualChannelList
+                  channels={searchResults}
+                  favoriteChannels={favoriteChannels}
+                  selectedChannelId={selectedChannel?.id}
+                  focusKeyPrefix="cascade-search-row"
+                  onSelect={watchChannel}
+                  onFocusChannel={previewChannelDebounced}
+                  onToggleFavorite={onToggleFavoriteChannel}
+                  emptyMessage={`No channels match "${query}".`}
+                />
               </div>
             </div>
           </FocusContext.Provider>
@@ -573,20 +605,18 @@ export function BrowseCascadeScreen({
                   <span>Channels</span>
                 </div>
                 <div className="cascade-list">
-                  {channelsInCategory.map((channel, index) => (
-                    <ChannelRow
-                      key={channel.id}
-                      channel={channel}
-                      active={channel.id === selectedChannel?.id}
-                      favorited={favoriteChannels.has(channel.id)}
-                      onSelect={() => watchChannel(channel)}
-                      onFocus={() => previewChannelDebounced(channel)}
-                      onArrowLeft={() => void setFocus(CATEGORY_COL_FOCUS_KEY)}
-                      onArrowUp={index === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined}
-                      onToggleFavorite={() => onToggleFavoriteChannel(channel.id)}
-                    />
-                  ))}
-                  {channelsInCategory.length === 0 && <p className="empty-state">No channels in this category.</p>}
+                  <VirtualChannelList
+                    channels={channelsInCategory}
+                    favoriteChannels={favoriteChannels}
+                    selectedChannelId={selectedChannel?.id}
+                    focusKeyPrefix="cascade-channel-row"
+                    onSelect={watchChannel}
+                    onFocusChannel={previewChannelDebounced}
+                    onToggleFavorite={onToggleFavoriteChannel}
+                    onArrowLeft={() => void setFocus(CATEGORY_COL_FOCUS_KEY)}
+                    onArrowUpAtTop={() => void setFocus(TOOLBAR_FOCUS_KEY)}
+                    emptyMessage="No channels in this category."
+                  />
                 </div>
               </div>
             </FocusContext.Provider>

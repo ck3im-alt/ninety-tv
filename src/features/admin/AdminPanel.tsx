@@ -3,12 +3,18 @@ import { FocusContext, getCurrentFocusKey, setFocus, useFocusable } from '@norig
 import { useBackHandler } from '../../core/platform'
 import { clearAllAppStorage } from '../../core/storage/localStore'
 import { hasCompletedOnboarding, loadPreferences } from '../../data/preferences'
-import { loadPlaylistState, clearPlaylist, loadFavoriteChannels, loadFavoriteCategories } from '../../data/session'
+import { clearPlaylist, loadFavoriteChannels, loadFavoriteCategories } from '../../data/session'
+import type { Channel } from '../../data/channel'
 import './AdminPanel.css'
 
 const POPUP_FOCUS_KEY = 'admin-panel'
 
 interface Props {
+  // Live in-memory channel count, threaded down from App.tsx (which already
+  // holds it) rather than re-reading storage here — the channel cache is
+  // async (IndexedDB) now, so there's no synchronous read-back to do this
+  // debug display with anymore.
+  channels: Channel[]
   onClose: () => void
 }
 
@@ -36,9 +42,9 @@ function ActionButton({
 // purely so onboarding/persistence flows can be re-triggered without
 // manually digging through devtools localStorage. Reachable via the
 // profile avatar in TopNav.
-export function AdminPanel({ onClose }: Props) {
+export function AdminPanel({ channels, onClose }: Props) {
   const [confirmingReset, setConfirmingReset] = useState(false)
-  const savedPlaylist = loadPlaylistState()
+  const [resyncError, setResyncError] = useState<string | null>(null)
   const savedFavoriteChannels = loadFavoriteChannels()
   const savedFavoriteCategories = loadFavoriteCategories()
 
@@ -71,8 +77,18 @@ export function AdminPanel({ onClose }: Props) {
     window.location.reload()
   }
 
-  function resyncPlaylist() {
-    clearPlaylist()
+  async function resyncPlaylist() {
+    setResyncError(null)
+    // clearPlaylist() now clears IndexedDB first and only removes the
+    // localStorage source record once that's confirmed — if it reports
+    // failure, the playlist is still intact (nothing was partially
+    // destroyed) and reloading would just bring back the same, unresynced
+    // cache, so don't reload in that case.
+    const cleared = await clearPlaylist()
+    if (!cleared) {
+      setResyncError("Couldn't clear the cached playlist — nothing was changed. Try again.")
+      return
+    }
     // Same reload approach as reset — App.tsx has no in-place "forget
     // playlist" action to call into, and a reload is simple/reliable.
     // Onboarding/preferences/filters are untouched, only the cached
@@ -103,18 +119,20 @@ export function AdminPanel({ onClose }: Props) {
             <span>Saved football leagues:</span>
             <strong>{loadPreferences().footballLeagueIds.join(', ') || '(none)'}</strong>
             <span>Saved playlist:</span>
-            <strong>{savedPlaylist.kind === 'ready' ? `${savedPlaylist.channels.length} channels` : '(none)'}</strong>
+            <strong>{channels.length > 0 ? `${channels.length} channels` : '(none)'}</strong>
             <span>Favorite channels:</span>
             <strong>{savedFavoriteChannels.size}</strong>
             <span>Favorite categories:</span>
             <strong>{savedFavoriteCategories.size}</strong>
           </div>
 
+          {resyncError && <p className="admin-note error">{resyncError}</p>}
+
           <div className="admin-actions">
             <ActionButton
               label="Resync playlist"
               description="Clears only the cached channel list and reloads — re-fetches and re-merges your connected playlist with the latest channel-name/country normalization. Onboarding, preferences, and filters are untouched."
-              onSelect={resyncPlaylist}
+              onSelect={() => void resyncPlaylist()}
             />
             {!confirmingReset ? (
               <ActionButton

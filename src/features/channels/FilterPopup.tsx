@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FocusContext, getCurrentFocusKey, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import type { Channel } from '../../data/channel'
+import type { ChannelIndex } from '../../data/channelIndex'
 import { useBackHandler } from '../../core/platform'
-import { parseCategory } from './parseCategory'
 import { categoryFavoriteKey } from './favorites'
 import './FilterPopup.css'
 
@@ -10,7 +9,12 @@ const OTHER = 'Other'
 const POPUP_FOCUS_KEY = 'filter-popup'
 
 interface Props {
-  channels: Channel[]
+  // Prepared/indexed view of the playlist (see data/channelIndex.ts) —
+  // deliberately UNfiltered by hiddenCountries/hiddenCategories (unlike
+  // BrowseCascadeScreen's own consumption of it): this popup must show
+  // every country/category, including currently-hidden ones, so the user
+  // can re-enable them.
+  channelIndex: ChannelIndex
   hiddenCountries: Set<string>
   // Composite `${country}::${category}` keys (see categoryFavoriteKey) —
   // categories are scoped per-country here, not hidden globally, since the
@@ -72,36 +76,24 @@ function ActionButton({ label, onSelect, tone = 'default' }: { label: string; on
 // category label can mean different things in different lineups — which of
 // that country's categories show. Changes are a local draft until "Apply
 // filters"; "Cancel" discards them.
-export function FilterPopup({ channels, hiddenCountries, hiddenCategories, onApply, onClose }: Props) {
+export function FilterPopup({ channelIndex, hiddenCountries, hiddenCategories, onApply, onClose }: Props) {
   const [draftHiddenCountries, setDraftHiddenCountries] = useState(() => new Set(hiddenCountries))
   const [draftHiddenCategories, setDraftHiddenCategories] = useState(() => new Set(hiddenCategories))
 
+  // Reads from the prepared ChannelIndex (O(k), k = country/category count)
+  // instead of rescanning the full playlist and re-parseCategory-ing every
+  // channel every time the active country changes.
   const countries = useMemo(() => {
-    const entries = new Map<string, { code: string | null; count: number }>()
-    for (const channel of channels) {
-      const { countryName, countryCode } = parseCategory(channel.groupTitle || '')
-      const key = countryName ?? OTHER
-      const existing = entries.get(key)
-      entries.set(key, { code: countryCode, count: (existing?.count ?? 0) + 1 })
-    }
-    return [...entries.entries()]
-      .map(([name, { count }]) => ({ name, count }))
+    return channelIndex
+      .getCountries()
       .sort((a, b) => (a.name === OTHER ? 1 : b.name === OTHER ? -1 : b.count - a.count))
-  }, [channels])
+  }, [channelIndex])
 
   const [activeCountry, setActiveCountry] = useState<string>(() => countries[0]?.name ?? '')
 
   const categoriesForActiveCountry = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const channel of channels) {
-      const parsed = parseCategory(channel.groupTitle || '')
-      if ((parsed.countryName ?? OTHER) !== activeCountry) continue
-      counts.set(parsed.mergedLabel, (counts.get(parsed.mergedLabel) ?? 0) + 1)
-    }
-    return [...counts.entries()]
-      .map(([label, count]) => ({ label, count }))
-      .sort((a, b) => b.count - a.count)
-  }, [channels, activeCountry])
+    return channelIndex.getCategoriesForCountry(activeCountry).sort((a, b) => b.count - a.count)
+  }, [channelIndex, activeCountry])
 
   const { ref: closeRef, focused: closeFocused } = useFocusable({ onEnterPress: onClose })
 
