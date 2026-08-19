@@ -41,6 +41,11 @@ export interface ChannelIndexEntry {
   isPpvOrUnmapped: boolean
   // isLikelySportChannel's exact predicate (matchViaEpg's candidate filter).
   isLikelySport: boolean
+  // Original playlist position — lets getChannelsByIdsInPlaylistOrder
+  // restore "playlist order" for an arbitrary id subset (e.g. favorites)
+  // via a sort, in O(k log k) on the subset size, instead of an O(N) scan
+  // of the full playlist to preserve order.
+  order: number
 }
 
 interface CategoryBucket {
@@ -71,6 +76,11 @@ export class ChannelIndex {
   // full second character-by-character fold per channel without changing
   // behavior.
   private readonly foldedGroupTitleCache = new Map<string, string>()
+  // Monotonic counter backing ChannelIndexEntry.order — not just
+  // this.entries.size at insertion time, since a duplicate channel.id would
+  // overwrite its Map slot without incrementing size, silently reusing an
+  // order value.
+  private nextOrder = 0
 
   // Takes an already-built channel list and ingests it synchronously in one
   // pass — used directly by getChannelIndex's synchronous fast path. For
@@ -111,6 +121,7 @@ export class ChannelIndex {
       isCategoryPpv,
       isPpvOrUnmapped,
       isLikelySport,
+      order: this.nextOrder++,
     })
 
     const countryCount = this.countryCounts.get(countryKey)
@@ -152,6 +163,26 @@ export class ChannelIndex {
 
   getEntry(channelId: string): ChannelIndexEntry | undefined {
     return this.entries.get(channelId)
+  }
+
+  getChannelById(channelId: string): Channel | undefined {
+    return this.entries.get(channelId)?.channel
+  }
+
+  // Resolves a small set of ids (e.g. favorites) to their Channels via the
+  // by-id map — O(k log k) in the number of ids, not O(playlist size) — and
+  // restores original playlist order, matching the ordering
+  // playlist.channels.filter(...) used to produce incidentally by iterating
+  // the full array. Ids with no matching channel (e.g. a stale favorite
+  // from a playlist that no longer has it) are silently dropped.
+  getChannelsByIdsInPlaylistOrder(ids: Iterable<string>): Channel[] {
+    const matches: { channel: Channel; order: number }[] = []
+    for (const id of ids) {
+      const entry = this.entries.get(id)
+      if (entry) matches.push({ channel: entry.channel, order: entry.order })
+    }
+    matches.sort((a, b) => a.order - b.order)
+    return matches.map((m) => m.channel)
   }
 
   getCountries(): { name: string; code: string | null; count: number }[] {

@@ -41,7 +41,18 @@ const REMOTE_KEYS_TO_REGISTER = ['Back', 'MediaPlayPause', 'MediaRewind', 'Media
 export function registerTizenRemoteKeys(): void {
   if (!isTizen()) return
   const inputDevice = window.tizen!.tvinputdevice
-  const supported = new Set(inputDevice.getSupportedKeys().map((key) => key.name))
+  // getSupportedKeys() throws (SecurityError) if the tvinputdevice privilege
+  // is ever missing/revoked — arrow/Enter navigation doesn't depend on this
+  // registration succeeding (see the module comment above), so a failure
+  // here must degrade to "Back/media keys don't work" rather than aborting
+  // the whole boot sequence before React ever mounts.
+  let supported: Set<string>
+  try {
+    supported = new Set(inputDevice.getSupportedKeys().map((key) => key.name))
+  } catch (err) {
+    console.warn('[registerTizenRemoteKeys] getSupportedKeys() failed — Back/media remote keys will not work this session.', err)
+    return
+  }
   for (const name of REMOTE_KEYS_TO_REGISTER) {
     if (!supported.has(name)) continue
     try {

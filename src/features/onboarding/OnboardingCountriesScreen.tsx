@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { FocusContext, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel } from '../../data/channel'
 import { parseCategory } from '../channels/parseCategory'
 import { flagSrc } from '../../data/countryCodes'
@@ -85,10 +85,24 @@ export function OnboardingCountriesScreen({
       .sort((a, b) => b.count - a.count)
   }, [channels])
 
-  const { ref: backRef, focused: backFocused } = useFocusable({ onEnterPress: onBack })
-  const { ref: continueRef, focused: continueFocused } = useFocusable({ onEnterPress: onContinue })
+  const BACK_FOCUS_KEY = 'countries-back'
+  const CONTINUE_FOCUS_KEY = 'countries-continue'
+  const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: BACK_FOCUS_KEY, onEnterPress: onBack })
+  const { ref: continueRef, focused: continueFocused } = useFocusable({
+    focusKey: CONTINUE_FOCUS_KEY,
+    onEnterPress: onContinue,
+  })
   const { ref: selectAllRef, focused: selectAllFocused } = useFocusable({ onEnterPress: onSelectAll, forceFocus: true })
   const { ref: deselectAllRef, focused: deselectAllFocused } = useFocusable({ onEnterPress: onDeselectAll })
+
+  // Same problem, same fix as OnboardingSportsScreen.tsx's grids: Back
+  // sits in the left info panel and Continue sits below the grid, both
+  // often unreachable through norigin's default geometry-based directional
+  // search -- see SelectableCard's onArrowLeft/onArrowDown for the actual
+  // override mechanism. Column count matches countries-grid's own CSS
+  // (`repeat(5, 1fr)` — see OnboardingCountriesScreen.css).
+  const GRID_COLUMNS = 5
+  const lastRowStart = (Math.ceil(countries.length / GRID_COLUMNS) - 1) * GRID_COLUMNS
 
   return (
     <FocusContext.Provider value={focusKey}>
@@ -164,12 +178,14 @@ export function OnboardingCountriesScreen({
             </p>
           ) : (
             <div className="countries-grid">
-              {countries.map((country) => (
+              {countries.map((country, index) => (
                 <SelectableCard
                   key={country.name}
                   focusKey={`country-${country.name}`}
                   selected={selectedCountries.has(country.name)}
                   onToggle={() => onToggleCountry(country.name)}
+                  onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
+                  onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
                 >
                   <div className="pick-card-icon round">
                     {country.code && flagSrc(country.code) && <img src={flagSrc(country.code)!} alt="" />}

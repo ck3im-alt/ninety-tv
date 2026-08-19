@@ -134,6 +134,31 @@ describe('ChannelIndex', () => {
     expect(index.getPpvOrUnmappedChannels().length).toBeGreaterThan(0)
   })
 
+  it('getChannelById resolves by id in O(1) and returns undefined for an unknown id', () => {
+    const sports1 = byName('Sports 1')
+    expect(index.getChannelById(sports1.id)).toBe(sports1)
+    expect(index.getChannelById('does-not-exist')).toBeUndefined()
+  })
+
+  it('getChannelsByIdsInPlaylistOrder resolves an arbitrary id subset back into ORIGINAL playlist order, not the order the ids were passed in', () => {
+    // Deliberately passed in a scrambled order (and as a Set, matching how
+    // App.tsx's favoriteChannels state is actually shaped) — the method
+    // must still return them in original playlist order, matching what
+    // playlist.channels.filter(...) used to produce incidentally.
+    const ids = new Set([byName('Mystery Channel').id, byName('Sports 1').id, byName('Movies 1').id])
+    const result = index.getChannelsByIdsInPlaylistOrder(ids)
+    expect(result.map((c) => c.name)).toEqual(['Sports 1', 'Movies 1', 'Mystery Channel'])
+  })
+
+  it('getChannelsByIdsInPlaylistOrder silently drops ids with no matching channel', () => {
+    const result = index.getChannelsByIdsInPlaylistOrder([byName('Sports 1').id, 'does-not-exist'])
+    expect(result.map((c) => c.name)).toEqual(['Sports 1'])
+  })
+
+  it('getChannelsByIdsInPlaylistOrder returns an empty array for an empty id set', () => {
+    expect(index.getChannelsByIdsInPlaylistOrder([])).toEqual([])
+  })
+
   it('getChannelIndex memoizes by array reference and rebuilds on a new reference', () => {
     const a = getChannelIndex(channels)
     const b = getChannelIndex(channels)

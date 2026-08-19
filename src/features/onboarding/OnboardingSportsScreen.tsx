@@ -1,4 +1,4 @@
-import { FocusContext, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { SportKey } from '../../data/sports/types'
 import { FOOTBALL_LEAGUES } from '../../data/sports/leagues'
 import { OnboardingTopBar } from './OnboardingStepper'
@@ -32,15 +32,42 @@ export function SelectableCard({
   selected,
   onToggle,
   forceFocus,
+  // These grids sit in a two-column layout where the "escape" targets
+  // (Back/Skip in the left info panel, Continue below the grid) are often
+  // far enough away, or narrow enough, that norigin's geometry-based
+  // directional search can't reliably reach them -- see the onArrowLeft/
+  // onArrowDown wiring at each grid's call site for exactly which cards
+  // get which override. Same onArrowPress-returns-false-to-override
+  // pattern as ListRow.tsx/BrowseCascadeScreen.tsx use for the identical
+  // problem in the channel browser.
+  onArrowLeft,
+  onArrowDown,
   children,
 }: {
   focusKey: string
   selected: boolean
   onToggle: () => void
   forceFocus?: boolean
+  onArrowLeft?: () => void
+  onArrowDown?: () => void
   children: React.ReactNode
 }) {
-  const { ref, focused } = useFocusable({ focusKey, onEnterPress: onToggle, forceFocus })
+  const { ref, focused } = useFocusable({
+    focusKey,
+    onEnterPress: onToggle,
+    forceFocus,
+    onArrowPress: (direction) => {
+      if (direction === 'left' && onArrowLeft) {
+        onArrowLeft()
+        return false
+      }
+      if (direction === 'down' && onArrowDown) {
+        onArrowDown()
+        return false
+      }
+      return true
+    },
+  })
   return (
     <div
       ref={ref}
@@ -65,9 +92,25 @@ export function OnboardingSportsScreen({
   const { ref, focusKey } = useFocusable({ focusKey: 'onboarding-sports', trackChildren: true })
   const footballSelected = selectedSports.has('football')
 
-  const { ref: backRef, focused: backFocused } = useFocusable({ onEnterPress: onBack })
+  const BACK_FOCUS_KEY = 'sports-back'
+  const CONTINUE_FOCUS_KEY = 'sports-continue'
+  const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: BACK_FOCUS_KEY, onEnterPress: onBack })
   const { ref: skipRef, focused: skipFocused } = useFocusable({ onEnterPress: onSkip })
-  const { ref: continueRef, focused: continueFocused } = useFocusable({ onEnterPress: onContinue })
+  const { ref: continueRef, focused: continueFocused } = useFocusable({
+    focusKey: CONTINUE_FOCUS_KEY,
+    onEnterPress: onContinue,
+  })
+
+  // Column count matches each grid's own CSS (`repeat(6, 1fr)` — see
+  // OnboardingSportsScreen.css) — used to compute which cards sit in the
+  // leftmost column (-> Left reaches Back) and in the grid's actual last
+  // row (-> Down reaches Continue), since neither is reliably reachable
+  // through norigin's default geometry-based search from every card. Only
+  // the truly last-rendered section's last row gets the Continue escape;
+  // the sports->leagues transition within the picker is a normal
+  // same-column downward move that already works.
+  const GRID_COLUMNS = 6
+  const isLastPickerSection = !footballSelected || FOOTBALL_LEAGUES.length === 0
 
   return (
     <FocusContext.Provider value={focusKey}>
@@ -122,7 +165,7 @@ export function OnboardingSportsScreen({
           <div className={`sports-section ${footballSelected ? '' : 'centered'}`}>
             <h2 className="picker-section-title">POPULAR SPORTS</h2>
             <div className="popular-sports-grid">
-              {POPULAR_SPORTS.map((sport) => {
+              {POPULAR_SPORTS.map((sport, index) => {
                 const Icon = sport.icon
                 return (
                   <SelectableCard
@@ -131,6 +174,8 @@ export function OnboardingSportsScreen({
                     selected={selectedSports.has(sport.id)}
                     onToggle={() => onToggleSport(sport.id)}
                     forceFocus={sport.id === 'football'}
+                    onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
+                    onArrowDown={isLastPickerSection ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
                   >
                     <div className="pick-card-icon">
                       <Icon />
@@ -146,19 +191,24 @@ export function OnboardingSportsScreen({
             <>
               <h2 className="picker-section-title">FOOTBALL LEAGUES</h2>
               <div className="league-grid">
-                {FOOTBALL_LEAGUES.map((league) => (
-                  <SelectableCard
-                    key={league.id}
-                    focusKey={`league-${league.id}`}
-                    selected={selectedLeagues.has(league.id)}
-                    onToggle={() => onToggleLeague(league.id)}
-                  >
-                    <div className="pick-card-icon">
-                      {league.badge && <img src={league.badge} alt="" />}
-                    </div>
-                    <span className="pick-card-label">{leagueDisplayName(league.id)}</span>
-                  </SelectableCard>
-                ))}
+                {FOOTBALL_LEAGUES.map((league, index) => {
+                  const lastRowStart = (Math.ceil(FOOTBALL_LEAGUES.length / GRID_COLUMNS) - 1) * GRID_COLUMNS
+                  return (
+                    <SelectableCard
+                      key={league.id}
+                      focusKey={`league-${league.id}`}
+                      selected={selectedLeagues.has(league.id)}
+                      onToggle={() => onToggleLeague(league.id)}
+                      onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
+                      onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
+                    >
+                      <div className="pick-card-icon">
+                        {league.badge && <img src={league.badge} alt="" />}
+                      </div>
+                      <span className="pick-card-label">{leagueDisplayName(league.id)}</span>
+                    </SelectableCard>
+                  )
+                })}
               </div>
             </>
           )}

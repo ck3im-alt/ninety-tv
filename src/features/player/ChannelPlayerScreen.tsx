@@ -105,7 +105,14 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
   // Autoplay policy (browser + Tizen) only allows audible playback after a
   // real user gesture, which is why the <video> starts `muted`. This tracks
   // whether such a gesture has happened yet so we know it's safe to unmute.
-  const hasInteractedRef = useRef(false)
+  // Starts true, not false: this screen only ever mounts as the direct
+  // result of an explicit Enter/click on a channel (see watchChannel() in
+  // App.tsx) — that gesture already happened, just on the PREVIOUS screen,
+  // before this component (and the keydown/pointerdown listener below)
+  // existed to observe it. Waiting for a second, redundant press here was
+  // exactly why full-screen playback stayed muted until the user did
+  // something after arriving.
+  const hasInteractedRef = useRef(true)
 
   const { ref: overlayRef, focusKey: overlayFocusKey } = useFocusable({ focusKey: OVERLAY_FOCUS_KEY, trackChildren: true })
   const { ref: toolbarRef, focusKey: toolbarFocusKey } = useFocusable({ focusKey: TOOLBAR_FOCUS_KEY, trackChildren: true })

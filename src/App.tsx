@@ -29,6 +29,7 @@ import { parseCategory } from './features/channels/parseCategory'
 import { getChannelIndex, warmChannelIndexAsync } from './data/channelIndex'
 import { generatePlaylistGenerationId } from './data/playlistGeneration'
 import { useChannelIdentityIndex } from './data/sports/useChannelIdentityIndex'
+import { useHomeFeed } from './data/sports/useHomeFeed'
 import { markPerf, measurePerf } from './core/perf/devPerf'
 import type { Channel } from './data/channel'
 import type { PlaylistSourceRecord } from './data/session'
@@ -124,6 +125,10 @@ function App() {
   useEffect(() => {
     markPerf('app:mounted')
     measurePerf('app:boot-to-mount', 'app:module-load', 'app:mounted')
+    // TEMPORARY, 2026-08-19: clears the boot-diag overlay (index.html) once
+    // App has actually committed/painted — see main.tsx for the rest of this
+    // diagnostic. Remove alongside the overlay once resolved.
+    ;(window as unknown as { __ninetyBootMounted?: () => void }).__ninetyBootMounted?.()
   }, [])
 
   // DEV-only diagnostic hook for scripts/evaluate-real-playlist-channel-identity.ts
@@ -168,6 +173,16 @@ function App() {
   // reachable at all — matchChannelsForEvent degrades gracefully either
   // way (see channelMatch.ts).
   const identityIndex = useChannelIdentityIndex(playlist.channels, playlist.generationId)
+  // Owned here (not by HomeScreen) so its fetch/match state survives Home
+  // unmounting while the user is on Event Details/Player/Channels and
+  // remounting on Back — HomeScreen used to own this hook directly, which
+  // meant every Home remount re-ran Effect 1's full network fetch from
+  // scratch, showing a multi-second Loading state that didn't need to
+  // reload anything. loadPreferences() is read fresh on every App render
+  // (cheap sync localStorage read), same as HomeScreen used to do — Effect
+  // 1 inside useHomeFeed only actually refetches when the derived prefsKey
+  // string changes, e.g. right after onboarding calls savePreferences.
+  const homeFeedState = useHomeFeed(loadPreferences(), playlist.channels, xtreamCreds, identityIndex)
   // Plain-language, non-technical message shown when the channel cache
   // couldn't be saved (or couldn't be auto-recovered) — see the persistence
   // effect and the startup-recovery effect below. Cleared once the user
@@ -363,15 +378,18 @@ function App() {
     setRecentlyWatched((prev) => [channelId, ...prev.filter((id) => id !== channelId)].slice(0, RECENTLY_WATCHED_LIMIT))
   }
 
+  // Both resolve through ChannelIndex's by-id map — O(k) in the number of
+  // favorites/recents, not O(playlist size) — so toggling a favorite or
+  // watching a channel no longer scans the full ~30,925-channel playlist on
+  // the main thread (see the Samsung-TV favorite-toggle freeze report).
   const favoriteChannelsList = useMemo(
-    () => playlist.channels.filter((c) => favoriteChannels.has(c.id)),
-    [playlist.channels, favoriteChannels],
+    () => channelIndex.getChannelsByIdsInPlaylistOrder(favoriteChannels),
+    [channelIndex, favoriteChannels],
   )
 
   const recentChannelsList = useMemo(() => {
-    const byId = new Map(playlist.channels.map((c) => [c.id, c] as const))
-    return recentlyWatched.map((id) => byId.get(id)).filter((c): c is Channel => c != null)
-  }, [playlist.channels, recentlyWatched])
+    return recentlyWatched.map((id) => channelIndex.getChannelById(id)).filter((c): c is Channel => c != null)
+  }, [channelIndex, recentlyWatched])
 
   function watchChannel(channel: Channel, source: { label: string }, fromScreen: Screen) {
     recordWatched(channel.id)
@@ -414,9 +432,8 @@ function App() {
       <Suspense fallback={null}>
       {screen === 'home' && (
         <HomeScreen
-          channels={playlist.channels}
+          feedState={homeFeedState}
           xtreamCreds={xtreamCreds}
-          identityIndex={identityIndex}
           favoriteChannels={favoriteChannelsList}
           onSelectEvent={(event) => {
             setSelectedEvent(event)

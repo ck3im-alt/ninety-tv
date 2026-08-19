@@ -13,6 +13,7 @@
     <feature name="http://tizen.org/feature/screen.size.all"/>
     <tizen:profile name="tv-samsung"/>
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/tvinputdevice"/>
     <!-- WARP access policy: grants the packaged widget permission to make
          cross-origin XHR/fetch requests (e.g. to users' own IPTV/Xtream
          panels) without those servers needing to send CORS headers.

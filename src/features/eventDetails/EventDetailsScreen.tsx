@@ -215,6 +215,14 @@ function ChannelMatchGroups({
   // is just noise — collapsed by default in that case, still one tap away.
   const [showFuzzy, setShowFuzzy] = useState(exactGroups.length === 0)
   const { ref: toggleRef, focused: toggleFocused } = useFocusable({ onEnterPress: () => setShowFuzzy((v) => !v) })
+  // This page has no dedicated scroll container (.event-details grows past
+  // the viewport and the document itself scrolls — see EventDetailsScreen
+  // .css), so scrollIntoView here targets that same default document
+  // scroll, same as ChannelRow.tsx's identical pattern for BrowseCascade's
+  // channel list.
+  useEffect(() => {
+    if (toggleFocused) toggleRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [toggleFocused, toggleRef])
 
   return (
     <>
@@ -251,6 +259,9 @@ function ChannelMatchGroups({
 
 function BrowseManuallyButton({ onClick }: { onClick: () => void }) {
   const { ref, focused } = useFocusable({ onEnterPress: onClick })
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [focused, ref])
   return (
     <button ref={ref} className={`event-details-browse-manually ${focused ? 'focused' : ''}`} onClick={onClick}>
       Think we got it wrong? Check your channels manually
@@ -278,6 +289,13 @@ function ChannelOption({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const selected = group.sourceOptions[selectedIndex] ?? group.sourceOptions[0]
   const { ref, focused } = useFocusable({ onEnterPress: () => selected && onWatch(selected.channel, selected.source) })
+  // Partial Matches can run to dozens of cards — without this, D-pad focus
+  // moves past the bottom of the viewport while the page itself never
+  // scrolls, eventually leaving the focused card (and all navigation)
+  // entirely off-screen.
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [focused, ref])
   return (
     <div className="event-details-channel-card">
       <button
@@ -340,6 +358,9 @@ function SourcePicker({
 
 function SourcePickerOption({ label, selected, onSelect }: { label: string; selected: boolean; onSelect: () => void }) {
   const { ref, focused } = useFocusable({ onEnterPress: onSelect })
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [focused, ref])
   return (
     <button
       ref={ref}

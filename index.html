@@ -8,6 +8,42 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // TEMPORARY re-add, 2026-08-19: diagnosing a reported blue-screen-on-
+      // startup on the physical Tizen TV after this session's perf overhaul.
+      // No devtools/console are reachable on this hardware (sdb shell/dlog
+      // are both blocked on this Partner-tier-restricted TV) — this overlay
+      // is the only way to see a boot-time error on the device itself.
+      // Remove once the real cause is found and confirmed fixed on-device.
+      ;(function () {
+        var overlay = document.createElement('div')
+        overlay.id = 'boot-diag'
+        overlay.style.cssText =
+          'position:fixed;inset:0;z-index:2147483647;background:#111;color:#7f7;' +
+          'font:20px/1.4 monospace;padding:32px;white-space:pre-wrap;overflow:auto;'
+        overlay.textContent = 'NINETY boot diagnostic\n'
+        document.body.appendChild(overlay)
+
+        window.__ninetyBootLog = function (msg) {
+          overlay.textContent += msg + '\n'
+        }
+        window.__ninetyBootMounted = function () {
+          overlay.remove()
+        }
+        function fail(msg) {
+          overlay.style.background = '#300'
+          overlay.style.color = '#f88'
+          overlay.textContent += msg + '\n'
+        }
+        window.onerror = function (msg, src, line, col, err) {
+          fail('window.onerror: ' + msg + '\n  @ ' + src + ':' + line + ':' + col + (err && err.stack ? '\n' + err.stack : ''))
+        }
+        window.onunhandledrejection = function (ev) {
+          var reason = ev.reason
+          fail('unhandledrejection: ' + (reason && reason.stack ? reason.stack : String(reason)))
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
