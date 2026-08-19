@@ -66,6 +66,15 @@ function App() {
   const [channels, setChannels] = useState<Channel[]>(() =>
     initialPlaylistState.kind === 'ready' ? initialPlaylistState.channels : [],
   )
+  // TEMPORARY BOOT DIAGNOSTIC — remove alongside index.html's #boot-diag script.
+  useEffect(() => {
+    const el = document.getElementById('boot-diag')
+    if (!el) return
+    el.style.background = '#4caf50'
+    el.textContent += '\n[App.tsx] APP MOUNTED AND RENDERED OK'
+    const timer = setTimeout(() => el.remove(), 5000)
+    return () => clearTimeout(timer)
+  }, [])
   // DEV-only diagnostic hook for scripts/evaluate-real-playlist-channel-identity.ts
   // — exposes a SAFE projection of the in-memory playlist (no
   // ChannelSource.url, no credentials) on window so it can be exported from

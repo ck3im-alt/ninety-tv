@@ -92,6 +92,15 @@ function iptvDevProxyPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: process.env.GITHUB_PAGES ? '/ninety-tv/' : '/',
+  // Relative, not root-absolute: a packaged Tizen .wgt is loaded via
+  // file://.../index.html (config.xml's <content src="index.html"/> is
+  // resolved relative to the widget's own extracted directory, not a web
+  // server root), so a base of '/' makes every asset URL resolve to the
+  // filesystem root instead of the widget's assets — the bundle 404s
+  // before React ever mounts (blank screen, nothing in console). Relative
+  // paths also resolve correctly under GitHub Pages' /ninety-tv/ subpath,
+  // so one setting covers both targets — no per-target branching needed.
+  base: './',
+  build: { target: 'es2017' },
   plugins: [react(), iptvDevProxyPlugin()],
 })

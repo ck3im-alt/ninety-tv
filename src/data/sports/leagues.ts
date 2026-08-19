@@ -35,7 +35,7 @@ export const LEAGUES: LeagueDef[] = [
     sportLabel: 'FOOTBALL',
     tsdbSport: 'Soccer',
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/gasy9d1737743125.png',
-    staticBackground: '/backgrounds/premier-league.jpg',
+    staticBackground: `${import.meta.env.BASE_URL}backgrounds/premier-league.jpg`,
     ninetyCompetitionId: 'football_premier_league',
   }, // English Premier League
   {
@@ -44,7 +44,7 @@ export const LEAGUES: LeagueDef[] = [
     sportLabel: 'FOOTBALL',
     tsdbSport: 'Soccer',
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/facv1u1742998896.png',
-    staticBackground: '/backgrounds/Champions_League.jpeg',
+    staticBackground: `${import.meta.env.BASE_URL}backgrounds/Champions_League.jpeg`,
     ninetyCompetitionId: 'football_champions_league',
   }, // UEFA Champions League
   {
@@ -85,7 +85,7 @@ export const LEAGUES: LeagueDef[] = [
     sportLabel: 'FOOTBALL',
     tsdbSport: 'Soccer',
     badge: 'https://r2.thesportsdb.com/images/media/league/badge/mlsr7d1718774547.png',
-    staticBackground: '/backgrounds/test_image.png',
+    staticBackground: `${import.meta.env.BASE_URL}backgrounds/test_image.png`,
     ninetyCompetitionId: 'football_europa_league',
   }, // UEFA Europa League
   {
@@ -97,14 +97,14 @@ export const LEAGUES: LeagueDef[] = [
     // Filename is misleading: the file literally named "Europa_League.png"
     // on disk actually shows the green UEFA CONFERENCE LEAGUE stadium
     // signage — verified by opening it directly, not assumed from its name.
-    staticBackground: '/backgrounds/Europa_League.png',
+    staticBackground: `${import.meta.env.BASE_URL}backgrounds/Europa_League.png`,
   }, // UEFA Conference League — no ninety-api coverage yet
   {
     id: '4370',
     sportKey: 'f1',
     sportLabel: 'F1',
     tsdbSport: 'Motorsport',
-    staticBackground: '/backgrounds/f1.jpg',
+    staticBackground: `${import.meta.env.BASE_URL}backgrounds/f1.jpg`,
   }, // Formula 1
   // Golf/tennis/MMA/basketball dropped 2026-08-13 — see the note on
   // SportKey in types.ts for why.

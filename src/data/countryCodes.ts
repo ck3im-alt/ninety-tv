@@ -123,5 +123,5 @@ export function flagSrc(code: string): string | null {
   // — showing nothing is honest, showing a fabricated flag wouldn't be.
   if (upper === 'KU') return null
   const aliased = FLAG_CODE_ALIASES[upper] ?? upper
-  return `/flags/${aliased}.svg`
+  return `${import.meta.env.BASE_URL}flags/${aliased}.svg`
 }

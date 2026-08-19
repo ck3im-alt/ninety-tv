@@ -12,7 +12,7 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 // api-football's free tier has none at all) — user-provided generic
 // "games" photo, replaces what used to fall through to a plain CSS
 // gradient for e.g. Eredivisie/MLS/tennis/MMA/NBA fixtures.
-const GENERAL_BACKGROUND = '/backgrounds/test_image.png'
+const GENERAL_BACKGROUND = `${import.meta.env.BASE_URL}backgrounds/test_image.png`
 
 function formatTimeLabel(dateTimeUtc: string | null): string {
   if (!dateTimeUtc) return ''
