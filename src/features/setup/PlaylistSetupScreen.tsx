@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { parseM3u } from '../../data/m3u/parseM3u'
 import { parseXtreamPlaylistUrl } from '../../data/xtream/xtreamClient'
@@ -6,6 +6,8 @@ import { recoverChannelsFromSource } from '../../data/playlistRecovery'
 import { mergeChannelSources } from '../channels/mergeChannels'
 import { OnboardingTopBar } from '../onboarding/OnboardingStepper'
 import { ArrowRightIcon } from '../onboarding/sportIcons'
+import { QrCode } from './QrCode'
+import { usePairingSession, ackPairing } from './usePairingSession'
 import type { Channel } from '../../data/channel'
 import type { M3uUrlSourceRecord, PlaylistSourceRecord, XtreamSourceRecord } from '../../data/session'
 import '../onboarding/onboardingShared.css'
@@ -57,22 +59,41 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
   const [password, setPassword] = useState('')
   const [state, setState] = useState<LoadState>({ status: 'idle' })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const urlInputRef = useRef<HTMLInputElement>(null)
 
-  async function connect(url: string) {
-    if (!url.trim()) return
+  // Returns whether the connect actually succeeded -- the QR-pairing flow
+  // below needs this to know whether it's safe to acknowledge the pairing
+  // session (only once the URL has actually been parsed/loaded, same
+  // trust point manual entry already relies on for onLoaded).
+  async function connect(url: string): Promise<boolean> {
+    if (!url.trim()) return false
     setState({ status: 'loading' })
     try {
       const source = sourceFromUrl(url.trim())
       const channels = await recoverChannelsFromSource(source)
       if (channels.length === 0) throw new Error('No channels found in playlist')
       onLoaded(channels, source)
+      return true
     } catch (err) {
       setState({
         status: 'error',
         message: err instanceof Error ? err.message : 'Could not load playlist',
       })
+      return false
     }
   }
+
+  // Feeds a QR-scanned M3U URL through the exact same connect() path as
+  // manual entry -- no second playlist-loading architecture. Only acks the
+  // pairing session (which immediately clears the URL server-side) once
+  // connect() has actually succeeded; a failed connect leaves the session
+  // untouched so the phone page's "Playlist sent" message isn't a lie and
+  // the user can fix a bad URL and resubmit within the same ~10 min window.
+  const pairing = usePairingSession(async (m3uUrl, pollSecret) => {
+    const ok = await connect(m3uUrl)
+    if (ok) await ackPairing(pollSecret)
+    return ok
+  })
 
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -103,7 +124,23 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
   // forceFocus: the initial-focus target norigin's setFocus(ROOT_FOCUS_KEY)
   // lands on — without one, nothing is ever focused and arrow keys/remote
   // navigation silently do nothing on this screen.
-  const { ref: urlRef, focused: urlFocused } = useFocusable({ forceFocus: true })
+  // onEnterPress: norigin's spatial focus is a separate concept from real DOM
+  // focus — pressing OK on the highlighted card doesn't focus the nested
+  // native <input> on its own, and Samsung's on-screen keyboard only appears
+  // for an <input> that actually has DOM focus.
+  const { ref: urlRef, focused: urlFocused } = useFocusable({
+    forceFocus: true,
+    onEnterPress: () => urlInputRef.current?.focus(),
+  })
+  // norigin only tracks spatial focus (a boolean it hands back for CSS
+  // highlighting) — it never touches real DOM focus for elements other than
+  // the one you explicitly .focus() yourself. Without this, the <input>
+  // keeps native focus forever once opened, so the remote's OK button keeps
+  // reopening Samsung's on-screen keyboard on it even after the user has
+  // spatially navigated to (and visually highlighted) a different card.
+  useEffect(() => {
+    if (!urlFocused) urlInputRef.current?.blur()
+  }, [urlFocused])
   const { ref: streamCodeToggleRef, focused: streamCodeToggleFocused } = useFocusable({
     onEnterPress: () => setStreamCodeOpen((v) => !v),
   })
@@ -112,6 +149,9 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
   })
   const { ref: continueRef, focused: continueFocused } = useFocusable({
     onEnterPress: handleContinue,
+  })
+  const { ref: qrRetryRef, focused: qrRetryFocused } = useFocusable({
+    onEnterPress: pairing.retry,
   })
 
   return (
@@ -166,10 +206,40 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
       </div>
 
       <div className="onboarding-picker">
+        <div className="setup-qr-block">
+          <h2 className="setup-form-label">Scan with your phone</h2>
+          {pairing.status === 'waiting' && pairing.activationUrl && (
+            <div className="setup-qr-card">
+              <QrCode value={pairing.activationUrl} size={176} />
+              <p className="setup-qr-caption">Scan with your phone to connect your playlist</p>
+            </div>
+          )}
+          {pairing.status === 'loading' && <p className="setup-status">Generating code…</p>}
+          {pairing.status === 'error' && (
+            <div className="setup-qr-card setup-qr-card-error">
+              <p className="setup-status error">Couldn’t reach Ninety to generate a code.</p>
+              <button
+                ref={qrRetryRef}
+                className={`setup-qr-retry ${qrRetryFocused ? 'focused' : ''}`}
+                onClick={pairing.retry}
+              >
+                Try again
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="setup-divider">
+          <span />
+          <span className="setup-divider-label">OR</span>
+          <span />
+        </div>
+
         <h2 className="setup-form-label">Enter your M3U playlist link</h2>
         <div ref={urlRef} className={`setup-url-card ${urlFocused ? 'focused' : ''}`}>
           <span className="setup-url-card-tag">M3U URL</span>
           <input
+            ref={urlInputRef}
             className="setup-url-input"
             type="text"
             placeholder="https://your-provider.com/playlist.m3u"

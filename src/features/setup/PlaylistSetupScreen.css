@@ -204,3 +204,52 @@
 .setup-status.error {
   color: var(--live-red);
 }
+
+.setup-qr-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.setup-qr-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-primary);
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.setup-qr-card svg {
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+.setup-qr-caption {
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+  margin: 0;
+}
+
+.setup-qr-card-error {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.setup-qr-retry {
+  font: inherit;
+  height: 44px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.setup-qr-retry.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
