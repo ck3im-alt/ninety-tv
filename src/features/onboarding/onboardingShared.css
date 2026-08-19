@@ -267,6 +267,15 @@
   margin-top: calc(var(--space-1) * -1);
 }
 
+.continue-button-hitbox {
+  /* Full-width focus target so norigin's Down-navigation reaches it from
+     every column of the grid above — see the comment at its usage site.
+     The button inside keeps its own align-self/margin-top, so screens that
+     use .continue-button directly (no wrapper) are unaffected. */
+  display: flex;
+  justify-content: flex-end;
+}
+
 .continue-button {
   font: inherit;
   align-self: flex-end;

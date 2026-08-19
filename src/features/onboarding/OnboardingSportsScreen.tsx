@@ -163,9 +163,18 @@ export function OnboardingSportsScreen({
             </>
           )}
 
-          <button ref={continueRef} className={`continue-button ${continueFocused ? 'focused' : ''}`} onClick={onContinue}>
-            Continue <ArrowRightIcon />
-          </button>
+          {/* norigin's Down-navigation only considers a target "adjacent" if it
+              overlaps at least 20% of the reference card's width. The visible
+              button is narrow and right-aligned, so cards on the left/middle
+              of the (up to 6-wide) league grid never overlap it and Down does
+              nothing from there. Widening the focusable ref itself to the
+              full row (while keeping the button visually right-aligned
+              inside it) makes it reachable from every column. */}
+          <div ref={continueRef} className="continue-button-hitbox">
+            <button className={`continue-button ${continueFocused ? 'focused' : ''}`} onClick={onContinue}>
+              Continue <ArrowRightIcon />
+            </button>
+          </div>
         </div>
       </main>
     </FocusContext.Provider>
