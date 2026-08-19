@@ -14,6 +14,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel } from '../../data/channel'
 import { ChannelRow } from './ChannelRow'
+import { planWindowShift } from './virtualWindow'
 
 const DEFAULT_WINDOW_SIZE = 30
 const DEFAULT_OVERSCAN = 10
@@ -69,7 +70,13 @@ export function VirtualChannelList({
 
   // Reset the window whenever the underlying (already-filtered/sorted) list
   // identity changes, so switching category/search query never leaves a
-  // stale window scrolled past the new list's end.
+  // stale window scrolled past the new list's end. Favoriting/unfavoriting
+  // a channel while browsing an already-open category/search result no
+  // longer changes `channels`' identity at all — the caller freezes that
+  // list's order for the life of the dataset (see BrowseCascadeScreen's
+  // channelsInCategory/searchResults) — so this effect no longer needs to
+  // tell a reorder apart from a real list change; there's no reorder case
+  // left to handle here.
   useEffect(() => {
     setWindowStart(0)
     rowElementsRef.current.clear()
@@ -113,10 +120,23 @@ export function VirtualChannelList({
   // such presses land on already-mounted overscan rows and never trigger a
   // shift at all.
   function shiftWindow(centerIndex: number) {
-    const half = Math.floor(mountedCount / 2)
-    const next = Math.max(0, Math.min(centerIndex - half, maxStart))
+    const { start, shifted } = planWindowShift(centerIndex, windowStart, mountedCount, maxStart)
+    if (!shifted) {
+      // No window movement means setWindowStart below would be a same-value
+      // no-op React bails out of re-rendering for, so the effect that
+      // normally calls setFocus() once a shifted window mounts would never
+      // fire — the row the user is trying to reach would silently eat the
+      // keypress instead of moving focus (the physical-Samsung "can't
+      // scroll down through Favorites/Recently Watched" report — those
+      // lists are almost always smaller than windowSize+2*overscan=50, so
+      // the window never needs to move at all). planWindowShift guarantees
+      // centerIndex is already inside the mounted range whenever shifted is
+      // false, so focusing it directly here is always valid.
+      void setFocus(`${focusKeyPrefix}-${centerIndex}`)
+      return
+    }
     pendingFocusIndexRef.current = centerIndex
-    setWindowStart(next)
+    setWindowStart(start)
   }
 
   if (channels.length === 0) {

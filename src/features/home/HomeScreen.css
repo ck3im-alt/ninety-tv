@@ -228,6 +228,20 @@
   display: flex;
   gap: var(--space-4);
   overflow-x: auto;
+  /* Explicit, not left to default — per the CSS overflow spec, setting only
+     overflow-x to a non-'visible' value computes the OTHER axis's used
+     value to 'auto' too, not 'visible'. Left implicit, that silently turned
+     every row into an (empty, always-visible-content) vertical scroll
+     container as well — which sat in the middle of the D-pad focus chain's
+     scrollIntoView ancestor walk between a card and the page's real
+     document scroller. Focus still moved between cards correctly (norigin
+     doesn't care about this), but the page itself stopped following focus
+     back upward through it — exactly the "focus moves, page doesn't"
+     Samsung report. Downward movement mostly still worked because a card
+     further down needs a large, unambiguous scroll that this row (with
+     nothing to scroll vertically) just passed through; small upward
+     corrections near this boundary didn't. */
+  overflow-y: hidden;
   scroll-behavior: smooth;
   /* Scrolling here is driven by focus/the remote's D-pad, not a mouse or
      touch drag — the browser's scrollbar track is a desktop affordance

@@ -21,6 +21,14 @@ interface NavItemProps {
 
 function NavItem({ label, active, onSelect }: NavItemProps) {
   const { ref, focused } = useFocusable({ focusKey: `nav-${label}`, onEnterPress: onSelect })
+  // TopNav sits in normal document flow above Home's content (not a fixed
+  // overlay), so moving focus up into it from a Home row scrolled deep down
+  // the page needs the same scroll-follow every other Home focus target
+  // gets — otherwise the nav item "receives" focus while the page stays
+  // scrolled down and the whole bar is offscreen above it.
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [focused, ref])
   return (
     <div
       ref={ref}
@@ -35,6 +43,9 @@ function NavItem({ label, active, onSelect }: NavItemProps) {
 
 function Avatar({ onSelect }: { onSelect?: () => void }) {
   const { ref, focused } = useFocusable({ focusKey: 'nav-avatar', onEnterPress: onSelect })
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [focused, ref])
   return (
     <div ref={ref} className={`avatar ${onSelect ? 'clickable' : ''} ${focused ? 'focused' : ''}`} onClick={onSelect}>
       N

@@ -28,6 +28,21 @@ function isMpegTsSource(url: string): boolean {
   return url.endsWith('.ts')
 }
 
+// Fire-and-forget warm-up for whichever engine chunk a sample URL implies —
+// called once, speculatively, well before any real load() (see
+// BrowseCascadeScreen's mount effect) so the first channel someone actually
+// previews doesn't also pay for fetching/parsing/evaluating mpegts.js or
+// hls.js on top of the real stream startup latency. Never opens a stream or
+// touches a <video> element — only primes the browser's module cache so
+// load()'s own `await import(...)` below resolves instantly instead.
+export function preloadPlayerEngine(sampleSourceUrl: string): void {
+  if (isMpegTsSource(sampleSourceUrl)) {
+    void import('mpegts.js').catch(() => {})
+  } else {
+    void import('hls.js').catch(() => {})
+  }
+}
+
 // HTML5 <video> + MSE implementation:
 //  - .m3u8 sources go through hls.js (or native HLS where supported)
 //  - .ts sources (the Xtream live default) go through mpegts.js
@@ -42,6 +57,16 @@ export function createHtmlVideoPlayer(): Player {
   let mpegtsPlayer: { destroy: () => void } | null = null
   let state: PlayerState = { ...INITIAL_STATE }
   const listeners = new Set<(state: PlayerState) => void>()
+  // Bumped on every load() call. loadHls/loadMpegTs each `await import(...)`
+  // before touching `hls`/`mpegtsPlayer`/`video` — on a fast-scrolling
+  // Preview pane, a LATER load() (a newer focused channel) can start and
+  // even finish before an EARLIER one's dynamic import resolves. Without
+  // this, that stale resolution would still go on to create a player and
+  // attach it, silently overwriting the current/correct one with an old
+  // channel's stream. Each load captures the generation current at its own
+  // call and checks it's still current after the only await point, so a
+  // superseded load is a no-op instead of a race.
+  let loadGeneration = 0
 
   function setState(patch: Partial<PlayerState>): void {
     state = { ...state, ...patch }
@@ -96,9 +121,10 @@ export function createHtmlVideoPlayer(): Player {
     mpegtsPlayer = null
   }
 
-  async function loadHls(sourceUrl: string): Promise<void> {
+  async function loadHls(sourceUrl: string, generation: number): Promise<void> {
     if (!video) return
     const { default: HlsCtor } = await import('hls.js')
+    if (generation !== loadGeneration || !video) return
     if (!HlsCtor.isSupported()) {
       setError({ code: 'source-unavailable', message: 'HLS is not supported on this device' })
       return
@@ -116,9 +142,10 @@ export function createHtmlVideoPlayer(): Player {
     hls.attachMedia(video)
   }
 
-  async function loadMpegTs(sourceUrl: string): Promise<void> {
+  async function loadMpegTs(sourceUrl: string, generation: number): Promise<void> {
     if (!video) return
     const { default: mpegts } = await import('mpegts.js')
+    if (generation !== loadGeneration || !video) return
     if (!mpegts.isSupported()) {
       setError({ code: 'source-unavailable', message: 'MPEG-TS playback is not supported on this device' })
       return
@@ -143,6 +170,7 @@ export function createHtmlVideoPlayer(): Player {
 
     async load(sourceUrl) {
       if (!video) throw new Error('Player not attached to a <video> element')
+      const generation = ++loadGeneration
       teardownActiveEngine()
       setState({
         status: 'loading',
@@ -154,12 +182,12 @@ export function createHtmlVideoPlayer(): Player {
       })
 
       if (isMpegTsSource(sourceUrl)) {
-        await loadMpegTs(sourceUrl)
+        await loadMpegTs(sourceUrl, generation)
         return
       }
 
       if (isHlsSource(sourceUrl) && !video.canPlayType('application/vnd.apple.mpegurl')) {
-        await loadHls(sourceUrl)
+        await loadHls(sourceUrl, generation)
         return
       }
 

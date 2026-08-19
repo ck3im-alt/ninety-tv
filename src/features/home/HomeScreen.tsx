@@ -1,13 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { useFocusable, FocusContext } from '@noriginmedia/norigin-spatial-navigation'
-import { useHomeFeed } from '../../data/sports/useHomeFeed'
+import type { HomeFeedState } from '../../data/sports/useHomeFeed'
 import type { SportEvent } from '../../data/sports/types'
-import { loadPreferences } from '../../data/preferences'
 import { useFavoriteChannelsNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { FavoriteChannelNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials } from '../../data/xtream/types'
-import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
 import { ArrowRightIcon, FootballIcon, FormulaOneIcon } from '../onboarding/sportIcons'
 import './HomeScreen.css'
 
@@ -52,6 +50,15 @@ function Hero({
     forceFocus: true,
     onEnterPress: () => event && onSelect(event),
   })
+  // Every other Home focus target scrolls itself into view on focus (see
+  // LiveNowCard/ComingUpCard/FavoriteChannelCard below) — Hero never did,
+  // so moving Up from any row back toward the top never actually scrolled
+  // the page back up: the button "receives" focus while staying wherever
+  // the page happened to be scrolled to, which reads as the button falling
+  // off the top of the visible viewport.
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [focused, ref])
 
   if (!event) {
     return (
@@ -247,6 +254,9 @@ function ScrollRow({ children }: { children: React.ReactNode }) {
   const { ref: chevronRef, focused: chevronFocused } = useFocusable({
     onEnterPress: () => rowRef.current?.scrollBy({ left: 420, behavior: 'smooth' }),
   })
+  useEffect(() => {
+    if (chevronFocused) chevronRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [chevronFocused, chevronRef])
   return (
     <div className="scroll-row-wrap">
       <div ref={rowRef} className="scroll-row">
@@ -290,25 +300,21 @@ function FavoriteChannelCard({ entry, onWatch }: { entry: FavoriteChannelNowPlay
 export function HomeScreen({
   onSelectEvent,
   onWatchChannel,
-  channels,
+  feedState,
   xtreamCreds,
-  identityIndex,
   favoriteChannels,
 }: {
   onSelectEvent: (event: SportEvent) => void
   onWatchChannel: (channel: Channel, source: ChannelSource) => void
-  channels: Channel[]
+  // Owned by App (not this screen) so its fetch/match state survives this
+  // screen unmounting while the user is elsewhere (Event Details, Player)
+  // and remounting on Back — see the useHomeFeed call site in App.tsx for
+  // why that used to force a multi-second refetch on every Back-to-Home.
+  feedState: HomeFeedState
   xtreamCreds: XtreamCredentials | null
-  identityIndex: ChannelIdentityIndex | null
   favoriteChannels: Channel[]
 }) {
   const { ref, focusKey } = useFocusable({ focusKey: 'home-screen', trackChildren: true })
-  // Preferences only change via the onboarding screen (which remounts the
-  // app screen on Continue/Skip), so reading once per mount is enough —
-  // no need to subscribe to storage changes here. channels/xtreamCreds are
-  // needed now too — Live Now filters out football matches with no
-  // findable channel in the playlist (see useHomeFeed.ts).
-  const feedState = useHomeFeed(loadPreferences(), channels, xtreamCreds, identityIndex)
   const { feed } = feedState
   const favoriteChannelsNowPlaying = useFavoriteChannelsNowPlaying(favoriteChannels, xtreamCreds)
 

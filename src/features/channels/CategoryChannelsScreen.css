@@ -124,14 +124,44 @@
   justify-content: center;
 }
 
-.preview-video {
-  width: auto;
+/* Fixed height + fixed (16:9-derived) width on the FRAME, not the video —
+   a <video>'s own intrinsic size is only known once its metadata loads, so
+   sizing off it (the old `.preview-video { height: 380px; width: auto }`)
+   let the panel visibly resize the instant playback started. The frame's
+   box never depends on the video's own load state; the video just fills it
+   via object-fit.
+   Both dimensions are plain px, not `aspect-ratio` — on physical Tizen
+   hardware that property either isn't honored or fights this layout (the
+   box came out oversized with a large black surround). `max-width: 100%`
+   is the restored safety net from the original `.preview-video` — without
+   it the frame's 676px could exceed `.split`'s 680px column once its own
+   padding is subtracted, and the overflow (still painted black) is what
+   actually read as a "black outline" beyond the intended footprint. */
+.preview-video-frame {
+  position: relative;
+  width: 676px; /* 380px * 16/9 */
   max-width: 100%;
   height: 380px;
   align-self: flex-start;
   background: #000;
   border-radius: var(--radius-md);
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.preview-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preview-video-loading {
+  position: absolute;
+  inset: 0;
+  background: #000;
 }
 
 .ch-group-title {

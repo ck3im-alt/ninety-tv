@@ -4,17 +4,31 @@ import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials, XtreamEpgListing } from '../../data/xtream/types'
 import type { ChannelIndex } from '../../data/channelIndex'
 import { useBackHandler } from '../../core/platform'
+import { preloadPlayerEngine } from '../../core/player'
 import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
 import { flagSrc } from '../../data/countryCodes'
-import { categoryFavoriteKey } from './favorites'
+import { categoryFavoriteKey, sortFavoritesFirst } from './favorites'
 import { ListRow } from './ListRow'
 import { SearchField } from './SearchField'
 import { Breadcrumb } from './Breadcrumb'
 import { PreviewPlayer } from './CategoryChannelsScreen'
 import { VirtualChannelList } from './VirtualChannelList'
+import { useDebouncedValue } from './useDebouncedValue'
 import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import './BrowseCascadeScreen.css'
+
+// How long focus has to rest on a channel before PreviewCard actually starts
+// a stream load — see PreviewCard below. Fast-scrolling past several rows
+// in under this window never starts a single stream load. Kept short (not
+// the old 250ms) because this is the one number that gates how soon moving
+// video actually starts after focus settles — on physical Tizen hardware
+// that 250ms read as real, felt latency on top of the stream's own startup
+// time.
+const PREVIEW_MEDIA_DEBOUNCE_MS = 100
+// EPG has no bearing on when video starts, so it can stay lazier — no
+// reason to spend the extra network round-trip budget sooner than this.
+const PREVIEW_EPG_DEBOUNCE_MS = 250
 
 // Primary Channels browsing screen — Country → Category → Channel →
 // Preview, each a column of its own that stays visible once revealed
@@ -164,11 +178,37 @@ function PreviewCard({
   onWatch: (channel: Channel, source: ChannelSource) => void
   onFocusPreview: () => void
 }) {
-  const source = channel.sources[0]
-  const epg = usePreviewEpg(source, xtreamCreds)
+  // DEV-perf: the instant D-pad focus actually lands on a channel — see
+  // PreviewPlayer's 'preview:load-start'/'preview:playing' marks for what
+  // this gets measured against.
+  useEffect(() => {
+    markPerf('preview:focus')
+  }, [channel.id])
 
+  // `channel` here is already the IMMEDIATE focus target (BrowseCascadeScreen
+  // no longer debounces selection itself — see selectChannel below), so the
+  // name/actions below track focus with zero delay. Only the expensive parts
+  // — starting a stream load, fetching EPG — stay debounced, via these
+  // locally-lagged copies, so fast-scrolling still never fires either per
+  // row. Media and EPG are debounced separately and by different amounts —
+  // only the media debounce gates when moving video actually starts, so
+  // it's kept short; EPG has no bearing on that and can stay lazier.
+  const debouncedMediaChannel = useDebouncedValue(channel, PREVIEW_MEDIA_DEBOUNCE_MS)
+  const isPending = channel.id !== debouncedMediaChannel.id
+  const mediaSource = isPending ? undefined : debouncedMediaChannel.sources[0]
+
+  const debouncedEpgChannel = useDebouncedValue(channel, PREVIEW_EPG_DEBOUNCE_MS)
+  const isEpgPending = channel.id !== debouncedEpgChannel.id
+  const epgSource = isEpgPending ? undefined : debouncedEpgChannel.sources[0]
+  const epg = usePreviewEpg(epgSource, xtreamCreds)
+
+  // Watch/Favorite always act on the immediate `channel`/its own first
+  // source, never the debounced one — pressing Enter mid-fast-scroll must
+  // play what's actually focused right now, not whatever the preview
+  // pipeline has caught up to.
+  const watchSource = channel.sources[0]
   const { ref: watchRef, focused: watchFocused } = useFocusable({
-    onEnterPress: () => source && onWatch(channel, source),
+    onEnterPress: () => watchSource && onWatch(channel, watchSource),
     onFocus: onFocusPreview,
   })
   const { ref: favRef, focused: favFocused } = useFocusable({ onEnterPress: onToggleFavorite, onFocus: onFocusPreview })
@@ -178,12 +218,14 @@ function PreviewCard({
 
   return (
     <aside className="cascade-preview">
-      <PreviewPlayer source={source} />
+      <PreviewPlayer source={mediaSource} />
       <h2 className="preview-name">{channel.name}</h2>
-      {now && <p className="preview-subtitle">{now.title}</p>}
-      {epg.status === 'unavailable' && !now && <p className="preview-subtitle muted">No programme guide for this channel.</p>}
+      {!isEpgPending && now && <p className="preview-subtitle">{now.title}</p>}
+      {!isEpgPending && epg.status === 'unavailable' && !now && (
+        <p className="preview-subtitle muted">No programme guide for this channel.</p>
+      )}
 
-      {upcoming.length > 0 && (
+      {!isEpgPending && upcoming.length > 0 && (
         <div className="preview-next">
           <h3 className="preview-next-title">Next {upcoming.length}</h3>
           {upcoming.map((entry) => (
@@ -196,7 +238,11 @@ function PreviewCard({
       )}
 
       <div className="preview-actions">
-        <button ref={watchRef} className={`watch-btn ${watchFocused ? 'focused' : ''}`} onClick={() => source && onWatch(channel, source)}>
+        <button
+          ref={watchRef}
+          className={`watch-btn ${watchFocused ? 'focused' : ''}`}
+          onClick={() => watchSource && onWatch(channel, watchSource)}
+        >
           Watch
         </button>
         <button ref={favRef} className={`fav-btn ${favFocused ? 'focused' : ''} ${favorited ? 'active' : ''}`} onClick={onToggleFavorite}>
@@ -270,12 +316,14 @@ export function BrowseCascadeScreen({
     return true
   })
 
-  function favoriteChannelFirst(a: Channel, b: Channel): number {
-    const aFav = favoriteChannels.has(a.id)
-    const bFav = favoriteChannels.has(b.id)
-    if (aFav !== bFav) return aFav ? -1 : 1
-    return 0
-  }
+  // Read by searchResults/channelsInCategory's sortFavoritesFirst calls
+  // below, but deliberately NOT a useMemo dependency for either — see
+  // those. Updated every render (cheap: one assignment) so the sort always
+  // has the latest favorite state available the moment a NEW dataset needs
+  // sorting, without favoriteChannels itself being a trigger that resorts
+  // an already-open category/search result on every toggle.
+  const favoriteChannelsRef = useRef(favoriteChannels)
+  favoriteChannelsRef.current = favoriteChannels
 
   // Search recompute is debounced (~200ms) so fast typing doesn't run a
   // playlist-wide scan per keystroke — but `isSearching` itself (which swaps
@@ -293,12 +341,18 @@ export function BrowseCascadeScreen({
     }
   }, [query])
 
+  // Favorites-first order is computed once per (channelIndex, query) pair
+  // and held fixed after that — favoriteChannels is deliberately not a
+  // dependency here (see favoriteChannelsRef above). Toggling a favorite
+  // while a search result is open must not re-sort it out from under the
+  // user's focus; starting a NEW query still gets a fresh favorites-first
+  // order, using whatever is favorited at that moment.
   const searchResults = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase()
     if (!q) return []
-    return channelIndex.search(q).sort(favoriteChannelFirst)
+    return sortFavoritesFirst(channelIndex.search(q), (c) => favoriteChannelsRef.current.has(c.id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelIndex, debouncedQuery, favoriteChannels])
+  }, [channelIndex, debouncedQuery])
 
   // Countries/categories/channels-in-category all read from the prepared
   // ChannelIndex (built once per playlist generation — see
@@ -312,6 +366,26 @@ export function BrowseCascadeScreen({
       .filter((c) => !hiddenCountries.has(c.name))
       .sort((a, b) => (a.name === OTHER ? 1 : b.name === OTHER ? -1 : b.count - a.count))
   }, [channelIndex, hiddenCountries])
+
+  // Speculatively warm whichever player-engine chunk (mpegts.js/hls.js) this
+  // playlist actually needs, once, as soon as Channels opens — well before
+  // the user focuses a channel and PreviewPlayer's real load() needs it.
+  // Without this, the FIRST preview of a session pays for fetching/parsing/
+  // evaluating that chunk on top of the real stream startup latency, which
+  // on physical Tizen hardware is exactly the kind of "why is this slow"
+  // gap this whole pass is about closing. Sampled from one real channel's
+  // URL (not both engines unconditionally) since an Xtream playlist is
+  // effectively all-MPEG-TS or all-HLS, not a mix — see isMpegTsSource's
+  // own comment in htmlVideoPlayer.ts.
+  useEffect(() => {
+    const sampleUrl = channelIndex.getChannelsForCountry(countries[0]?.name ?? '')[0]?.sources[0]?.url
+    if (sampleUrl) preloadPlayerEngine(sampleUrl)
+    // Deliberately once per playlist generation, not on every countries
+    // change (e.g. a Filter toggle) — the engine a playlist needs doesn't
+    // change, and re-importing an already-cached module is a no-op anyway,
+    // so re-running this would just be redundant, not incorrect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelIndex])
 
   const { regularCategories, ppvCategories } = useMemo(() => {
     if (!selectedCountry) return { regularCategories: [], ppvCategories: [] }
@@ -333,11 +407,18 @@ export function BrowseCascadeScreen({
   // selectedCategory === null means nothing selected yet (-> []);
   // selectedCategory === '' means the country's general/unlabeled bucket —
   // these are deliberately distinct, do not conflate them.
+  // Same freeze as searchResults above: favorites-first order is computed
+  // once per (channelIndex, country, category) and held fixed — favoriting
+  // Viasport 1 while browsing must not send it to the top and push
+  // Viasport 2/3/4 down a row underneath the user's remote. Switching
+  // category/country still gets a fresh favorites-first order.
   const channelsInCategory = useMemo(() => {
     if (!selectedCountry || selectedCategory === null) return []
-    return channelIndex.getChannelsForCategory(selectedCountry, selectedCategory).sort(favoriteChannelFirst)
+    return sortFavoritesFirst(channelIndex.getChannelsForCategory(selectedCountry, selectedCategory), (c) =>
+      favoriteChannelsRef.current.has(c.id),
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelIndex, selectedCountry, selectedCategory, favoriteChannels])
+  }, [channelIndex, selectedCountry, selectedCategory])
 
   // Previewing (scrolling with arrows) updates the next column's contents
   // immediately, without moving focus/level there — that only happens on
@@ -368,26 +449,17 @@ export function BrowseCascadeScreen({
     setLevel('channel')
   }
 
+  // Focus moving to a channel updates the selection — and with it the
+  // Preview column's existence, the channel name, and the highlighted row —
+  // immediately, not after a debounce. Previously this itself was the
+  // debounced step, which meant the Preview column didn't even mount until
+  // 250ms after the user stopped scrolling, making perceived latency worse
+  // than the actual stream startup time. The expensive part (starting a
+  // stream load, fetching EPG) is debounced separately, inside PreviewCard,
+  // so fast-scrolling still never fires either of those per row.
   function selectChannel(channel: Channel) {
     setSelectedChannel(channel)
   }
-
-  // Scrolling through the channel list previews live (see selectChannel
-  // above), but the preview pane actually loads and plays the stream and
-  // fetches its EPG on every change — firing that on every single row
-  // passed while fast-scrolling floods the player with stream loads and
-  // makes both video and EPG feel slow/laggy. Debounced so the preview
-  // only loads once the user actually pauses on a row.
-  const previewChannelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  function previewChannelDebounced(channel: Channel) {
-    if (previewChannelTimer.current) clearTimeout(previewChannelTimer.current)
-    previewChannelTimer.current = setTimeout(() => selectChannel(channel), 250)
-  }
-  useEffect(() => {
-    return () => {
-      if (previewChannelTimer.current) clearTimeout(previewChannelTimer.current)
-    }
-  }, [])
 
   // Enter on a channel row jumps straight into full-screen playback — no
   // need to land on the preview pane's Watch button first. Matches
@@ -508,7 +580,7 @@ export function BrowseCascadeScreen({
                   selectedChannelId={selectedChannel?.id}
                   focusKeyPrefix="cascade-search-row"
                   onSelect={watchChannel}
-                  onFocusChannel={previewChannelDebounced}
+                  onFocusChannel={selectChannel}
                   onToggleFavorite={onToggleFavoriteChannel}
                   emptyMessage={`No channels match "${query}".`}
                 />
@@ -611,7 +683,7 @@ export function BrowseCascadeScreen({
                     selectedChannelId={selectedChannel?.id}
                     focusKeyPrefix="cascade-channel-row"
                     onSelect={watchChannel}
-                    onFocusChannel={previewChannelDebounced}
+                    onFocusChannel={selectChannel}
                     onToggleFavorite={onToggleFavoriteChannel}
                     onArrowLeft={() => void setFocus(CATEGORY_COL_FOCUS_KEY)}
                     onArrowUpAtTop={() => void setFocus(TOOLBAR_FOCUS_KEY)}

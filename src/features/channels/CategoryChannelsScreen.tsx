@@ -8,7 +8,21 @@ import { extractStreamId } from '../../data/xtream/extractStreamId'
 import type { XtreamCredentials, XtreamEpgListing } from '../../data/xtream/types'
 import { Breadcrumb } from './Breadcrumb'
 import { VirtualChannelList } from './VirtualChannelList'
+import { useDebouncedValue } from './useDebouncedValue'
+import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import './CategoryChannelsScreen.css'
+
+// How long focus has to rest on a channel before the actual stream load
+// fires — see PreviewPlayer/InfoPanel below. Fast-scrolling past several
+// rows in under this window never starts a single stream load. Kept short
+// (not the old 250ms) because this is the one number that gates how soon
+// moving video actually starts after focus settles — on physical Tizen
+// hardware that 250ms read as real, felt latency on top of the stream's
+// own startup time.
+const PREVIEW_MEDIA_DEBOUNCE_MS = 100
+// EPG has no bearing on when video starts, so it can stay lazier — no
+// reason to spend the extra network round-trip budget sooner than this.
+const PREVIEW_EPG_DEBOUNCE_MS = 250
 
 interface Props {
   country: string
@@ -104,6 +118,23 @@ export function EpgSection({ source, xtreamCreds }: { source: ChannelSource | un
 // Small muted live preview of whatever channel is currently selected while
 // browsing — a separate `Player` instance from the full-screen one in
 // ChannelPlayerScreen, torn down/recreated with this screen's lifetime.
+//
+// Rendered inside a fixed-16:9 `.preview-video-frame` wrapper rather than
+// sizing the `<video>` itself off `aspect-ratio` + intrinsic dimensions —
+// a replaced element's intrinsic size is only known once its metadata
+// loads, so sizing straight off the video caused the whole preview panel to
+// visibly resize the instant playback actually started. The frame's size is
+// fixed by CSS alone (see BrowseCascadeScreen.css / CategoryChannelsScreen
+// .css), so it never moves regardless of the video's own load state.
+//
+// `source` undefined covers two distinct callers' cases the same way —
+// deliberately: a channel with no playable source at all, and (via
+// PreviewCard/InfoPanel below) a focus change still waiting out its preview
+// debounce — both mean "nothing to actually show right now", so both get
+// the same opaque loading cover rather than leaving whatever the frame
+// happened to be showing before visible underneath (which, for the
+// debounce case, would be the PREVIOUS channel's live picture under the
+// newly-focused channel's name — misleading).
 export function PreviewPlayer({ source }: { source: ChannelSource | undefined }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const player = useMemo(() => createHtmlVideoPlayer(), [])
@@ -114,12 +145,33 @@ export function PreviewPlayer({ source }: { source: ChannelSource | undefined })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player])
 
+  // DEV-perf: 'preview:focus' is marked by PreviewCard/InfoPanel the instant
+  // D-pad focus lands on a channel (see those components) — measuring from
+  // there to here captures the real, physically-noticed "why hasn't the
+  // picture changed yet" latency: focus-settle debounce + engine dynamic
+  // import + stream startup, not just the debounce in isolation.
   useEffect(() => {
     if (!source) return
+    markPerf('preview:load-start')
+    measurePerf('preview:focus-to-load', 'preview:focus', 'preview:load-start')
     void player.load(source.url).then(() => player.play())
   }, [source, player])
 
-  return <video ref={videoRef} className="preview-video" muted autoPlay />
+  useEffect(() => {
+    return player.subscribe((state) => {
+      if (state.status !== 'playing') return
+      markPerf('preview:playing')
+      measurePerf('preview:load-to-playing', 'preview:load-start', 'preview:playing')
+      measurePerf('preview:focus-to-playing', 'preview:focus', 'preview:playing')
+    })
+  }, [player])
+
+  return (
+    <div className="preview-video-frame">
+      <video ref={videoRef} className="preview-video" muted autoPlay />
+      {!source && <div className="preview-video-loading" aria-hidden="true" />}
+    </div>
+  )
 }
 
 export function InfoPanel({
@@ -140,17 +192,42 @@ export function InfoPanel({
   })
   const { ref: favRef, focused: favFocused } = useFocusable({ onEnterPress: onToggleFavorite })
 
+  // DEV-perf: the instant D-pad focus actually lands on a channel — see
+  // PreviewPlayer's 'preview:load-start'/'preview:playing' marks for what
+  // this gets measured against.
+  useEffect(() => {
+    markPerf('preview:focus')
+  }, [channel?.id])
+
+  // `channel` itself (name, Watch/Favorite target) tracks focus immediately
+  // — only the expensive parts (stream load, EPG fetch) lag behind via
+  // these debounced copies, so fast-scrolling never starts either per row.
+  // Compared by id, not reference — `channel` is only null while nothing in
+  // the list is focused yet (see CategoryChannelsScreen's initial state),
+  // which never happens once the list has rows.
+  //
+  // Media and EPG are debounced separately and by different amounts: only
+  // the media debounce gates when moving video actually starts, so it's
+  // kept short; EPG has no bearing on that and can stay lazier.
+  const debouncedMediaChannel = useDebouncedValue(channel, PREVIEW_MEDIA_DEBOUNCE_MS)
+  const isMediaPending = channel?.id !== debouncedMediaChannel?.id
+  const mediaSource = isMediaPending ? undefined : debouncedMediaChannel?.sources[0]
+
+  const debouncedEpgChannel = useDebouncedValue(channel, PREVIEW_EPG_DEBOUNCE_MS)
+  const isEpgPending = channel?.id !== debouncedEpgChannel?.id
+  const epgSource = isEpgPending ? undefined : debouncedEpgChannel?.sources[0]
+
   if (!channel) return <aside className="info-panel empty">Select a channel</aside>
 
   const activeSource = channel.sources[0]
 
   return (
     <aside className="info-panel">
-      <PreviewPlayer source={activeSource} />
+      <PreviewPlayer source={mediaSource} />
 
       <h2 className="info-name">{channel.name}</h2>
 
-      <EpgSection source={activeSource} xtreamCreds={xtreamCreds} />
+      {!isEpgPending && <EpgSection source={epgSource} xtreamCreds={xtreamCreds} />}
 
       <div className="info-actions">
         <button ref={watchRef} className={`watch-btn ${watchFocused ? 'focused' : ''}`} onClick={() => onWatch(channel, activeSource)}>
@@ -179,40 +256,21 @@ export function CategoryChannelsScreen({
 }: Props) {
   const [selected, setSelected] = useState<Channel | null>(channels[0] ?? null)
 
-  // Scrolling through the list previews live, but the preview pane actually
-  // loads and plays the stream and fetches its EPG on every change — firing
-  // that on every row passed while fast-scrolling floods the player with
-  // stream loads and makes both video and EPG feel slow/laggy. Debounced so
-  // the preview only loads once the user actually pauses on a row.
-  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  function previewDebounced(channel: Channel) {
-    if (previewTimer.current) clearTimeout(previewTimer.current)
-    previewTimer.current = setTimeout(() => setSelected(channel), 250)
+  // Selection itself updates immediately on every focus move — it drives
+  // the channel name and Watch/Favorite actions in InfoPanel, which must
+  // track focus instantly, not lag behind a debounce. The expensive part
+  // (starting a stream load, fetching EPG) is debounced separately, inside
+  // InfoPanel/PreviewPlayer, so fast-scrolling still doesn't fire either of
+  // those per row.
+  function onFocusChannel(channel: Channel) {
+    setSelected(channel)
   }
-  useEffect(() => {
-    return () => {
-      if (previewTimer.current) clearTimeout(previewTimer.current)
-    }
-  }, [])
 
   useBackHandler(() => {
     onBack()
     return true
   })
 
-  // Was an unmemoized [...channels].sort(...) directly in the render body —
-  // re-cloned/re-sorted on every render (including every debounced preview
-  // change), not just when `channels`/`favoriteChannels` actually changed.
-  const filtered = useMemo(
-    () =>
-      [...channels].sort((a, b) => {
-        const aFav = favoriteChannels.has(a.id)
-        const bFav = favoriteChannels.has(b.id)
-        if (aFav !== bFav) return aFav ? -1 : 1
-        return 0
-      }),
-    [channels, favoriteChannels],
-  )
   const title = titleOverride ?? (category || 'General')
 
   return (
@@ -229,12 +287,12 @@ export function CategoryChannelsScreen({
       <div className="split">
         <div className="ch-list">
           <VirtualChannelList
-            channels={filtered}
+            channels={channels}
             favoriteChannels={favoriteChannels}
             selectedChannelId={selected?.id}
             focusKeyPrefix="category-channel-row"
             onSelect={(channel) => channel.sources[0] && onWatch(channel, channel.sources[0])}
-            onFocusChannel={previewDebounced}
+            onFocusChannel={onFocusChannel}
             onToggleFavorite={onToggleFavoriteChannel}
             forceFocusFirst
             emptyMessage={emptyMessage}
