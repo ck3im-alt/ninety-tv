@@ -16,29 +16,35 @@
 // is never migrated or rewritten to store codes (see the Phase 2B task
 // spec's explicit "do not unnecessarily migrate user data if normalization
 // at the boundary is enough").
+//
+// Phase 2C (2026-08-20): this module used to hard-reject any country code
+// ninety-api didn't have EPG coverage for yet (a fixed
+// SUPPORTED_VIEWER_MARKETS allowlist), which meant adding a backend market
+// (e.g. Spain) required a ninety-tv release just to stop silently dropping
+// it. Removed entirely: this module's only job now is recognizing a
+// COUNTRY (via countryCodes.ts's name table, or a bare ISO2-shaped code
+// defensively) and converting it to a canonical code -- it does not know
+// or care which markets the backend currently has broadcast data for.
+// ninety-api's country filter already narrows broadcasts rather than
+// removing events (see routes/eventsQuery.ts) specifically so it's safe to
+// pass a market with zero current coverage: the event still comes back,
+// just with an empty/other-market broadcasts[] for that code. Genuinely
+// unrecognized garbage (not a real country name, not a 2-letter code)
+// still safely resolves to null rather than being passed through.
 import { countryNameToCode } from '../countryCodes'
 
-// The EPG markets ninety-api currently has real broadcast data for.
-// Ground truth verified live against production (DISTINCT country_code
-// FROM logical_channels, 2026-08-20) rather than assumed from docs/memory
-// -- keep this in sync if a market is added or removed backend-side.
-export const SUPPORTED_VIEWER_MARKETS = ['NO', 'SE', 'DK', 'GB', 'FR', 'TR', 'DE', 'PT'] as const
-
-export type ViewerMarket = (typeof SUPPORTED_VIEWER_MARKETS)[number]
-
-const SUPPORTED_SET = new Set<string>(SUPPORTED_VIEWER_MARKETS)
-
-export function isSupportedViewerMarket(code: string): code is ViewerMarket {
-  return SUPPORTED_SET.has(code.toUpperCase())
-}
+// A canonical uppercase ISO2-ish viewer-market code (e.g. 'NO', 'ES',
+// 'GB') -- deliberately just `string`, not a fixed union, since this
+// module no longer maintains its own list of which codes are "real".
+export type ViewerMarket = string
 
 // countryCodes.ts's COUNTRY_NAMES/NAME_TO_CODE resolves "United Kingdom" to
 // the non-ISO "UK" (declared before "GB" for the same name, kept there for
 // IPTV-category-prefix matching where playlists really do use both), but
-// Ninety's own EPG market ground truth is "GB" (logical_channels.country_code
-// in production). Same alias flagSrc already applies for its own reasons --
-// applied again here so a market code always matches what the backend
-// actually stores.
+// ninety-api's logical_channels.country_code (and every other real-world
+// consumer of this code) uses "GB". Same alias fix already applies for its
+// own reasons -- applied again here so a market code always matches what
+// the backend actually stores.
 const MARKET_CODE_ALIASES: Record<string, string> = { UK: 'GB' }
 
 function canonicalizeMarketCode(code: string): string {
@@ -48,31 +54,32 @@ function canonicalizeMarketCode(code: string): string {
 
 // Normalizes one free-text value (almost always a favoriteCountries display
 // name like "Norway", but a bare 2-letter code is accepted defensively too)
-// to a canonical market code -- or null when it doesn't resolve to one of
-// Ninety's currently-EPG-covered markets. A favorite country with no EPG
-// coverage (e.g. "Spain") is expected to hit this null path and must never
-// throw or otherwise break the caller -- see deriveViewerMarkets.
+// to a canonical market code -- or null when it doesn't resolve to a
+// recognized country at all. Does NOT check backend EPG coverage (see this
+// module's header comment) -- a country Ninety has no broadcasts for yet
+// (e.g. "Spain" before Phase 2C, or any future gap) still resolves to its
+// real code here; ninety-api's country filter is what actually narrows
+// broadcasts, and it degrades gracefully to an empty list rather than
+// erroring on an uncovered market.
 export function normalizeToViewerMarket(raw: string): ViewerMarket | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
   if (/^[A-Za-z]{2}$/.test(trimmed)) {
-    const code = canonicalizeMarketCode(trimmed)
-    if (isSupportedViewerMarket(code)) return code as ViewerMarket
+    return canonicalizeMarketCode(trimmed)
   }
   const resolved = countryNameToCode(trimmed)
   if (!resolved) return null
-  const code = canonicalizeMarketCode(resolved)
-  return isSupportedViewerMarket(code) ? (code as ViewerMarket) : null
+  return canonicalizeMarketCode(resolved)
 }
 
 // The user's ranked list of preferred viewer markets, derived fresh from
 // favoriteCountries every time it's needed (never persisted as its own
 // preference). Order is preserved -- the first favorite is the
 // highest-ranked market, feeding rankStreamQuality/buildEventStreamOptions'
-// existing preferred-market ranking tier -- and unsupported entries are
-// silently dropped rather than erroring, so an unrelated favorite (e.g.
-// "Spain") never affects ranking or breaks preference loading. Duplicates
-// (e.g. "United Kingdom" and "UK" both present) collapse to one entry.
+// existing preferred-market ranking tier -- and unrecognized entries are
+// silently dropped rather than erroring, so garbage input never affects
+// ranking or breaks preference loading. Duplicates (e.g. "United Kingdom"
+// and "UK" both present) collapse to one entry.
 export function deriveViewerMarkets(favoriteCountries: readonly string[]): ViewerMarket[] {
   const seen = new Set<ViewerMarket>()
   const result: ViewerMarket[] = []

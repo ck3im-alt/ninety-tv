@@ -1,26 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  SUPPORTED_VIEWER_MARKETS,
-  isSupportedViewerMarket,
-  normalizeToViewerMarket,
-  deriveViewerMarkets,
-} from './viewerMarket'
-
-describe('isSupportedViewerMarket', () => {
-  it('accepts every currently-supported market code', () => {
-    for (const code of SUPPORTED_VIEWER_MARKETS) {
-      expect(isSupportedViewerMarket(code)).toBe(true)
-    }
-  })
-
-  it('is case-insensitive', () => {
-    expect(isSupportedViewerMarket('no')).toBe(true)
-  })
-
-  it('rejects a market with no EPG coverage', () => {
-    expect(isSupportedViewerMarket('ES')).toBe(false)
-  })
-})
+import { normalizeToViewerMarket, deriveViewerMarkets } from './viewerMarket'
 
 describe('normalizeToViewerMarket', () => {
   it('normalizes a favoriteCountries display name to its code', () => {
@@ -33,6 +12,15 @@ describe('normalizeToViewerMarket', () => {
     expect(normalizeToViewerMarket('Portugal')).toBe('PT')
   })
 
+  // Phase 2C: this module no longer maintains its own backend-coverage
+  // allowlist, so a country ninety-api gains EPG coverage for later (or
+  // never gets around to) is recognized here exactly the same way --
+  // Spain/Italy are ordinary recognized countries now, not a special case.
+  it('normalizes newly-relevant markets the same way as any other recognized country', () => {
+    expect(normalizeToViewerMarket('Spain')).toBe('ES')
+    expect(normalizeToViewerMarket('Italy')).toBe('IT')
+  })
+
   it('normalizes both United Kingdom spellings to GB', () => {
     expect(normalizeToViewerMarket('United Kingdom')).toBe('GB')
     expect(normalizeToViewerMarket('UK')).toBe('GB')
@@ -43,17 +31,14 @@ describe('normalizeToViewerMarket', () => {
     expect(normalizeToViewerMarket('NORWAY')).toBe('NO')
   })
 
-  it('accepts an already-bare supported code defensively', () => {
+  it('accepts an already-bare 2-letter code defensively, even one the backend has no coverage for', () => {
     expect(normalizeToViewerMarket('NO')).toBe('NO')
     expect(normalizeToViewerMarket('no')).toBe('NO')
+    expect(normalizeToViewerMarket('ES')).toBe('ES')
+    expect(normalizeToViewerMarket('BR')).toBe('BR')
   })
 
-  it('returns null for a real country with no EPG coverage, rather than throwing', () => {
-    expect(normalizeToViewerMarket('Spain')).toBeNull()
-    expect(normalizeToViewerMarket('ES')).toBeNull()
-  })
-
-  it('returns null for empty/unrecognized input', () => {
+  it('returns null for empty/unrecognized input -- garbage is still safely ignored', () => {
     expect(normalizeToViewerMarket('')).toBeNull()
     expect(normalizeToViewerMarket('   ')).toBeNull()
     expect(normalizeToViewerMarket('Not A Real Country')).toBeNull()
@@ -65,8 +50,12 @@ describe('deriveViewerMarkets', () => {
     expect(deriveViewerMarkets(['Sweden', 'Norway', 'United Kingdom'])).toEqual(['SE', 'NO', 'GB'])
   })
 
-  it('drops entries with no EPG coverage without breaking the rest', () => {
-    expect(deriveViewerMarkets(['Spain', 'Norway', 'Brazil'])).toEqual(['NO'])
+  it('passes through a recognized country regardless of current backend EPG coverage (the whole point of Phase 2C)', () => {
+    expect(deriveViewerMarkets(['Spain', 'Norway', 'Brazil'])).toEqual(['ES', 'NO', 'BR'])
+  })
+
+  it('still drops genuinely unrecognized garbage without breaking the rest', () => {
+    expect(deriveViewerMarkets(['Not A Real Country', 'Norway'])).toEqual(['NO'])
   })
 
   it('collapses duplicate resolved codes (e.g. UK and United Kingdom both present)', () => {
@@ -78,6 +67,12 @@ describe('deriveViewerMarkets', () => {
   })
 
   it('returns an empty array when nothing normalizes', () => {
-    expect(deriveViewerMarkets(['Spain', 'Brazil'])).toEqual([])
+    expect(deriveViewerMarkets(['Not A Real Country', 'Also Not Real'])).toEqual([])
+  })
+
+  it('ordering is deterministic and repeatable for the same input (no hidden sort/shuffle)', () => {
+    const input = ['Italy', 'Norway', 'Spain', 'Germany']
+    expect(deriveViewerMarkets(input)).toEqual(deriveViewerMarkets(input))
+    expect(deriveViewerMarkets(input)).toEqual(['IT', 'NO', 'ES', 'DE'])
   })
 })
