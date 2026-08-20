@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { SportKey } from '../../data/sports/types'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
@@ -68,6 +69,16 @@ export function SelectableCard({
       return true
     },
   })
+  // Every other focusable grid/list in the app scrolls itself into view on
+  // focus (see HomeScreen/TopNav/StreamRow/ListRow) -- these onboarding
+  // grids never had it, so D-pad navigation past the visible rows moved
+  // focus without the viewport following it: keys registered (state did
+  // toggle) but looked completely unresponsive since the focused card was
+  // off-screen. Became a real, reproducible bug once the leagues grid grew
+  // to 50 competitions (was 7) and stopped fitting on one screen.
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [focused, ref])
   return (
     <div
       ref={ref}
