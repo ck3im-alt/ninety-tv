@@ -124,6 +124,17 @@ export function matchLeadingCountry(text: string): LeadingCountryMatch | null {
 // Bosnia — mapped to the real ISO codes whose flag files actually exist.
 const FLAG_CODE_ALIASES: Record<string, string> = { UK: 'GB', SR: 'RS', BH: 'BA' }
 
+// Exact (not fuzzy) case-insensitive lookup against the same display-name
+// table matchLeadingCountry uses -- safe because every value ever written
+// to SportPreferences.favoriteCountries came from parseCategory's
+// countryName in the first place, which is always one of COUNTRY_NAMES'
+// values. Used to normalize a favorite-country display name to an ISO2-ish
+// code at the boundary (see data/sports/viewerMarket.ts) without migrating
+// or re-shaping favoriteCountries itself.
+export function countryNameToCode(name: string): string | null {
+  return NAME_TO_CODE.get(name.trim().toUpperCase()) ?? null
+}
+
 export function flagSrc(code: string): string | null {
   if (!/^[A-Za-z]{2}$/.test(code)) return null
   const upper = code.toUpperCase()

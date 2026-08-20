@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { fetchNextEventsForLeague, fetchPastEventsForLeague } from './theSportsDbClient'
 import { getAllEvents } from './ninetyApiClient'
-import { leaguesForPreferences } from './leagues'
+import { footballLeaguesForPreferences, otherLeaguesForPreferences } from './leagues'
+import { loadFootballCompetitions } from './competitionsCatalog'
+import { deriveViewerMarkets } from './viewerMarket'
 import { mapNinetyEvent, mapEvent } from './mapEvent'
 import { isHeuristicallyLive } from './liveHeuristic'
 import { selectHero } from './heroScoring'
@@ -9,7 +11,6 @@ import { matchChannelsForEvent } from './channelMatch'
 import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import type { SportEvent } from './types'
 import type { SportPreferences } from '../preferences'
-import type { LeagueDef } from './leagues'
 import type { Channel } from '../channel'
 import type { XtreamCredentials } from '../xtream/types'
 import type { ChannelIdentityIndex } from './channelIdentityIndex'
@@ -52,8 +53,12 @@ export function useHomeFeed(
 ): HomeFeedState {
   // Stable key so Effect 1 only refires when the actual selection changes,
   // not on every render (preferences is a fresh object each time it's
-  // loaded from storage upstream).
-  const prefsKey = `${preferences.sports.join(',')}|${preferences.footballLeagueIds.join(',')}`
+  // loaded from storage upstream). Includes the derived viewer markets (not
+  // raw favoriteCountries) so a favorite-country change that doesn't
+  // actually change which EPG markets are requested (e.g. adding a country
+  // with no EPG coverage) doesn't trigger a needless refetch.
+  const viewerMarkets = deriveViewerMarkets(preferences.favoriteCountries)
+  const prefsKey = `${preferences.sports.join(',')}|${preferences.footballLeagueIds.join(',')}|${viewerMarkets.join(',')}`
 
   const [fetchState, setFetchState] = useState<FetchState>({ status: 'loading' })
 
@@ -68,31 +73,59 @@ export function useHomeFeed(
     markPerf('home:fetch-start')
 
     async function load() {
-      const leagues = leaguesForPreferences(preferences)
-      const footballLeagues = leagues.filter((l): l is LeagueDef & { ninetyCompetitionId: string } => l.ninetyCompetitionId != null)
-      const otherLeagues = leagues.filter((l) => l.sportKey !== 'football')
+      const otherLeagues = otherLeaguesForPreferences(preferences.sports)
 
-      // ninety-api: one call covers every tracked competition's upcoming
-      // window at once (see the backend's rolling-window default) —
-      // filtered client-side to the leagues actually followed, same
-      // pattern as the old Sportmonks day-wide fetch but a single
-      // request instead of one per lookahead day. getAllEvents follows
+      // ninety-api: filtered server-side to just the leagues the user
+      // actually follows (competition_id accepts a comma-separated list —
+      // see ninetyApiClient.ts) rather than fetching every one of Ninety's
+      // 50 tracked competitions and discarding most of it client-side, the
+      // way this used to work when there were only 7. getAllEvents follows
       // next_cursor to fetch every page rather than assuming the first
       // page is the entire feed.
+      //
+      // The competition catalog itself is now an async fetch too (see
+      // competitionsCatalog.ts — ninety-tv no longer hardcodes all 50
+      // competitions, it fetches them from ninety-api's GET
+      // /v1/competitions). Folded into the same try/catch as the events
+      // fetch below: from this hook's perspective, "can't get the
+      // catalog" and "can't get events for the catalog's competitions"
+      // are both just "football fixtures unavailable" — same footballError
+      // surface either way, so F1 can still render regardless of which
+      // step failed.
+      //
+      // No favorites selected (empty footballLeagueIds, or none of them
+      // resolve to a real entry in the fetched catalog — e.g. a stale/
+      // removed competition id) intentionally short-circuits before ever
+      // calling getAllEvents: this must never send an empty
+      // `competition_id=` to the API, which the backend would treat as
+      // "no filter, return every tracked competition's events," not as
+      // "return nothing."
       let footballAll: SportEvent[] = []
-      // Unlike the per-league try/catch below for F1, a football fetch
-      // failure isn't swallowed into an empty list — that used to make a
-      // dead ninety-api (or a missing VITE_NINETY_API_URL) look like
-      // "just no matches today" instead of a real outage. The message is
-      // surfaced via footballError below so F1 can still render.
       let footballError: string | null = null
-      if (footballLeagues.length > 0) {
+      if (preferences.sports.includes('football') && preferences.footballLeagueIds.length > 0) {
         try {
-          const events = await getAllEvents()
-          footballAll = events.flatMap((ev) => {
-            const league = footballLeagues.find((l) => l.ninetyCompetitionId === ev.competition_id)
-            return league ? [mapNinetyEvent(ev, league)] : []
-          })
+          const catalog = await loadFootballCompetitions()
+          const footballLeagues = footballLeaguesForPreferences(preferences.footballLeagueIds, catalog)
+          if (footballLeagues.length > 0) {
+            const competitionIds = footballLeagues.map((l) => l.ninetyCompetitionId!)
+            const leagueByCompetitionId = new Map(footballLeagues.map((l) => [l.ninetyCompetitionId!, l]))
+            // country narrows each event's `broadcasts` payload to the
+            // viewer's preferred markets (reduces response size — see
+            // Phase 2B's performance goal); it never removes an event, even
+            // when none of these markets have a resolved broadcast for it
+            // (ninety-api's /v1/events country filter is broadcast-
+            // narrowing only, not event-eligibility). Omitted entirely when
+            // the user has no supported-market favorites, which the API
+            // already treats as "don't filter."
+            const events = await getAllEvents({
+              competitionId: competitionIds,
+              country: viewerMarkets.length > 0 ? viewerMarkets : undefined,
+            })
+            footballAll = events.flatMap((ev) => {
+              const league = ev.competition_id ? leagueByCompetitionId.get(ev.competition_id) : undefined
+              return league ? [mapNinetyEvent(ev, league)] : []
+            })
+          }
         } catch (err) {
           footballError = err instanceof Error ? err.message : 'Failed to load football fixtures'
         }
