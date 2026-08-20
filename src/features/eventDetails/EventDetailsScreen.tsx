@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useBackHandler } from '../../core/platform'
 import { matchChannelsForEvent } from '../../data/sports/channelMatch'
 import type { ChannelMatch, BroadcastStationInfo } from '../../data/sports/channelMatch'
-import { useStreamQualities } from './useStreamQualities'
-import type { QualityByGroup, QualityState } from './useStreamQualities'
-import { groupChannelMatches } from './groupChannelMatches'
-import type { MatchGroup, SourceOption } from './groupChannelMatches'
+import { buildEventStreamOptions, rankEventStreamOptions, partitionStreamOptions } from './buildEventStreamOptions'
+import type { EventStreamOption } from './buildEventStreamOptions'
+import { FootballEventHeader, GenericEventHeader } from './EventHeader'
+import { StreamRecommendations, StreamList, CandidateStreamList } from './StreamSections'
+import { loadPreferences } from '../../data/preferences'
 import type { SportEvent } from '../../data/sports/types'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials } from '../../data/xtream/types'
@@ -18,6 +19,11 @@ interface Props {
   channels: Channel[]
   xtreamCreds: XtreamCredentials | null
   identityIndex: ChannelIdentityIndex | null
+  // Same Set/setter App.tsx already owns for every other favorite star in
+  // the app (see App.tsx's favoriteChannels/toggleInSet) — this screen
+  // doesn't own or persist favorite state itself.
+  favoriteChannels: ReadonlySet<string>
+  onToggleFavoriteChannel: (channelId: string) => void
   onWatch: (channel: Channel, source: ChannelSource) => void
   onBack: () => void
   onBrowseChannels: () => void
@@ -34,7 +40,17 @@ type MatchState =
   // between.
   | { status: 'not-found'; apiStations: BroadcastStationInfo[] }
 
-export function EventDetailsScreen({ event, channels, xtreamCreds, identityIndex, onWatch, onBack, onBrowseChannels }: Props) {
+export function EventDetailsScreen({
+  event,
+  channels,
+  xtreamCreds,
+  identityIndex,
+  favoriteChannels,
+  onToggleFavoriteChannel,
+  onWatch,
+  onBack,
+  onBrowseChannels,
+}: Props) {
   const [state, setState] = useState<MatchState>({ status: 'loading' })
 
   useEffect(() => {
@@ -67,8 +83,31 @@ export function EventDetailsScreen({ event, channels, xtreamCreds, identityIndex
     return true
   })
 
-  const { ref: backRef, focused: backFocused } = useFocusable({ onEnterPress: onBack, forceFocus: true })
+  // Back is the only usable target while matches are still resolving (or
+  // when nothing matched at all) — once real streams exist, the #1
+  // recommendation takes over as the initial focus target instead (see
+  // StreamSections.tsx's StreamRecommendations, and StreamRow's forceFocus
+  // comment). Never steals focus back afterwards: this only ever
+  // transitions true -> false for a given screen instance.
+  const { ref: backRef, focused: backFocused } = useFocusable({ onEnterPress: onBack, forceFocus: state.status !== 'ready' })
   const isTeamFixture = Boolean(event.homeTeam && event.awayTeam)
+
+  // Deliberately keyed on `state`/event identity only, NOT favoriteChannels
+  // — favorite status still feeds the Top-3 tie-break (buildEventStreamOptions),
+  // but re-deriving this on every favorite toggle would reshuffle the whole
+  // list while the user is mid-navigation. StreamRow itself reads
+  // favoriteChannels live for the star's fill state, so toggling still
+  // updates immediately; it just doesn't reorder anything.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const partitioned = useMemo(() => {
+    if (state.status !== 'ready') return null
+    const { favoriteCountries } = loadPreferences()
+    const options = buildEventStreamOptions(state.matches, favoriteChannels, {
+      homeTeam: event.homeTeam,
+      awayTeam: event.awayTeam,
+    })
+    return partitionStreamOptions(rankEventStreamOptions(options, favoriteCountries))
+  }, [state, event.homeTeam, event.awayTeam])
 
   return (
     <main className="event-details">
@@ -76,184 +115,92 @@ export function EventDetailsScreen({ event, channels, xtreamCreds, identityIndex
         ← Back
       </button>
 
-      <div className="event-details-header">
-        {event.league && (
-          <div className="event-details-league">
-            {event.leagueBadge && <img className="event-details-league-badge" src={event.leagueBadge} alt="" />}
-            <span className="event-details-league-name">{event.league}</span>
-          </div>
-        )}
-        <div className="event-details-tags">
-          {event.isLive && (
-            <span className="event-details-live-badge">
-              <span className="event-details-live-dot" /> LIVE{!event.isLiveHeuristic && event.liveClock ? ` · ${event.liveClock}` : ''}
-            </span>
-          )}
-          {event.round && isTeamFixture && <span className="event-details-round">{event.round.toUpperCase()}</span>}
-        </div>
-      </div>
+      {isTeamFixture ? <FootballEventHeader event={event} /> : <GenericEventHeader event={event} />}
 
-      {isTeamFixture ? (
-        <div className="event-details-matchup">
-          <TeamBlock name={event.homeTeam!} badge={event.homeBadge} score={event.homeScore} />
-          <span className="event-details-vs">vs</span>
-          <TeamBlock name={event.awayTeam!} badge={event.awayBadge} score={event.awayScore} align="right" />
-        </div>
-      ) : (
-        <h1 className="event-details-title">{event.title}</h1>
-      )}
-
-      <div className="event-details-meta">
-        <span>{event.timeLabel}</span>
-        {event.venue && <span>{event.venue}{event.venueCity && `, ${event.venueCity}`}</span>}
-        {event.referee && <span>Referee: {event.referee}</span>}
-      </div>
-
-      <section className="event-details-broadcast">
-        <h2 className="event-details-broadcast-title">Available On</h2>
-        {state.status === 'loading' && <p className="event-details-status">Checking your playlist…</p>}
-        {state.status === 'not-found' && (
-          state.apiStations.length > 0 ? (
-            <div className="event-details-status">
-              <p>This match is reported to air on:</p>
-              <ul className="event-details-station-list">
-                {state.apiStations.map((s, i) => (
-                  <li key={i}>
-                    {s.name}
-                    {s.country && <span className="event-details-station-country"> — {s.country}</span>}
-                  </li>
-                ))}
-              </ul>
-              <p>None of these are in your connected playlist.</p>
-            </div>
-          ) : (
-            <p className="event-details-status">No TV channel has been reported for this match.</p>
-          )
-        )}
-        {state.status === 'ready' && (
-          <ChannelMatchGroups matches={state.matches} onWatch={onWatch} />
-        )}
-
-        {state.status === 'not-found' && (
-          <BrowseManuallyButton onClick={onBrowseChannels} />
+      <section className="stream-area">
+        {state.status === 'loading' && <StreamAreaLoading />}
+        {state.status === 'not-found' && <NoMatchState apiStations={state.apiStations} onBrowseChannels={onBrowseChannels} />}
+        {state.status === 'ready' && partitioned && (
+          <StreamAreaReady
+            partitioned={partitioned}
+            favoriteChannels={favoriteChannels}
+            onToggleFavoriteChannel={onToggleFavoriteChannel}
+            onWatch={onWatch}
+          />
         )}
       </section>
 
-      {state.status === 'ready' && state.apiStations.length > 0 && (
-        <section className="event-details-debug">
-          <h2 className="event-details-debug-title">Debug: ninety-api reports</h2>
-          <ul className="event-details-debug-list">
-            {state.apiStations.map((s, i) => (
-              <li key={i}>
-                {s.name}
-                {s.country && ` (${s.country})`}
-              </li>
-            ))}
-          </ul>
-        </section>
+      <p className="event-details-footer">Stream availability depends on your connected playlist and region.</p>
+
+      {import.meta.env.DEV && state.status === 'ready' && (state.apiStations.length > 0 || partitioned) && (
+        <DevBroadcastDebug apiStations={state.apiStations} partitioned={partitioned} />
       )}
     </main>
   )
 }
 
-function TeamBlock({
-  name,
-  badge,
-  score,
-  align = 'left',
+function StreamAreaReady({
+  partitioned,
+  favoriteChannels,
+  onToggleFavoriteChannel,
+  onWatch,
 }: {
-  name: string
-  badge?: string
-  score?: string
-  align?: 'left' | 'right'
+  partitioned: ReturnType<typeof partitionStreamOptions>
+  favoriteChannels: ReadonlySet<string>
+  onToggleFavoriteChannel: (channelId: string) => void
+  onWatch: (channel: Channel, source: ChannelSource) => void
 }) {
+  const shared = { favoriteChannels, onToggleFavoriteChannel, onWatch }
   return (
-    <div className={`event-details-team event-details-team-${align}`}>
-      {badge && <img className="event-details-team-logo" src={badge} alt="" />}
-      <span className="event-details-team-name">{name}</span>
-      {score != null && <span className="event-details-team-score">{score}</span>}
+    <>
+      <StreamRecommendations options={partitioned.top} {...shared} />
+      <StreamList options={partitioned.rest} {...shared} />
+      <CandidateStreamList
+        options={partitioned.candidates}
+        defaultOpen={partitioned.top.length === 0 && partitioned.rest.length === 0}
+        {...shared}
+      />
+    </>
+  )
+}
+
+// Keeps the header rendered immediately and shows a restrained status line
+// plus lightweight skeleton rows instead of flashing/blocking — matching
+// resolution (ninety-api broadcasts, ChannelIdentityIndex, EPG fallback)
+// can take a moment, and Back must stay operational throughout (see the
+// `backFocused` handling above).
+function StreamAreaLoading() {
+  return (
+    <div className="stream-area-loading">
+      <p className="stream-area-loading-text">Finding the best streams…</p>
+      <div className="stream-row-skeleton" />
+      <div className="stream-row-skeleton" />
+      <div className="stream-row-skeleton" />
     </div>
   )
 }
 
-// Higher is better; groups with no quality hint (tier 0) sort after any
-// group that has one, but otherwise keep their incoming relative order —
-// see rankStreamQuality.ts for how the tier itself is derived.
-function qualityRank(quality: QualityState | undefined): number {
-  return quality?.tier ?? 0
-}
-
-function sortByQuality(groups: MatchGroup[], qualities: QualityByGroup): MatchGroup[] {
-  return groups
-    .map((group, index) => ({ group, index }))
-    .sort((a, b) => qualityRank(qualities.get(b.group.key)) - qualityRank(qualities.get(a.group.key)) || a.index - b.index)
-    .map((entry) => entry.group)
-}
-
-function ChannelMatchGroups({
-  matches,
-  onWatch,
-}: {
-  matches: ChannelMatch[]
-  onWatch: (channel: Channel, source: ChannelSource) => void
-}) {
-  // Multiple ChannelMatch results (e.g. differently-quality-tagged playlist
-  // entries for the same real channel) collapse into one group here, so the
-  // list shows one row per real channel with its sources offered as a
-  // quality choice, rather than one row per raw playlist entry — see
-  // groupChannelMatches.ts.
-  const groups = groupChannelMatches(matches)
-  const qualities = useStreamQualities(groups)
-  const exactGroups = sortByQuality(groups.filter((g) => g.isExactMatch), qualities)
-  const fuzzyGroups = sortByQuality(groups.filter((g) => !g.isExactMatch), qualities)
-  // namesOverlap (channelMatch.ts) deliberately keeps a loose net of
-  // partial candidates alongside a confident exact match — numbered
-  // siblings like "Arena Sport 1"/"Arena Sport 5" are kept in case the
-  // exact channel is missing from this playlist, not because they're
-  // likely right. That's the correct behavior when there's no exact match
-  // to fall back on, but once one exists, a dozen loose guesses under it
-  // is just noise — collapsed by default in that case, still one tap away.
-  const [showFuzzy, setShowFuzzy] = useState(exactGroups.length === 0)
-  const { ref: toggleRef, focused: toggleFocused } = useFocusable({ onEnterPress: () => setShowFuzzy((v) => !v) })
-  // This page has no dedicated scroll container (.event-details grows past
-  // the viewport and the document itself scrolls — see EventDetailsScreen
-  // .css), so scrollIntoView here targets that same default document
-  // scroll, same as ChannelRow.tsx's identical pattern for BrowseCascade's
-  // channel list.
-  useEffect(() => {
-    if (toggleFocused) toggleRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [toggleFocused, toggleRef])
-
+function NoMatchState({ apiStations, onBrowseChannels }: { apiStations: BroadcastStationInfo[]; onBrowseChannels: () => void }) {
   return (
-    <>
-      {exactGroups.length > 0 && (
-        <div className="event-details-channel-group">
-          <h3 className="event-details-channel-group-title">Best Match</h3>
-          <div className="event-details-channel-list">
-            {exactGroups.map((group) => (
-              <ChannelOption key={group.key} group={group} onWatch={onWatch} quality={qualities.get(group.key)} />
+    <div className="stream-area-empty">
+      {apiStations.length > 0 ? (
+        <>
+          <p>This event is reported on:</p>
+          <ul className="stream-area-station-list">
+            {apiStations.map((station, i) => (
+              <li key={i}>
+                {station.name}
+                {station.country && <span className="stream-area-station-country"> — {station.country}</span>}
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+          <p>None of these channels were found in your connected playlist.</p>
+        </>
+      ) : (
+        <p>No TV channel has been reported for this event yet.</p>
       )}
-      {fuzzyGroups.length > 0 && exactGroups.length > 0 && !showFuzzy && (
-        <button ref={toggleRef} className={`event-details-show-more ${toggleFocused ? 'focused' : ''}`} onClick={() => setShowFuzzy(true)}>
-          Show {fuzzyGroups.length} more channel{fuzzyGroups.length === 1 ? '' : 's'} that might have it
-        </button>
-      )}
-      {fuzzyGroups.length > 0 && showFuzzy && (
-        <div className="event-details-channel-group">
-          <h3 className="event-details-channel-group-title">
-            {exactGroups.length > 0 ? 'Partial Matches' : 'Channels That Might Have It'}
-          </h3>
-          <div className="event-details-channel-list">
-            {fuzzyGroups.map((group) => (
-              <ChannelOption key={group.key} group={group} onWatch={onWatch} quality={qualities.get(group.key)} />
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+      <BrowseManuallyButton onClick={onBrowseChannels} />
+    </div>
   )
 }
 
@@ -263,111 +210,81 @@ function BrowseManuallyButton({ onClick }: { onClick: () => void }) {
     if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
   }, [focused, ref])
   return (
-    <button ref={ref} className={`event-details-browse-manually ${focused ? 'focused' : ''}`} onClick={onClick}>
+    <button ref={ref} className={`stream-area-browse-manually ${focused ? 'focused' : ''}`} onClick={onClick}>
       Think we got it wrong? Check your channels manually
     </button>
   )
 }
 
-// A name/label-derived hint (e.g. "UHD", "1080p") — not a measured value,
-// since nothing here has opened the stream to check. Omitted entirely when
-// no quality tag was found in the playlist metadata, rather than guessing.
-function QualityBadge({ quality }: { quality: QualityState | undefined }) {
-  if (!quality?.label) return null
-  return <span className="event-details-channel-quality">{quality.label}</span>
-}
-
-function ChannelOption({
-  group,
-  onWatch,
-  quality,
+// Dev-only diagnostic (see the redesign task: production must never show
+// this) — kept available for development rather than deleted outright,
+// same DEV-gating precedent as App.tsx's admin panel entry point.
+//
+// Phase 2B (event -> EPG -> stream diagnostics, see the task spec's "event
+// -> broadcast evidence debug view"): the backend side of this ("why did
+// this EPG programme resolve/not resolve") already has its own tool --
+// ninety-api's GET /internal/resolution/events/:id/explain. It can never
+// see WHY a resolved broadcast did or didn't turn into a playable stream in
+// THIS user's own playlist, because that matching is deliberately
+// client-side/local (the playlist itself is private, never uploaded — see
+// channelIdentityResolver.ts). This panel is that other half: for each
+// broadcast ninety-api reported, whether it resolved to a playlist channel
+// and why not when it didn't (identityClassification/
+// ambiguousPlaylistChannelNames already carry that from channelMatch.ts),
+// plus the final ranked tier (top 3 / rest / candidates) with the exact
+// signals rankEventStreamOptions used — country match, quality, confidence,
+// favorite — so "why did Ninety choose this channel" and "why did Ninety
+// reject that channel" are both answerable without reading source.
+function DevBroadcastDebug({
+  apiStations,
+  partitioned,
 }: {
-  group: MatchGroup
-  onWatch: (channel: Channel, source: ChannelSource) => void
-  quality?: QualityState
+  apiStations: BroadcastStationInfo[]
+  partitioned: ReturnType<typeof partitionStreamOptions> | null
 }) {
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const selected = group.sourceOptions[selectedIndex] ?? group.sourceOptions[0]
-  const { ref, focused } = useFocusable({ onEnterPress: () => selected && onWatch(selected.channel, selected.source) })
-  // Partial Matches can run to dozens of cards — without this, D-pad focus
-  // moves past the bottom of the viewport while the page itself never
-  // scrolls, eventually leaving the focused card (and all navigation)
-  // entirely off-screen.
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
+  const { favoriteCountries } = loadPreferences()
+  const favoriteCountrySet = new Set(favoriteCountries)
+
+  function renderOption(option: EventStreamOption, tier: string) {
+    const preferredMarket = option.countryName != null && favoriteCountrySet.has(option.countryName)
+    return (
+      <li key={option.key}>
+        [{tier}] {option.displayName}
+        {option.countryName && ` · ${option.countryName}${preferredMarket ? ' (preferred)' : ''}`}
+        {' · '}
+        {option.matchConfidence}
+        {' · quality '}
+        {option.bestQualityTier}
+        {option.isFavorite && ' · ★ favorite'}
+      </li>
+    )
+  }
+
   return (
-    <div className="event-details-channel-card">
-      <button
-        ref={ref}
-        className={`event-details-channel ${focused ? 'focused' : ''}`}
-        onClick={() => selected && onWatch(selected.channel, selected.source)}
-      >
-        {group.logo && <img className="event-details-channel-logo" src={group.logo} alt="" />}
-        <div className="event-details-channel-text">
-          <span>{group.name}</span>
-          <div className="event-details-channel-subrow">
-            {/* Shows the actual broadcaster/programme-title text that produced
-                this match — a match is inherently a guess against playlist
-                channel names, so showing the evidence keeps it honest rather
-                than presenting the pick as a verified fact. Skipped when the
-                label is identical to the name (ppvName matches, where the
-                playlist's own raw title is both) — showing it twice looks
-                like broken/duplicated text, not "extra evidence". */}
-            {group.label !== group.name && (
-              <span className="event-details-channel-match-label">via {group.label}</span>
+    <section className="event-details-debug">
+      <h2 className="event-details-debug-title">Debug: ninety-api reports</h2>
+      <ul className="event-details-debug-list">
+        {apiStations.map((station, i) => (
+          <li key={i}>
+            {station.name}
+            {station.country && ` (${station.country})`}
+            {station.identityClassification && ` — playlist identity: ${station.identityClassification}`}
+            {station.ambiguousPlaylistChannelNames && station.ambiguousPlaylistChannelNames.length > 0 && (
+              <> (ambiguous against: {station.ambiguousPlaylistChannelNames.join(', ')})</>
             )}
-            <QualityBadge quality={quality} />
-          </div>
-        </div>
-      </button>
-      {group.sourceOptions.length > 1 && (
-        <SourcePicker sourceOptions={group.sourceOptions} selectedIndex={selectedIndex} onSelect={setSelectedIndex} />
+          </li>
+        ))}
+      </ul>
+      {partitioned && (
+        <>
+          <h2 className="event-details-debug-title">Debug: final ranked streams</h2>
+          <ul className="event-details-debug-list">
+            {partitioned.top.map((o) => renderOption(o, 'top'))}
+            {partitioned.rest.map((o) => renderOption(o, 'rest'))}
+            {partitioned.candidates.map((o) => renderOption(o, 'candidate'))}
+          </ul>
+        </>
       )}
-    </div>
-  )
-}
-
-// Same real channel, multiple qualities in the user's playlist (UHD/HD/RAW
-// etc, see mergeChannelSources) — offered as a pick rather than silently
-// always playing the first one, since "always UHD" isn't reliably "always
-// best" (see blueprint section 39: quality tags are a hint, not verified
-// truth, until actually probed/played).
-function SourcePicker({
-  sourceOptions,
-  selectedIndex,
-  onSelect,
-}: {
-  sourceOptions: SourceOption[]
-  selectedIndex: number
-  onSelect: (index: number) => void
-}) {
-  return (
-    <div className="event-details-source-picker">
-      {sourceOptions.map((option, index) => (
-        <SourcePickerOption
-          key={`${option.channel.id}-${option.source.label}-${index}`}
-          label={option.source.label}
-          selected={index === selectedIndex}
-          onSelect={() => onSelect(index)}
-        />
-      ))}
-    </div>
-  )
-}
-
-function SourcePickerOption({ label, selected, onSelect }: { label: string; selected: boolean; onSelect: () => void }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onSelect })
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
-  return (
-    <button
-      ref={ref}
-      className={`event-details-source-tag ${selected ? 'selected' : ''} ${focused ? 'focused' : ''}`}
-      onClick={onSelect}
-    >
-      {label}
-    </button>
+    </section>
   )
 }

@@ -461,6 +461,8 @@ function App() {
           channels={playlist.channels}
           xtreamCreds={xtreamCreds}
           identityIndex={identityIndex}
+          favoriteChannels={favoriteChannels}
+          onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
           onWatch={(channel, source) => watchChannel(channel, source, 'event-details')}
           onBack={() => setScreen(eventDetailsReturnScreen)}
           onBrowseChannels={() => setScreen('browse-cascade')}

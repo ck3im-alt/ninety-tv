@@ -66,6 +66,19 @@ export interface ChannelMatch {
   // channelIdentityIndex.ts's getPlaylistChannels), so this field is only
   // ever 'CONFIRMED' or 'STRONG' when present.
   identityClassification?: Extract<IdentityClassification, 'CONFIRMED' | 'STRONG'>
+  // ninety-api's own reported broadcast country (event.broadcasts[].country,
+  // an ISO-ish short code like "GB") — only present for source: 'ninety'.
+  // Display-layer metadata only (Event Details' country column, when the
+  // matched playlist channel's own groupTitle has no parseable country
+  // prefix to fall back on) — never used for matching/ranking truth here.
+  broadcastCountry?: string | null
+  // Only present for source: 'epg', and only true for matches produced by
+  // the widened last-resort search (matchViaEpgAllPpv) — a deliberately
+  // weaker signal (partial word-overlap, not a full team-name match) than
+  // the primary EPG stage. Display-layer metadata only, for Event Details
+  // to rank a widened-EPG match as a lower-confidence candidate rather than
+  // a recommended stream; doesn't affect matching truth here.
+  isWeakEpgMatch?: boolean
 }
 
 export interface BroadcastStationInfo {
@@ -144,6 +157,7 @@ function matchViaNinetyApi(event: SportEvent, identityIndex: ChannelIdentityInde
           // canonical/alias/source-name) may claim isExactMatch.
           isExactMatch: classification === 'CONFIRMED',
           identityClassification: classification,
+          broadcastCountry: b.country,
         })
       }
     }
@@ -325,7 +339,7 @@ async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtreamC
         const overlap = [...titleWords].filter((w) => eventWords.has(w)).length
         return overlap >= 2
       })
-      return hit ? ({ channel, source: 'epg', label: hit.title, isExactMatch: false } as ChannelMatch) : null
+      return hit ? ({ channel, source: 'epg', label: hit.title, isExactMatch: false, isWeakEpgMatch: true } as ChannelMatch) : null
     }),
   )
 
