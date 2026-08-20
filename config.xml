@@ -4,8 +4,8 @@
         id="https://ninety.tv/app"
         version="0.0.1"
         viewmodes="fullscreen">
-    <tizen:application id="AbCdEfGhIj.NinetyTV"
-                        package="AbCdEfGhIj"
+    <tizen:application id="NinetyTvAp.NinetyTV"
+                        package="NinetyTvAp"
                         required_version="6.0"/>
     <name>NINETY</name>
     <icon src="icon.png"/>
