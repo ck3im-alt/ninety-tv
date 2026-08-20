@@ -116,6 +116,22 @@ export function OnboardingSportsScreen({
     onEnterPress: onContinue,
   })
 
+  // Every standalone (non-grid-card) focus target on this screen needs its
+  // own scroll-into-view -- SelectableCard has one (see below), these
+  // didn't: reachable in principle (setFocus + the onArrowDown override
+  // above do transfer focus here), but with 50 leagues the button sits
+  // below the fold and the viewport never followed, so it looked like Down
+  // silently stopped working a row or two before the actual end.
+  useEffect(() => {
+    if (backFocused) backRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [backFocused, backRef])
+  useEffect(() => {
+    if (skipFocused) skipRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [skipFocused, skipRef])
+  useEffect(() => {
+    if (continueFocused) continueRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [continueFocused, continueRef])
+
   // Column count matches each grid's own CSS (`repeat(6, 1fr)` — see
   // OnboardingSportsScreen.css) — used to compute which cards sit in the
   // leftmost column (-> Left reaches Back) and in the grid's actual last

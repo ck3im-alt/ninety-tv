@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel } from '../../data/channel'
 import { parseCategory } from '../channels/parseCategory'
@@ -92,8 +92,34 @@ export function OnboardingCountriesScreen({
     focusKey: CONTINUE_FOCUS_KEY,
     onEnterPress: onContinue,
   })
-  const { ref: selectAllRef, focused: selectAllFocused } = useFocusable({ onEnterPress: onSelectAll, forceFocus: true })
+  // NOT forceFocus -- that used to sit here (a real bug, not just the
+  // scroll gap below). norigin's directional search needs >=20% geometric
+  // overlap between two elements to consider them adjacent (same rule
+  // documented on the Continue-button hitbox further down); this row's
+  // buttons are narrow and right-aligned, so Down from here almost never
+  // lands in the grid's actual first column -- landing initial focus HERE
+  // instead of on a grid card made the entire country grid unreachable by
+  // remote, not just slow to reach. Sports screen never had this bug
+  // because its own forceFocus already targets a grid card directly (the
+  // football SelectableCard) -- mirrored below onto the first country card.
+  const { ref: selectAllRef, focused: selectAllFocused } = useFocusable({ onEnterPress: onSelectAll })
   const { ref: deselectAllRef, focused: deselectAllFocused } = useFocusable({ onEnterPress: onDeselectAll })
+
+  // Every standalone (non-grid-card) focus target on this screen needs its
+  // own scroll-into-view -- SelectableCard has one, these don't, same gap
+  // fixed on OnboardingSportsScreen's Back/Skip/Continue.
+  useEffect(() => {
+    if (backFocused) backRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [backFocused, backRef])
+  useEffect(() => {
+    if (continueFocused) continueRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [continueFocused, continueRef])
+  useEffect(() => {
+    if (selectAllFocused) selectAllRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selectAllFocused, selectAllRef])
+  useEffect(() => {
+    if (deselectAllFocused) deselectAllRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [deselectAllFocused, deselectAllRef])
 
   // Same problem, same fix as OnboardingSportsScreen.tsx's grids: Back
   // sits in the left info panel and Continue sits below the grid, both
@@ -184,6 +210,7 @@ export function OnboardingCountriesScreen({
                   focusKey={`country-${country.name}`}
                   selected={selectedCountries.has(country.name)}
                   onToggle={() => onToggleCountry(country.name)}
+                  forceFocus={index === 0}
                   onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
                   onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
                 >
