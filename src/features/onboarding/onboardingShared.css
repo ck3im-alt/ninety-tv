@@ -126,6 +126,14 @@
   gap: var(--space-4);
   height: 100%;
   box-sizing: border-box;
+  /* The football league grid grew from 8 to 51 entries (2026-08-20's
+     50-competition expansion) -- at 6 columns that's ~9 rows, well past
+     the fixed 1080px TV canvas. Without this the bottom of the grid (and
+     the Continue button) would be unreachable by remote. Left/Back and the
+     info panel live in the sibling 560px column (see .onboarding-screen's
+     grid-template-columns), so scrolling this column alone doesn't affect
+     them. */
+  overflow-y: auto;
 }
 
 .picker-section-title {
@@ -133,6 +141,14 @@
   font-size: var(--font-meta);
   font-weight: var(--weight-medium);
   letter-spacing: 1px;
+  margin: 0;
+}
+
+/* Shown while the football competition catalog (GET /v1/competitions) is
+   loading/errored, in place of the league grid. */
+.picker-status {
+  color: var(--text-muted);
+  font-size: var(--font-body);
   margin: 0;
 }
 

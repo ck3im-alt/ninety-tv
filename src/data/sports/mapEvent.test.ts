@@ -8,6 +8,7 @@ const league: LeagueDef = {
   sportKey: 'football',
   sportLabel: 'Premier League',
   tsdbSport: 'Soccer',
+  name: 'Premier League',
 }
 
 function broadcast(overrides: Partial<NinetyBroadcast>): NinetyBroadcast {
@@ -32,8 +33,11 @@ function event(broadcasts: NinetyBroadcast[]): NinetyEvent {
     competition_name: 'Premier League',
     home_team_name: 'Home FC',
     home_team_logo: null,
+    home_team_form: null,
     away_team_name: 'Away FC',
     away_team_logo: null,
+    away_team_form: null,
+    venue_name: null,
     broadcasts,
   }
 }
@@ -72,6 +76,40 @@ describe('mapNinetyEvent broadcasts filtering', () => {
       league,
     )
     expect(result.broadcasts?.map((b) => b.name).sort()).toEqual(['Sky Sports', 'TV3 Plus'])
+  })
+})
+
+describe('mapNinetyEvent venue mapping', () => {
+  it('maps venue_name onto SportEvent.venue', () => {
+    const result = mapNinetyEvent({ ...event([]), venue_name: 'Estadio de Vallecas' }, league)
+    expect(result.venue).toBe('Estadio de Vallecas')
+  })
+
+  it('leaves venue undefined (not a placeholder) when venue_name is null', () => {
+    const result = mapNinetyEvent(event([]), league)
+    expect(result.venue).toBeUndefined()
+  })
+})
+
+describe('mapNinetyEvent form mapping', () => {
+  it('maps home_team_form/away_team_form onto homeForm/awayForm', () => {
+    const result = mapNinetyEvent(
+      { ...event([]), home_team_form: ['W', 'W', 'L', 'D', 'L'], away_team_form: ['L', 'D', 'W', 'L', 'L'] },
+      league,
+    )
+    expect(result.homeForm).toEqual(['W', 'W', 'L', 'D', 'L'])
+    expect(result.awayForm).toEqual(['L', 'D', 'W', 'L', 'L'])
+  })
+
+  it('leaves form undefined (not a placeholder) when ninety-api has no form yet', () => {
+    const result = mapNinetyEvent(event([]), league)
+    expect(result.homeForm).toBeUndefined()
+    expect(result.awayForm).toBeUndefined()
+  })
+
+  it('does not pad a short form array', () => {
+    const result = mapNinetyEvent({ ...event([]), home_team_form: ['W', 'D', 'L'] }, league)
+    expect(result.homeForm).toEqual(['W', 'D', 'L'])
   })
 })
 

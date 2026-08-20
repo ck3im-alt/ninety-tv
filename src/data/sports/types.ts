@@ -7,6 +7,11 @@
 // airs them directly — see the "Live on your favorite channels" section.
 export type SportKey = 'football' | 'f1'
 
+// A completed match's outcome from one team's own perspective (already
+// oriented for home/away — see ninety-api's teamForm.ts). Oldest -> newest
+// left to right, so the right-most entry is always the most recent result.
+export type TeamFormResult = 'W' | 'D' | 'L'
+
 export interface SportEvent {
   id: string
   sportKey: SportKey
@@ -20,6 +25,13 @@ export interface SportEvent {
   // `league`.
   leagueId: string
   leagueBadge?: string
+  // Copied from LeagueDef.tier at mapping time (see mapEvent.ts) — lets
+  // heroScoring.ts weight prestige without doing its own leagueId lookup
+  // against a competitions catalog, which (since 2026-08-20) is fetched
+  // asynchronously and isn't guaranteed to be populated/current at
+  // scoring time the way a synchronous lookup would assume. Undefined for
+  // sports with no tier concept (e.g. F1).
+  leagueTier?: 1 | 2 | 3
   // Team fixtures (football/tennis) have home/away; single-entrant events
   // (F1 sessions, golf rounds, UFC cards) only have `title`.
   title: string
@@ -27,6 +39,15 @@ export interface SportEvent {
   awayTeam?: string
   homeBadge?: string
   awayBadge?: string
+  // Last-5 completed-results form, server-computed by ninety-api from
+  // footballdata.io's own results (see teamForm.ts) — never fetched or
+  // derived on the TV. Undefined when ninety-api hasn't computed it yet for
+  // this team (new team, or the API is being extended to a sport that
+  // doesn't have it); a present-but-short array (fewer than 5 entries)
+  // means genuinely fewer than 5 trustworthy completed matches exist, not
+  // a loading state — never padded.
+  homeForm?: TeamFormResult[]
+  awayForm?: TeamFormResult[]
   venue?: string
   venueCity?: string
   referee?: string

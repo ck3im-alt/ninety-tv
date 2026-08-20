@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { FocusContext, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useBackHandler } from '../../core/platform'
-import { FOOTBALL_LEAGUES } from '../../data/sports/leagues'
 import type { LeagueDef } from '../../data/sports/leagues'
+import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
 import { useCompetitionFixtures, LOOKAHEAD_DAYS } from '../../data/sports/useCompetitionFixtures'
 import type { SportEvent } from '../../data/sports/types'
 import './CompetitionsScreen.css'
@@ -12,29 +12,9 @@ function LeaguePill({ league, active, onSelect }: { league: LeagueDef; active: b
   return (
     <button ref={ref} className={`league-pill ${active ? 'active' : ''} ${focused ? 'focused' : ''}`} onClick={onSelect}>
       {league.badge && <img src={league.badge} alt="" />}
-      <span>{league.sportLabel === 'FOOTBALL' ? leagueShortName(league) : league.sportLabel}</span>
+      <span>{league.sportLabel === 'FOOTBALL' ? league.name : league.sportLabel}</span>
     </button>
   )
-}
-
-// LeagueDef carries no display name of its own (leagues.ts identifies
-// leagues by id/badge, with the human-readable name only living in a code
-// comment) — the badge image already carries the crest, so this only needs
-// to disambiguate leagues sharing the same generic "FOOTBALL" sportLabel
-// for the pill's text.
-const FOOTBALL_LEAGUE_NAMES: Record<string, string> = {
-  '4328': 'Premier League',
-  '4480': 'Champions League',
-  '4335': 'La Liga',
-  '4332': 'Serie A',
-  '4331': 'Bundesliga',
-  '4334': 'Ligue 1',
-  '4481': 'Europa League',
-  '5071': 'Conference League',
-}
-
-function leagueShortName(league: LeagueDef): string {
-  return FOOTBALL_LEAGUE_NAMES[league.id] ?? league.sportLabel
 }
 
 function FixtureRow({ event, onSelect }: { event: SportEvent; onSelect: (event: SportEvent) => void }) {
@@ -58,12 +38,22 @@ function FixtureRow({ event, onSelect }: { event: SportEvent; onSelect: (event: 
 
 export function CompetitionsScreen({ onSelectEvent, onBack }: { onSelectEvent: (event: SportEvent) => void; onBack: () => void }) {
   const { ref, focusKey } = useFocusable({ focusKey: 'competitions-screen', trackChildren: true })
-  const [selectedLeague, setSelectedLeague] = useState<LeagueDef>(FOOTBALL_LEAGUES[0])
+  const competitionsState = useFootballCompetitions()
+  // Starts null since the catalog is now an async fetch (GET
+  // /v1/competitions) rather than a hardcoded local array — set to the
+  // first competition once the catalog is ready, below.
+  const [selectedLeague, setSelectedLeague] = useState<LeagueDef | null>(null)
   // Which round is expanded — defaults to the first (earliest) one returned,
   // i.e. the competition's next unplayed gameweek/stage, every time the
   // fixture list loads for a newly picked league.
   const [expandedRound, setExpandedRound] = useState<string | null>(null)
   const fixturesState = useCompetitionFixtures(selectedLeague)
+
+  useEffect(() => {
+    if (competitionsState.status === 'ready' && selectedLeague === null && competitionsState.leagues.length > 0) {
+      setSelectedLeague(competitionsState.leagues[0])
+    }
+  }, [competitionsState, selectedLeague])
 
   useEffect(() => {
     if (fixturesState.status === 'ready' && fixturesState.rounds.length > 0) {
@@ -86,16 +76,21 @@ export function CompetitionsScreen({ onSelectEvent, onBack }: { onSelectEvent: (
           </button>
         </div>
 
-        <div className="league-pills">
-          {FOOTBALL_LEAGUES.map((league) => (
-            <LeaguePill
-              key={league.id}
-              league={league}
-              active={league.id === selectedLeague.id}
-              onSelect={() => setSelectedLeague(league)}
-            />
-          ))}
-        </div>
+        {competitionsState.status === 'loading' && <p className="competitions-status">Loading competitions…</p>}
+        {competitionsState.status === 'error' && <p className="competitions-status">{competitionsState.message}</p>}
+
+        {competitionsState.status === 'ready' && (
+          <div className="league-pills">
+            {competitionsState.leagues.map((league) => (
+              <LeaguePill
+                key={league.id}
+                league={league}
+                active={league.id === selectedLeague?.id}
+                onSelect={() => setSelectedLeague(league)}
+              />
+            ))}
+          </div>
+        )}
 
         {fixturesState.status === 'loading' && <p className="competitions-status">Loading fixtures…</p>}
         {fixturesState.status === 'error' && <p className="competitions-status">{fixturesState.message}</p>}

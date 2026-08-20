@@ -8,6 +8,8 @@
 // proper CORS headers — no dev-proxy fallback needed here, direct fetch
 // works both in `vite dev` and the packaged Tizen widget.
 
+import type { TeamFormResult } from './types'
+
 const BASE_URL = import.meta.env.VITE_NINETY_API_URL as string | undefined
 
 async function getJson<T>(path: string): Promise<T> {
@@ -35,8 +37,11 @@ export interface NinetyEvent {
   competition_name: string | null
   home_team_name: string | null
   home_team_logo: string | null
+  home_team_form: TeamFormResult[] | null
   away_team_name: string | null
   away_team_logo: string | null
+  away_team_form: TeamFormResult[] | null
+  venue_name: string | null
   broadcasts: NinetyBroadcast[]
 }
 
@@ -65,8 +70,19 @@ export interface NinetyEventsPagination {
 
 export interface GetEventsParams {
   date?: string
-  country?: string
-  competitionId?: string
+  // A viewer's ranked preferred broadcast markets (ISO2-ish codes, e.g.
+  // 'NO' or ['NO', 'SE', 'GB']) -- see data/sports/viewerMarket.ts for how
+  // these are derived from favoriteCountries. This ONLY narrows which
+  // resolved channels appear in each event's `broadcasts` array; it never
+  // removes events from the result (ninety-api's /v1/events country filter
+  // is broadcast-narrowing only, not event-eligibility -- see Phase 2B).
+  // Same single-or-several convention as competitionId below.
+  country?: string | string[]
+  // Accepts a single id (e.g. useCompetitionFixtures.ts) or several (e.g.
+  // useHomeFeed.ts narrowing to just the leagues a user follows, out of
+  // Ninety's full 50-competition catalog) -- ninety-api's /v1/events takes
+  // a comma-separated competition_id for the multi case.
+  competitionId?: string | string[]
   from?: string
   to?: string
   limit?: number
@@ -79,8 +95,14 @@ export interface GetEventsParams {
 export async function getEvents(params: GetEventsParams = {}) {
   const query = new URLSearchParams()
   if (params.date) query.set('date', params.date)
-  if (params.country) query.set('country', params.country)
-  if (params.competitionId) query.set('competition_id', params.competitionId)
+  if (params.country) {
+    const value = Array.isArray(params.country) ? params.country.join(',') : params.country
+    if (value) query.set('country', value)
+  }
+  if (params.competitionId) {
+    const value = Array.isArray(params.competitionId) ? params.competitionId.join(',') : params.competitionId
+    if (value) query.set('competition_id', value)
+  }
   if (params.from) query.set('from', params.from)
   if (params.to) query.set('to', params.to)
   if (params.limit != null) query.set('limit', String(params.limit))
@@ -115,4 +137,24 @@ export async function getChannelCatalog(params: { country?: string } = {}) {
   return getJson<{ version: string; channels: NinetyLogicalChannel[] }>(
     `/v1/channels/catalog${qs ? `?${qs}` : ''}`,
   )
+}
+
+// ninety-api's canonical competition registry (its sports/leagues.ts) --
+// added 2026-08-20's Phase 1.1 audit to replace ninety-tv's own hand-
+// duplicated 50-competition catalog with a single fetch from the backend.
+// See data/sports/competitionsCatalog.ts for the caching/conversion layer
+// built on top of this.
+export interface NinetyCompetition {
+  id: string
+  name: string
+  country_code: string | null
+  region: string
+  type: 'league' | 'cup' | 'qualification' | 'international'
+  tier: 1 | 2 | 3
+  badge_url: string
+  footballdata_league_id: number
+}
+
+export async function getCompetitions() {
+  return getJson<{ competitions: NinetyCompetition[] }>('/v1/competitions')
 }

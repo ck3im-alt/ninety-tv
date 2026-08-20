@@ -1,6 +1,6 @@
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { SportKey } from '../../data/sports/types'
-import { FOOTBALL_LEAGUES } from '../../data/sports/leagues'
+import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
 import { OnboardingTopBar } from './OnboardingStepper'
 import { ArrowRightIcon, BackArrowIcon, CheckIcon, FootballIcon, FormulaOneIcon, StarIcon, TrophyIcon, TuneIcon } from './sportIcons'
 import './onboardingShared.css'
@@ -91,6 +91,10 @@ export function OnboardingSportsScreen({
 }: Props) {
   const { ref, focusKey } = useFocusable({ focusKey: 'onboarding-sports', trackChildren: true })
   const footballSelected = selectedSports.has('football')
+  // Competition catalog is now an async fetch (GET /v1/competitions) —
+  // see competitionsCatalog.ts — rather than a hardcoded local array.
+  const competitionsState = useFootballCompetitions()
+  const footballLeagues = competitionsState.status === 'ready' ? competitionsState.leagues : []
 
   const BACK_FOCUS_KEY = 'sports-back'
   const CONTINUE_FOCUS_KEY = 'sports-continue'
@@ -110,7 +114,7 @@ export function OnboardingSportsScreen({
   // the sports->leagues transition within the picker is a normal
   // same-column downward move that already works.
   const GRID_COLUMNS = 6
-  const isLastPickerSection = !footballSelected || FOOTBALL_LEAGUES.length === 0
+  const isLastPickerSection = !footballSelected || footballLeagues.length === 0
 
   return (
     <FocusContext.Provider value={focusKey}>
@@ -187,12 +191,19 @@ export function OnboardingSportsScreen({
             </div>
           </div>
 
-          {footballSelected && (
+          {footballSelected && competitionsState.status === 'loading' && (
+            <p className="picker-status">Loading competitions…</p>
+          )}
+          {footballSelected && competitionsState.status === 'error' && (
+            <p className="picker-status">{competitionsState.message}</p>
+          )}
+
+          {footballSelected && footballLeagues.length > 0 && (
             <>
               <h2 className="picker-section-title">FOOTBALL LEAGUES</h2>
               <div className="league-grid">
-                {FOOTBALL_LEAGUES.map((league, index) => {
-                  const lastRowStart = (Math.ceil(FOOTBALL_LEAGUES.length / GRID_COLUMNS) - 1) * GRID_COLUMNS
+                {footballLeagues.map((league, index) => {
+                  const lastRowStart = (Math.ceil(footballLeagues.length / GRID_COLUMNS) - 1) * GRID_COLUMNS
                   return (
                     <SelectableCard
                       key={league.id}
@@ -205,7 +216,7 @@ export function OnboardingSportsScreen({
                       <div className="pick-card-icon">
                         {league.badge && <img src={league.badge} alt="" />}
                       </div>
-                      <span className="pick-card-label">{leagueDisplayName(league.id)}</span>
+                      <span className="pick-card-label">{league.name}</span>
                     </SelectableCard>
                   )
                 })}
@@ -229,26 +240,4 @@ export function OnboardingSportsScreen({
       </main>
     </FocusContext.Provider>
   )
-}
-
-// TheSportsDB's strLeague names are already display-ready (e.g. "English
-// Premier League") but longer than the reference design's short labels
-// ("Premier League") — this is a small display-only rename, not a data
-// change; leagues.ts still carries the full names.
-function leagueDisplayName(id: string): string {
-  const overrides: Record<string, string> = {
-    '4328': 'Premier League',
-    '4480': 'UEFA Champions League',
-    '4335': 'LaLiga',
-    '4332': 'Serie A',
-    '4331': 'Bundesliga',
-    '4334': 'Ligue 1',
-    '4337': 'Eredivisie',
-    '4344': 'Primeira Liga',
-    '4346': 'MLS',
-    '4329': 'Championship',
-    '4481': 'Europa League',
-    '5071': 'Conference League',
-  }
-  return overrides[id] ?? id
 }

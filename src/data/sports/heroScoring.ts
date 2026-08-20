@@ -14,26 +14,46 @@
 // a fourth weighted term.
 import type { SportEvent } from './types'
 
-// Editorial judgment calls, not derived from any data source — same spirit
-// as the curated background images (staticBackground in leagues.ts): an
-// honest, documented choice, easy to retune, rather than pretending to be
-// objective. Keyed by our internal LeagueDef.id (SportEvent.leagueId).
-const LEAGUE_PRESTIGE: Record<string, number> = {
-  '4480': 1.0, // UEFA Champions League
-  '4328': 0.85, // Premier League
-  '4335': 0.85, // La Liga
-  '4481': 0.75, // UEFA Europa League
-  '4332': 0.8, // Serie A
-  '4331': 0.8, // Bundesliga
-  '4334': 0.75, // Ligue 1
-  '4370': 0.9, // F1
-  '5071': 0.6, // UEFA Conference League
-  '4337': 0.6, // Eredivisie
-  '4344': 0.6, // Primeira Liga
-  '4346': 0.55, // MLS
-  '4329': 0.55, // Championship
+// Prestige comes from SportEvent.leagueTier -- set at mapping time
+// (mapEvent.ts) from the competition catalog's `tier` field, itself
+// fetched from ninety-api's canonical registry (sports/leagues.ts). Reading
+// it off the event directly, rather than looking `event.leagueId` up
+// against a catalog held here, matters specifically because that catalog
+// (since 2026-08-20's Phase 1.1 audit) is fetched asynchronously from
+// GET /v1/competitions -- an event can only ever exist once its league has
+// already been resolved to build it, so leagueTier is always correctly
+// populated by the time scoring runs; a separate byId lookup here would
+// introduce exactly the kind of "is the catalog loaded yet" timing
+// question this design avoids. It also can't drift the way the old
+// hand-maintained per-league prestige map did (see git history) -- that
+// map carried entries for league ids that no longer existed in the
+// catalog and had to be hand-updated every time a competition was added;
+// this reads directly from the one place competition identity is defined.
+//
+// Still an editorial judgment call, not derived from any data source —
+// same spirit as the curated background images (staticBackground in
+// leagues.ts): an honest, documented choice, easy to retune.
+const TIER_PRESTIGE: Record<1 | 2 | 3, number> = {
+  1: 0.85,
+  2: 0.65,
+  3: 0.45,
+}
+// Hand overrides for the couple of cases tier alone doesn't capture well.
+// Keyed by leagueId (stable regardless of catalog source) rather than
+// leagueTier, since these are about one specific competition/sport, not a
+// whole tier. Kept intentionally tiny -- if this grows much further,
+// that's a sign the tier boundaries themselves need retuning instead.
+const LEAGUE_PRESTIGE_OVERRIDES: Record<string, number> = {
+  football_champions_league: 1.0, // UEFA Champions League — the single biggest club fixture there is, above every other tier-1 competition
+  '4370': 0.9, // F1 — not part of the football competition-tier system at all (different sport, no tier set on its LeagueDef)
 }
 const DEFAULT_LEAGUE_PRESTIGE = 0.5
+
+function leaguePrestige(event: SportEvent): number {
+  const override = LEAGUE_PRESTIGE_OVERRIDES[event.leagueId]
+  if (override != null) return override
+  return event.leagueTier != null ? TIER_PRESTIGE[event.leagueTier] : DEFAULT_LEAGUE_PRESTIGE
+}
 
 // Stage within a competition — later rounds matter more than early
 // qualifying. Matched by substring against whatever round text the source
@@ -84,8 +104,7 @@ const WEIGHT_ROUND = 0.25
 const WEIGHT_RECENCY = 0.3
 
 function score(event: SportEvent): number {
-  const leagueScore = LEAGUE_PRESTIGE[event.leagueId] ?? DEFAULT_LEAGUE_PRESTIGE
-  return WEIGHT_LEAGUE * leagueScore + WEIGHT_ROUND * roundWeight(event.round) + WEIGHT_RECENCY * recencyWeight(event.dateTimeUtc)
+  return WEIGHT_LEAGUE * leaguePrestige(event) + WEIGHT_ROUND * roundWeight(event.round) + WEIGHT_RECENCY * recencyWeight(event.dateTimeUtc)
 }
 
 // `events` should already be the chronologically-sorted upcoming list —
