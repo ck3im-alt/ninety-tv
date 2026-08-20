@@ -4,6 +4,7 @@ import { useBackHandler } from '../../core/platform'
 import { clearAllAppStorage } from '../../core/storage/localStore'
 import { hasCompletedOnboarding, loadPreferences } from '../../data/preferences'
 import { clearPlaylist, loadFavoriteChannels, loadFavoriteCategories } from '../../data/session'
+import { DEBUG_FORCE_SCREEN_KEY } from '../../core/debugForceScreen'
 import type { Channel } from '../../data/channel'
 import './AdminPanel.css'
 
@@ -71,9 +72,12 @@ export function AdminPanel({ channels, onClose }: Props) {
   function resetOnboarding() {
     clearAllAppStorage()
     // A full reload is the simplest reliable way back to a true "first
-    // launch" state — App.tsx's screen state starts on Setup on load, and
-    // PlaylistSetupScreen will re-check hasCompletedOnboarding() once a
-    // playlist is connected again.
+    // launch" state. App.tsx always opens on Home for real users (Steg
+    // "Home always opens first"), so a plain reload alone would land back
+    // on Home, not onboarding — defeating the point of this button. The
+    // one-shot flag makes App.tsx's initial-screen state open straight to
+    // onboarding this one time instead.
+    sessionStorage.setItem(DEBUG_FORCE_SCREEN_KEY, 'onboarding')
     window.location.reload()
   }
 

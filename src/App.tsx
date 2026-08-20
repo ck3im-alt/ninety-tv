@@ -31,6 +31,7 @@ import { generatePlaylistGenerationId } from './data/playlistGeneration'
 import { useChannelIdentityIndex } from './data/sports/useChannelIdentityIndex'
 import { useHomeFeed } from './data/sports/useHomeFeed'
 import { markPerf, measurePerf } from './core/perf/devPerf'
+import { DEBUG_FORCE_SCREEN_KEY } from './core/debugForceScreen'
 import type { Channel } from './data/channel'
 import type { PlaylistSourceRecord } from './data/session'
 import type { SportEvent } from './data/sports/types'
@@ -100,7 +101,24 @@ function App() {
   // holds on every launch, including a device's very first one: onboarding
   // (which starts with connecting a playlist — Steg 25) only kicks in once
   // the user actually goes looking for Channels, via onSelectChannels below.
-  const [screen, setScreen] = useState<Screen>('home')
+  //
+  // One DEV-only exception: AdminPanel's "Reset onboarding & preferences"
+  // exists specifically to let a developer re-trigger the onboarding flow
+  // without digging through devtools storage. It reloads the page (the
+  // simplest reliable way to get back to a clean first-launch state), but a
+  // reload always re-runs this same initializer — without reading the
+  // one-shot flag AdminPanel sets first, the reset button would silently
+  // land back on Home instead of onboarding, defeating its own purpose.
+  const [screen, setScreen] = useState<Screen>(() => {
+    if (import.meta.env.DEV) {
+      const forced = sessionStorage.getItem(DEBUG_FORCE_SCREEN_KEY)
+      if (forced) {
+        sessionStorage.removeItem(DEBUG_FORCE_SCREEN_KEY)
+        return forced as Screen
+      }
+    }
+    return 'home'
+  })
 
   // Playlist state now hydrates asynchronously from IndexedDB (see
   // session.ts's hydratePlaylistState) instead of a synchronous
