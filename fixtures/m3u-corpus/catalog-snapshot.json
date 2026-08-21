@@ -1,0 +1,6467 @@
+[
+  {
+    "id": "gb_channel_5",
+    "name": "5",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Channel 5",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_freeview_uk",
+        "source_channel_id": "gb_channel_5"
+      }
+    ],
+    "source_names": [
+      "5 HD"
+    ]
+  },
+  {
+    "id": "tr_a_spor",
+    "name": "A Spor",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "A Spor",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "A.SPOR.HD.tr"
+      },
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "A.SPOR.tr"
+      }
+    ],
+    "source_names": [
+      "A SPOR",
+      "A SPOR HD"
+    ]
+  },
+  {
+    "id": "au_abc",
+    "name": "ABC",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "ABC",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "ABCSydney.au"
+      }
+    ],
+    "source_names": [
+      "ABC Sydney"
+    ]
+  },
+  {
+    "id": "us_abc",
+    "name": "ABC",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "ABC",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "ABC.National.Feed.us2"
+      }
+    ],
+    "source_names": [
+      "ABC National Feed"
+    ]
+  },
+  {
+    "id": "es_antena_3",
+    "name": "Antena 3",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Atresmedia",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "Antena.3.es"
+      }
+    ],
+    "source_names": [
+      "Antena 3"
+    ]
+  },
+  {
+    "id": "mx_azteca_deportes",
+    "name": "Azteca Deportes",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV Azteca",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "AZTECA.DEPORTES.mx"
+      }
+    ],
+    "source_names": [
+      "AZTECA DEPORTES"
+    ]
+  },
+  {
+    "id": "mx_azteca_uno",
+    "name": "Azteca Uno",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV Azteca",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Azteca.(XHOR).mx"
+      }
+    ],
+    "source_names": [
+      "Azteca (XHOR)"
+    ]
+  },
+  {
+    "id": "gb_bbc_one",
+    "name": "BBC One",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "BBC",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_freeview_uk",
+        "source_channel_id": "gb_bbc_one"
+      }
+    ],
+    "source_names": [
+      "BBC ONE Lon HD"
+    ]
+  },
+  {
+    "id": "gb_bbc_two",
+    "name": "BBC Two",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "BBC",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_freeview_uk",
+        "source_channel_id": "gb_bbc_two"
+      }
+    ],
+    "source_names": [
+      "BBC TWO HD"
+    ]
+  },
+  {
+    "id": "br_band",
+    "name": "Band",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Bandeirantes",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "Band.br"
+      }
+    ],
+    "source_names": [
+      "Band"
+    ]
+  },
+  {
+    "id": "br_band_sports",
+    "name": "Band Sports",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Bandeirantes",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "Band.Sports.br"
+      }
+    ],
+    "source_names": [
+      "Band Sports"
+    ]
+  },
+  {
+    "id": "ch_canal_plus_sport",
+    "name": "CANAL+ Sport",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "Canal+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "CANAL+.Sport.ch"
+      }
+    ],
+    "source_names": [
+      "CANAL+ Sport"
+    ]
+  },
+  {
+    "id": "ca_cbc",
+    "name": "CBC Toronto",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "CBC",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "CBC.Toronto.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "CBC Toronto HD"
+    ]
+  },
+  {
+    "id": "us_cbs",
+    "name": "CBS",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "CBS",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "CBS.West.us2"
+      }
+    ],
+    "source_names": [
+      "CBS West"
+    ]
+  },
+  {
+    "id": "us_cbs_sports_golazo",
+    "name": "CBS Sports Golazo Network",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "CBS",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "CBS.Sports.Golazo.Network.us2"
+      }
+    ],
+    "source_names": [
+      "CBS Sports Golazo Network"
+    ]
+  },
+  {
+    "id": "us_cbs_sports_network",
+    "name": "CBS Sports Network",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "CBS",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "CBS.Sports.Network.HD.us2"
+      }
+    ],
+    "source_names": [
+      "CBS Sports Network HD"
+    ]
+  },
+  {
+    "id": "ca_ctv",
+    "name": "CTV Toronto",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Bell Media",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "CTV.Toronto.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "CTV Toronto HD"
+    ]
+  },
+  {
+    "id": "mx_televisa_canal_5",
+    "name": "Canal 5",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Televisa",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Canal.5.de.M\u00e9xico.(XHGC).mx"
+      }
+    ],
+    "source_names": [
+      "Canal 5 de M\u00e9xico (XHGC)"
+    ]
+  },
+  {
+    "id": "mx_televisa_canal_2",
+    "name": "Canal de las Estrellas",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Televisa",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Canal.2.de.M\u00e9xico.(Canal.Las.Estrellas.-.XEW).mx"
+      }
+    ],
+    "source_names": [
+      "Canal 2 de M\u00e9xico (Canal Las Estrellas - XEW)"
+    ]
+  },
+  {
+    "id": "fr_canal_plus_foot",
+    "name": "Canal+ Foot",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Canal+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "CANAL+FOOT.fr"
+      }
+    ],
+    "source_names": [
+      "CANAL+FOOT"
+    ]
+  },
+  {
+    "id": "fr_canal_plus_sport",
+    "name": "Canal+ Sport",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Canal+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "CANAL+SPORT.fr"
+      }
+    ],
+    "source_names": [
+      "CANAL+SPORT"
+    ]
+  },
+  {
+    "id": "it_canale_5",
+    "name": "Canale 5",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Mediaset",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Canale.5.it"
+      }
+    ],
+    "source_names": [
+      "Canale 5"
+    ]
+  },
+  {
+    "id": "gb_channel_4",
+    "name": "Channel 4",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Channel 4",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_freeview_uk",
+        "source_channel_id": "gb_channel_4"
+      }
+    ],
+    "source_names": [
+      "Channel 4 HD"
+    ]
+  },
+  {
+    "id": "mx_claro_sports_1",
+    "name": "Claro Sports 1",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Claro Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Claro.Sports.1.mx"
+      }
+    ],
+    "source_names": [
+      "Claro Sports 1"
+    ]
+  },
+  {
+    "id": "de_dazn",
+    "name": "DAZN",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "DAZN.de"
+      }
+    ],
+    "source_names": [
+      "DAZN"
+    ]
+  },
+  {
+    "id": "be_dazn_1",
+    "name": "DAZN 1",
+    "country": "BE",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_be",
+        "source_channel_id": "DAZN.1.be"
+      }
+    ],
+    "source_names": [
+      "DAZN 1"
+    ]
+  },
+  {
+    "id": "de_dazn_1",
+    "name": "DAZN 1",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "DAZN.1.de"
+      }
+    ],
+    "source_names": [
+      "DAZN 1"
+    ]
+  },
+  {
+    "id": "es_dazn_1",
+    "name": "DAZN 1",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "DAZN.1.es"
+      }
+    ],
+    "source_names": [
+      "DAZN 1"
+    ]
+  },
+  {
+    "id": "it_dazn_1",
+    "name": "DAZN 1",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "DAZN.1.it.it"
+      }
+    ],
+    "source_names": [
+      "DAZN 1"
+    ]
+  },
+  {
+    "id": "pt_dazn_1",
+    "name": "DAZN 1",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "DAZN.1.pt"
+      }
+    ],
+    "source_names": [
+      "DAZN 1"
+    ]
+  },
+  {
+    "id": "de_dazn_2",
+    "name": "DAZN 2",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "DAZN.2.de"
+      }
+    ],
+    "source_names": [
+      "DAZN 2"
+    ]
+  },
+  {
+    "id": "it_dazn_2",
+    "name": "DAZN 2",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "DAZN.2.it.it"
+      }
+    ],
+    "source_names": [
+      "DAZN 2"
+    ]
+  },
+  {
+    "id": "pt_dazn_2",
+    "name": "DAZN 2",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "DAZN.2.pt"
+      }
+    ],
+    "source_names": [
+      "DAZN 2"
+    ]
+  },
+  {
+    "id": "pt_dazn_3",
+    "name": "DAZN 3",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "DAZN.3.pt"
+      }
+    ],
+    "source_names": [
+      "DAZN 3"
+    ]
+  },
+  {
+    "id": "pt_dazn_4",
+    "name": "DAZN 4",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "DAZN.4.pt"
+      }
+    ],
+    "source_names": [
+      "DAZN 4"
+    ]
+  },
+  {
+    "id": "pt_dazn_5",
+    "name": "DAZN 5",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "DAZN.5.pt"
+      }
+    ],
+    "source_names": [
+      "DAZN 5"
+    ]
+  },
+  {
+    "id": "es_dazn_laliga",
+    "name": "DAZN LaLiga",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "DAZN.LALIGA.es"
+      },
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "DAZN.LaLiga.es"
+      }
+    ],
+    "source_names": [
+      "DAZN LaLiga"
+    ]
+  },
+  {
+    "id": "be_dazn_pro_league_1",
+    "name": "DAZN Pro League 1",
+    "country": "BE",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_be",
+        "source_channel_id": "DAZN.Pro.League.1.be"
+      }
+    ],
+    "source_names": [
+      "DAZN Pro League 1"
+    ]
+  },
+  {
+    "id": "be_dazn_pro_league_2",
+    "name": "DAZN Pro League 2",
+    "country": "BE",
+    "broadcast_type": "LINEAR",
+    "network_name": "DAZN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_be",
+        "source_channel_id": "DAZN.Pro.League.2.be"
+      }
+    ],
+    "source_names": [
+      "DAZN Pro League 2"
+    ]
+  },
+  {
+    "id": "dk_dr1",
+    "name": "DR1",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "DR",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_dr1"
+      }
+    ],
+    "source_names": [
+      "DR1 HD"
+    ]
+  },
+  {
+    "id": "dk_dr2",
+    "name": "DR2",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "DR",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_dr2"
+      }
+    ],
+    "source_names": [
+      "DR2 HD"
+    ]
+  },
+  {
+    "id": "de_das_erste",
+    "name": "Das Erste",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "ARD",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Das.Erste.de"
+      }
+    ],
+    "source_names": [
+      "Das Erste"
+    ]
+  },
+  {
+    "id": "ar_espn",
+    "name": "ESPN",
+    "country": "AR",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ar",
+        "source_channel_id": "Canal.ESPN.(Argentina).ar"
+      }
+    ],
+    "source_names": [
+      "Canal ESPN (Argentina)"
+    ]
+  },
+  {
+    "id": "au_espn",
+    "name": "ESPN",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "ESPN.au"
+      }
+    ],
+    "source_names": [
+      "ESPN"
+    ]
+  },
+  {
+    "id": "br_espn",
+    "name": "ESPN",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "ESPN.br"
+      }
+    ],
+    "source_names": [
+      "ESPN"
+    ]
+  },
+  {
+    "id": "mx_espn",
+    "name": "ESPN",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "ESPN.MX.mx"
+      }
+    ],
+    "source_names": [
+      "ESPN MX"
+    ]
+  },
+  {
+    "id": "nl_espn_1",
+    "name": "ESPN",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [
+      "ESPN 1"
+    ],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "ESPN.nl"
+      }
+    ],
+    "source_names": [
+      "ESPN"
+    ]
+  },
+  {
+    "id": "nz_espn",
+    "name": "ESPN",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "ESPN..nz"
+      }
+    ],
+    "source_names": [
+      "ESPN"
+    ]
+  },
+  {
+    "id": "us_espn",
+    "name": "ESPN",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "ESPN.HD.us2"
+      }
+    ],
+    "source_names": [
+      "ESPN HD"
+    ]
+  },
+  {
+    "id": "br_espn_2",
+    "name": "ESPN 2",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "ESPN.2.br"
+      }
+    ],
+    "source_names": [
+      "ESPN 2"
+    ]
+  },
+  {
+    "id": "mx_espn_2",
+    "name": "ESPN 2",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "ESPN.2.mx"
+      }
+    ],
+    "source_names": [
+      "ESPN 2"
+    ]
+  },
+  {
+    "id": "nl_espn_2",
+    "name": "ESPN 2",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "ESPN.2.nl"
+      }
+    ],
+    "source_names": [
+      "ESPN 2"
+    ]
+  },
+  {
+    "id": "ar_espn_3",
+    "name": "ESPN 3",
+    "country": "AR",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ar",
+        "source_channel_id": "Canal.ESPN.3.(Argentina).ar"
+      }
+    ],
+    "source_names": [
+      "Canal ESPN 3 (Argentina)"
+    ]
+  },
+  {
+    "id": "br_espn_3",
+    "name": "ESPN 3",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "ESPN.3.br"
+      }
+    ],
+    "source_names": [
+      "ESPN 3"
+    ]
+  },
+  {
+    "id": "mx_espn_3",
+    "name": "ESPN 3",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "ESPN.3.mx"
+      }
+    ],
+    "source_names": [
+      "ESPN 3"
+    ]
+  },
+  {
+    "id": "nl_espn_3",
+    "name": "ESPN 3",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "ESPN.3.nl"
+      }
+    ],
+    "source_names": [
+      "ESPN 3"
+    ]
+  },
+  {
+    "id": "br_espn_4",
+    "name": "ESPN 4",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "ESPN.4.br"
+      }
+    ],
+    "source_names": [
+      "ESPN 4"
+    ]
+  },
+  {
+    "id": "nl_espn_4",
+    "name": "ESPN 4",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "ESPN.4.nl"
+      }
+    ],
+    "source_names": [
+      "ESPN 4"
+    ]
+  },
+  {
+    "id": "br_espn_5",
+    "name": "ESPN 5",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "ESPN.5.br"
+      }
+    ],
+    "source_names": [
+      "ESPN 5"
+    ]
+  },
+  {
+    "id": "mx_espn_5",
+    "name": "ESPN 5",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "ESPN.5.mx"
+      }
+    ],
+    "source_names": [
+      "ESPN 5"
+    ]
+  },
+  {
+    "id": "us_espn_deportes",
+    "name": "ESPN Deportes",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "ESPN.Deportes.HD.us2"
+      }
+    ],
+    "source_names": [
+      "ESPN Deportes HD"
+    ]
+  },
+  {
+    "id": "au_espn2",
+    "name": "ESPN2",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "ESPN2.au"
+      }
+    ],
+    "source_names": [
+      "ESPN2"
+    ]
+  },
+  {
+    "id": "nz_espn2",
+    "name": "ESPN2",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "ESPN2.nz"
+      }
+    ],
+    "source_names": [
+      "ESPN2"
+    ]
+  },
+  {
+    "id": "us_espn2",
+    "name": "ESPN2",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "ESPN2.HD.us2"
+      }
+    ],
+    "source_names": [
+      "ESPN2 HD"
+    ]
+  },
+  {
+    "id": "us_espnews",
+    "name": "ESPNEWS",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "ESPNEWS.HD.us2"
+      }
+    ],
+    "source_names": [
+      "ESPNEWS HD"
+    ]
+  },
+  {
+    "id": "us_espnu",
+    "name": "ESPNU",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "ESPN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "ESPNU.HD.us2"
+      }
+    ],
+    "source_names": [
+      "ESPNU HD"
+    ]
+  },
+  {
+    "id": "ar_el_trece",
+    "name": "El Trece",
+    "country": "AR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Clar\u00edn",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ar",
+        "source_channel_id": "Canal.13.de.Argentina.(El.Trece).ar"
+      }
+    ],
+    "source_names": [
+      "Canal 13 de Argentina (El Trece)"
+    ]
+  },
+  {
+    "id": "at_eurosport_1",
+    "name": "Eurosport 1",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "EUROSPORT.1.at"
+      }
+    ],
+    "source_names": [
+      "EUROSPORT 1"
+    ]
+  },
+  {
+    "id": "be_eurosport_1",
+    "name": "Eurosport 1",
+    "country": "BE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_be",
+        "source_channel_id": "Eurosport.1.be"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1"
+    ]
+  },
+  {
+    "id": "dk_eurosport_1",
+    "name": "Eurosport 1",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_eurosport_1"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1 HD (D)"
+    ]
+  },
+  {
+    "id": "fr_eurosport_1",
+    "name": "Eurosport 1",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Eurosport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "Eurosport.1.fr"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1"
+    ]
+  },
+  {
+    "id": "nl_eurosport_1",
+    "name": "Eurosport 1",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Eurosport.1.nl"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1"
+    ]
+  },
+  {
+    "id": "pt_eurosport_1",
+    "name": "Eurosport 1",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Eurosport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "Eurosport.1.HD.pt"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1 HD"
+    ]
+  },
+  {
+    "id": "se_eurosport_1",
+    "name": "Eurosport 1",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_eurosport_1"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1 HD (S)"
+    ]
+  },
+  {
+    "id": "ch_eurosport_1_de",
+    "name": "Eurosport 1 D",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "Eurosport.1.D.ch"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1 D"
+    ]
+  },
+  {
+    "id": "ch_eurosport_1_en",
+    "name": "Eurosport 1 E",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "Eurosport.1.E.ch"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1 E"
+    ]
+  },
+  {
+    "id": "ch_eurosport_1_fr",
+    "name": "Eurosport 1 F",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "Eurosport.1.F.ch"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1 F"
+    ]
+  },
+  {
+    "id": "ch_eurosport_1_it",
+    "name": "Eurosport 1 I",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "Eurosport.1.I.ch"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1 I"
+    ]
+  },
+  {
+    "id": "no_eurosport_1",
+    "name": "Eurosport 1 Norway",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "Eurosport.1.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_eurosport_1"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_eurosport_1"
+      }
+    ],
+    "source_names": [
+      "Eurosport 1",
+      "Eurosport 1 HD (N)",
+      "Eurosport 1 Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "at_eurosport_2",
+    "name": "Eurosport 2",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "EUROSPORT.2.at"
+      }
+    ],
+    "source_names": [
+      "EUROSPORT 2"
+    ]
+  },
+  {
+    "id": "dk_eurosport_2",
+    "name": "Eurosport 2",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_eurosport_2"
+      }
+    ],
+    "source_names": [
+      "Eurosport 2 HD (D)"
+    ]
+  },
+  {
+    "id": "fr_eurosport_2",
+    "name": "Eurosport 2",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Eurosport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "Eurosport.2.fr"
+      }
+    ],
+    "source_names": [
+      "Eurosport 2"
+    ]
+  },
+  {
+    "id": "nl_eurosport_2",
+    "name": "Eurosport 2",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Eurosport.2.nl"
+      }
+    ],
+    "source_names": [
+      "Eurosport 2"
+    ]
+  },
+  {
+    "id": "pt_eurosport_2",
+    "name": "Eurosport 2",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Eurosport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "Eurosport.2.HD.pt"
+      }
+    ],
+    "source_names": [
+      "Eurosport 2 HD"
+    ]
+  },
+  {
+    "id": "se_eurosport_2",
+    "name": "Eurosport 2",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_eurosport_2"
+      }
+    ],
+    "source_names": [
+      "Eurosport 2 HD (S/F)"
+    ]
+  },
+  {
+    "id": "no_eurosport_n",
+    "name": "Eurosport Norge",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "Eurosport.N.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_eurosport_n"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_eurosport_n"
+      }
+    ],
+    "source_names": [
+      "Eurosport N Norway (NO,NO)",
+      "Eurosport Norge",
+      "Eurosport Norge HD"
+    ]
+  },
+  {
+    "id": "us_fs1",
+    "name": "FS1",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "Fox Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [
+      "Fox Sports 1"
+    ],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "FS1.Fox.Sports.1.HD.us2"
+      },
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "FS1.HD.us2"
+      }
+    ],
+    "source_names": [
+      "FS1 Fox Sports 1 HD",
+      "FS1 HD"
+    ]
+  },
+  {
+    "id": "us_fs2",
+    "name": "FS2",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "Fox Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "FS2.Fox.Sports.2.HD.us2"
+      },
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "FS2.HD.us2"
+      }
+    ],
+    "source_names": [
+      "FS2 Fox Sports 2 HD",
+      "FS2 HD"
+    ]
+  },
+  {
+    "id": "us_fox_deportes",
+    "name": "Fox Deportes",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "Fox Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "Fox.Deportes.HD.us2"
+      }
+    ],
+    "source_names": [
+      "Fox Deportes HD"
+    ]
+  },
+  {
+    "id": "us_fox_soccer_plus",
+    "name": "Fox Soccer Plus",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "Fox Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "Fox.Soccer.Plus.HD.us2"
+      }
+    ],
+    "source_names": [
+      "Fox Soccer Plus HD"
+    ]
+  },
+  {
+    "id": "mx_fox_sports",
+    "name": "Fox Sports",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Fox Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [
+      "Fox Sports 1"
+    ],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "FOX.SPORTS.mx"
+      }
+    ],
+    "source_names": [
+      "FOX SPORTS"
+    ]
+  },
+  {
+    "id": "mx_fox_sports_2",
+    "name": "Fox Sports 2",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Fox Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "FOX.SPORTS.2.mx"
+      }
+    ],
+    "source_names": [
+      "FOX SPORTS 2"
+    ]
+  },
+  {
+    "id": "mx_fox_sports_premium",
+    "name": "Fox Sports Premium",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Fox Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "FOX.SPORTS.PREMIUM.mx"
+      }
+    ],
+    "source_names": [
+      "FOX SPORTS PREMIUM"
+    ]
+  },
+  {
+    "id": "fr_france_2",
+    "name": "France 2",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "France T\u00e9l\u00e9visions",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "France.2.fr"
+      }
+    ],
+    "source_names": [
+      "France 2"
+    ]
+  },
+  {
+    "id": "fr_france_3",
+    "name": "France 3",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "France T\u00e9l\u00e9visions",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "France.3.fr"
+      }
+    ],
+    "source_names": [
+      "France 3"
+    ]
+  },
+  {
+    "id": "us_gol_tv",
+    "name": "GOL TV",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "GOL TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "GOL.TV.us2"
+      }
+    ],
+    "source_names": [
+      "GOL TV"
+    ]
+  },
+  {
+    "id": "ca_global",
+    "name": "Global Toronto",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Corus Entertainment",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "Global.Toronto.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "Global Toronto HD"
+    ]
+  },
+  {
+    "id": "br_globo",
+    "name": "Globo",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Globo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "Globo.br"
+      }
+    ],
+    "source_names": [
+      "Globo"
+    ]
+  },
+  {
+    "id": "gb_itv1",
+    "name": "ITV1",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "ITV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_freeview_uk",
+        "source_channel_id": "gb_itv1"
+      }
+    ],
+    "source_names": [
+      "ITV1 HD"
+    ]
+  },
+  {
+    "id": "gb_itv4",
+    "name": "ITV4",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "ITV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_freeview_uk",
+        "source_channel_id": "gb_itv4"
+      }
+    ],
+    "source_names": [
+      "ITV4"
+    ]
+  },
+  {
+    "id": "it_italia_1",
+    "name": "Italia 1",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Mediaset",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Italia.1.it"
+      }
+    ],
+    "source_names": [
+      "Italia 1"
+    ]
+  },
+  {
+    "id": "se_kanal11",
+    "name": "Kanal 11",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_kanal11"
+      }
+    ],
+    "source_names": [
+      "Kanal 11 HD"
+    ]
+  },
+  {
+    "id": "se_kanal5",
+    "name": "Kanal 5",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_kanal5"
+      }
+    ],
+    "source_names": [
+      "Kanal 5 HD (S)"
+    ]
+  },
+  {
+    "id": "se_kanal9",
+    "name": "Kanal 9",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_kanal9"
+      }
+    ],
+    "source_names": [
+      "Kanal 9 HD"
+    ]
+  },
+  {
+    "id": "es_la_1",
+    "name": "La 1",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "RTVE",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "La.1.es"
+      }
+    ],
+    "source_names": [
+      "La 1"
+    ]
+  },
+  {
+    "id": "es_movistar_laliga_tv",
+    "name": "LaLiga TV",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Movistar Plus+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [
+      "Movistar LaLiga"
+    ],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "M+.LALIGA.TV.es"
+      }
+    ],
+    "source_names": [
+      "M+ LALIGA TV"
+    ]
+  },
+  {
+    "id": "es_laliga_tv_bar",
+    "name": "LaLiga TV Bar",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "LaLiga",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "LaLiga.TV.es"
+      }
+    ],
+    "source_names": [
+      "LaLiga TV"
+    ]
+  },
+  {
+    "id": "es_movistar_laliga_hypermotion",
+    "name": "LaLiga TV Hypermotion",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Movistar Plus+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "LaLiga.TV.Hypermotion.es"
+      }
+    ],
+    "source_names": [
+      "LaLiga TV Hypermotion"
+    ]
+  },
+  {
+    "id": "es_movistar_champions",
+    "name": "M+ Liga de Campeones",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Movistar Plus+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "M+.Liga.de.Campeones.es"
+      },
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "Movistar.Liga.de.Campeones.es"
+      }
+    ],
+    "source_names": [
+      "M+ Liga de Campeones",
+      "Movistar Liga de Campeones"
+    ]
+  },
+  {
+    "id": "es_movistar_champions_2",
+    "name": "M+ Liga de Campeones 2",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Movistar Plus+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "M+.Liga.de.Campeones.2.es"
+      }
+    ],
+    "source_names": [
+      "M+ Liga de Campeones 2"
+    ]
+  },
+  {
+    "id": "fr_m6",
+    "name": "M6",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "M6 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "M6.fr"
+      }
+    ],
+    "source_names": [
+      "M6"
+    ]
+  },
+  {
+    "id": "es_movistar_champions_3",
+    "name": "Movistar Liga de Campeones 3",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Movistar Plus+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "Movistar.Liga.de.Campeones.3.es"
+      }
+    ],
+    "source_names": [
+      "Movistar Liga de Campeones 3"
+    ]
+  },
+  {
+    "id": "es_movistar_champions_4",
+    "name": "Movistar Liga de Campeones 4",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Movistar Plus+",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "Movistar.Liga.de.Campeones.4.es"
+      }
+    ],
+    "source_names": [
+      "Movistar Liga de Campeones 4"
+    ]
+  },
+  {
+    "id": "ch_mysports_1_de",
+    "name": "MySports Eins",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "MySports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "MySports.Eins.ch"
+      }
+    ],
+    "source_names": [
+      "MySports Eins"
+    ]
+  },
+  {
+    "id": "ch_mysports_1_fr",
+    "name": "MySports Un",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "MySports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "MySports.Un.ch"
+      }
+    ],
+    "source_names": [
+      "MySports Un"
+    ]
+  },
+  {
+    "id": "us_nbc",
+    "name": "NBC",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "NBC",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "NBC.East.Stream.us2"
+      }
+    ],
+    "source_names": [
+      "NBC East Stream"
+    ]
+  },
+  {
+    "id": "nl_npo_1",
+    "name": "NPO 1",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "NPO",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "NPO.1.nl"
+      }
+    ],
+    "source_names": [
+      "NPO 1"
+    ]
+  },
+  {
+    "id": "no_nrk1",
+    "name": "NRK1",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "NRK",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_nrk1"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_nrk1"
+      }
+    ],
+    "source_names": [
+      "NRK1",
+      "NRK1 HD"
+    ]
+  },
+  {
+    "id": "no_nrk2",
+    "name": "NRK2",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "NRK",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_nrk2"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_nrk2"
+      }
+    ],
+    "source_names": [
+      "NRK2",
+      "NRK2 HD"
+    ]
+  },
+  {
+    "id": "au_ten",
+    "name": "Network 10",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "Network 10",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "10Sydney.au"
+      }
+    ],
+    "source_names": [
+      "10 Sydney"
+    ]
+  },
+  {
+    "id": "au_nine",
+    "name": "Nine",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "Nine Network",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "9Sydney.au"
+      }
+    ],
+    "source_names": [
+      "9 Sydney"
+    ]
+  },
+  {
+    "id": "at_orf_1",
+    "name": "ORF 1",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "ORF",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "ORF.1.at"
+      }
+    ],
+    "source_names": [
+      "ORF 1"
+    ]
+  },
+  {
+    "id": "at_orf_2",
+    "name": "ORF 2",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "ORF",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "ORF.2.at"
+      }
+    ],
+    "source_names": [
+      "ORF 2"
+    ]
+  },
+  {
+    "id": "at_orf_sport",
+    "name": "ORF Sport",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "ORF",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "ORF.SPORT.at"
+      }
+    ],
+    "source_names": [
+      "ORF SPORT"
+    ]
+  },
+  {
+    "id": "ch_orf_sport_plus",
+    "name": "ORF Sport +",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "ORF",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "ORF.Sport.+.ch"
+      }
+    ],
+    "source_names": [
+      "ORF Sport +"
+    ]
+  },
+  {
+    "id": "at_orf_sport1_plus",
+    "name": "ORF Sport1+",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "ORF",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "ORF.SPORT1+.at"
+      }
+    ],
+    "source_names": [
+      "ORF SPORT1+"
+    ]
+  },
+  {
+    "id": "uk_premier_sports_1",
+    "name": "Premier Sports 1",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Premier Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "Premier.Sports.1.HD.uk"
+      }
+    ],
+    "source_names": [
+      "Premier Sports 1 HD"
+    ]
+  },
+  {
+    "id": "uk_premier_sports_2",
+    "name": "Premier Sports 2",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Premier Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "Premier.Sports.2.HD.uk"
+      }
+    ],
+    "source_names": [
+      "Premier Sports 2 HD"
+    ]
+  },
+  {
+    "id": "br_premiere_clubes",
+    "name": "Premiere Clubes",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Globo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "Premiere.Clubes.br"
+      }
+    ],
+    "source_names": [
+      "Premiere Clubes"
+    ]
+  },
+  {
+    "id": "ca_rds",
+    "name": "RDS",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Bell Media",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "R\u00e9seau.des.Sports.(RDS).HD.ca2"
+      }
+    ],
+    "source_names": [
+      "R\u00e9seau des Sports (RDS) HD"
+    ]
+  },
+  {
+    "id": "ca_rds2",
+    "name": "RDS2",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Bell Media",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [
+      "RDS 2"
+    ],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "RDS2.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "RDS2 HD"
+    ]
+  },
+  {
+    "id": "fr_rmc_sport_1",
+    "name": "RMC Sport 1",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "RMC Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "RMC.Sport.1.fr"
+      }
+    ],
+    "source_names": [
+      "RMC Sport 1"
+    ]
+  },
+  {
+    "id": "fr_rmc_sport_live_2",
+    "name": "RMC Sport Live 2",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "RMC Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "RMC.Sport.Live.2.fr"
+      }
+    ],
+    "source_names": [
+      "RMC Sport Live 2"
+    ]
+  },
+  {
+    "id": "fr_rmc_sport_live_3",
+    "name": "RMC Sport Live 3",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "RMC Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "RMC.Sport.Live.3.fr"
+      }
+    ],
+    "source_names": [
+      "RMC Sport Live 3"
+    ]
+  },
+  {
+    "id": "fr_rmc_sport_live_4",
+    "name": "RMC Sport Live 4",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "RMC Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "RMC.Sport.Live.4.fr"
+      }
+    ],
+    "source_names": [
+      "RMC Sport Live 4"
+    ]
+  },
+  {
+    "id": "ch_rsi_la_1",
+    "name": "RSI La 1",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "RSI",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "RSI.La.1.ch"
+      }
+    ],
+    "source_names": [
+      "RSI La 1"
+    ]
+  },
+  {
+    "id": "de_rtl",
+    "name": "RTL",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "RTL Deutschland",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "RTL.de"
+      }
+    ],
+    "source_names": [
+      "RTL"
+    ]
+  },
+  {
+    "id": "pt_rtp_1",
+    "name": "RTP1",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "RTP",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "RTP.1.HD.pt"
+      }
+    ],
+    "source_names": [
+      "RTP 1 HD"
+    ]
+  },
+  {
+    "id": "ch_rts_1",
+    "name": "RTS 1",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "RTS",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "RTS.1.ch"
+      }
+    ],
+    "source_names": [
+      "RTS 1"
+    ]
+  },
+  {
+    "id": "it_rai_1",
+    "name": "Rai 1",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Rai",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Rai.1.HD..101.it"
+      },
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Rai1.it"
+      }
+    ],
+    "source_names": [
+      "Rai 1 HD  101",
+      "Rai1"
+    ]
+  },
+  {
+    "id": "br_record_tv",
+    "name": "Record TV",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Record",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "Record.TV.br"
+      }
+    ],
+    "source_names": [
+      "Record TV"
+    ]
+  },
+  {
+    "id": "tr_s_sport",
+    "name": "S Sport",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "S Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "SSport.tr"
+      }
+    ],
+    "source_names": [
+      "SSport"
+    ]
+  },
+  {
+    "id": "tr_s_sport_2",
+    "name": "S Sport 2",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "S Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "SSport.2.tr"
+      }
+    ],
+    "source_names": [
+      "SSport 2"
+    ]
+  },
+  {
+    "id": "de_sat_1",
+    "name": "SAT.1",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "ProSiebenSat.1",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "SAT.1.de"
+      }
+    ],
+    "source_names": [
+      "SAT.1"
+    ]
+  },
+  {
+    "id": "au_sbs",
+    "name": "SBS",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "SBS",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "SBSSydney.au"
+      }
+    ],
+    "source_names": [
+      "SBS Sydney"
+    ]
+  },
+  {
+    "id": "br_sbt",
+    "name": "SBT",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "SBT",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "SBT.br"
+      }
+    ],
+    "source_names": [
+      "SBT"
+    ]
+  },
+  {
+    "id": "pt_sic",
+    "name": "SIC",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Impresa",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "SIC.HD.pt"
+      }
+    ],
+    "source_names": [
+      "SIC HD"
+    ]
+  },
+  {
+    "id": "ch_srf_1",
+    "name": "SRF 1",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "SRF",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "SRF.1.ch"
+      }
+    ],
+    "source_names": [
+      "SRF 1"
+    ]
+  },
+  {
+    "id": "se_svt1",
+    "name": "SVT1",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "SVT",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_svt1"
+      }
+    ],
+    "source_names": [
+      "SVT1 HD"
+    ]
+  },
+  {
+    "id": "se_svt2",
+    "name": "SVT2",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "SVT",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_svt2"
+      }
+    ],
+    "source_names": [
+      "SVT2 HD"
+    ]
+  },
+  {
+    "id": "at_servus_tv",
+    "name": "Servus TV",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Red Bull Media House",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "SERVUS.TV.at"
+      }
+    ],
+    "source_names": [
+      "SERVUS TV"
+    ]
+  },
+  {
+    "id": "au_seven",
+    "name": "Seven",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "Seven Network",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "7Sydney.au"
+      }
+    ],
+    "source_names": [
+      "7 Sydney"
+    ]
+  },
+  {
+    "id": "de_sky_sport_1",
+    "name": "Sky Sport 1",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.1.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 1"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_1",
+    "name": "Sky Sport 1",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.1.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 1"
+    ]
+  },
+  {
+    "id": "de_sky_sport_2",
+    "name": "Sky Sport 2",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.2.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 2"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_2",
+    "name": "Sky Sport 2",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.2.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 2"
+    ]
+  },
+  {
+    "id": "de_sky_sport_3",
+    "name": "Sky Sport 3",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.3.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 3"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_3",
+    "name": "Sky Sport 3",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.3.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 3"
+    ]
+  },
+  {
+    "id": "de_sky_sport_4",
+    "name": "Sky Sport 4",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.4.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 4"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_4",
+    "name": "Sky Sport 4",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.4.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 4"
+    ]
+  },
+  {
+    "id": "it_sky_sport_4k",
+    "name": "Sky Sport 4K",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Sky.Sport.4K.it"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 4K"
+    ]
+  },
+  {
+    "id": "de_sky_sport_5",
+    "name": "Sky Sport 5",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.5.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 5"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_5",
+    "name": "Sky Sport 5",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.5.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 5"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_6",
+    "name": "Sky Sport 6",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.6.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 6"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_7",
+    "name": "Sky Sport 7",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.7.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 7"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_8",
+    "name": "Sky Sport 8",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.8.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 8"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_9",
+    "name": "Sky Sport 9",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.9.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport 9"
+    ]
+  },
+  {
+    "id": "at_sky_sport_austria",
+    "name": "Sky Sport Austria",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "SKYSPOAUSTRIA.at"
+      }
+    ],
+    "source_names": [
+      "SKYSPOAUSTRIA"
+    ]
+  },
+  {
+    "id": "ch_sky_sport_bundesliga",
+    "name": "Sky Sport Bundesliga",
+    "country": "CH",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ch",
+        "source_channel_id": "Sky.Sport.Bundesliga.ch"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_1",
+    "name": "Sky Sport Bundesliga 1",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.1.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 1"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_10",
+    "name": "Sky Sport Bundesliga 10",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.10.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 10"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_2",
+    "name": "Sky Sport Bundesliga 2",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.2.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 2"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_3",
+    "name": "Sky Sport Bundesliga 3",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.3.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 3"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_4",
+    "name": "Sky Sport Bundesliga 4",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.4.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 4"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_5",
+    "name": "Sky Sport Bundesliga 5",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.5.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 5"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_6",
+    "name": "Sky Sport Bundesliga 6",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.6.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 6"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_7",
+    "name": "Sky Sport Bundesliga 7",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.7.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 7"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_8",
+    "name": "Sky Sport Bundesliga 8",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.8.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 8"
+    ]
+  },
+  {
+    "id": "de_sky_sport_bundesliga_9",
+    "name": "Sky Sport Bundesliga 9",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Bundesliga.9.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Bundesliga 9"
+    ]
+  },
+  {
+    "id": "it_sky_sport_calcio",
+    "name": "Sky Sport Calcio",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Sky.Sport.Calcio.it"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Calcio"
+    ]
+  },
+  {
+    "id": "de_sky_sport_f1",
+    "name": "Sky Sport F1",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.F1.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport F1"
+    ]
+  },
+  {
+    "id": "it_sky_sport_max",
+    "name": "Sky Sport Max",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Sky.Sport.Max.it"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Max"
+    ]
+  },
+  {
+    "id": "at_sky_sport_mix",
+    "name": "Sky Sport Mix",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "SKY.SPORT.MIX.at"
+      }
+    ],
+    "source_names": [
+      "SKY SPORT MIX"
+    ]
+  },
+  {
+    "id": "de_sky_sport_news",
+    "name": "Sky Sport News",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.News.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport News"
+    ]
+  },
+  {
+    "id": "at_sky_sport_premier_league",
+    "name": "Sky Sport Premier League",
+    "country": "AT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_at",
+        "source_channel_id": "SKY.SPORT.PREMIER.LEAGUE.at"
+      }
+    ],
+    "source_names": [
+      "SKY SPORT PREMIER LEAGUE"
+    ]
+  },
+  {
+    "id": "de_sky_sport_premier_league",
+    "name": "Sky Sport Premier League",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "Sky.Sport.Premier.League.de"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Premier League"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_premier_league",
+    "name": "Sky Sport Premier League",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.Premier.League.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Premier League"
+    ]
+  },
+  {
+    "id": "nz_sky_sport_select",
+    "name": "Sky Sport Select",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky NZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Sky.Sport.Select.nz"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Select"
+    ]
+  },
+  {
+    "id": "it_sky_sport_uno",
+    "name": "Sky Sport Uno",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Sport",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "Sky.Sport.Uno.it"
+      }
+    ],
+    "source_names": [
+      "Sky Sport Uno"
+    ]
+  },
+  {
+    "id": "mx_sky_sports_1",
+    "name": "Sky Sports 1",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Mexico",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Canal.Sky.Sports.1.(M\u00e9xico).mx"
+      }
+    ],
+    "source_names": [
+      "Canal Sky Sports 1 (M\u00e9xico)"
+    ]
+  },
+  {
+    "id": "mx_sky_sports_16",
+    "name": "Sky Sports 16",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Mexico",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Sky.Sports.16.mx"
+      }
+    ],
+    "source_names": [
+      "Sky Sports 16"
+    ]
+  },
+  {
+    "id": "mx_sky_sports_24",
+    "name": "Sky Sports 24",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky Mexico",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Sky.Sports.24.mx"
+      }
+    ],
+    "source_names": [
+      "Sky Sports 24"
+    ]
+  },
+  {
+    "id": "uk_sky_sports_football",
+    "name": "Sky Sports Football",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "Sky.Sports.Football.HD.uk"
+      }
+    ],
+    "source_names": [
+      "Sky Sports Football HD"
+    ]
+  },
+  {
+    "id": "gb_sky_sports_main_event",
+    "name": "Sky Sports Main Event",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [],
+    "source_names": []
+  },
+  {
+    "id": "gb_sky_sports_premier_league",
+    "name": "Sky Sports Premier League",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [],
+    "source_names": []
+  },
+  {
+    "id": "uk_sky_sports_ultra_hd_1",
+    "name": "Sky Sports Ultra HD 1",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "Sky.Sports.Ultra.HD.1.uk"
+      }
+    ],
+    "source_names": [
+      "Sky Sports Ultra HD 1"
+    ]
+  },
+  {
+    "id": "uk_sky_sports_ultra_hd_2",
+    "name": "Sky Sports Ultra HD 2",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "Sky.Sports.Ultra.HD.2.uk"
+      }
+    ],
+    "source_names": [
+      "Sky Sports Ultra HD 2"
+    ]
+  },
+  {
+    "id": "gb_sky_sports_plus",
+    "name": "Sky Sports+",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sky",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [],
+    "source_names": []
+  },
+  {
+    "id": "br_sportv",
+    "name": "SporTV",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Globo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [
+      "SporTV 1"
+    ],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "SporTV.br"
+      }
+    ],
+    "source_names": [
+      "SporTV"
+    ]
+  },
+  {
+    "id": "br_sportv_2",
+    "name": "SporTV 2",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Globo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "SporTV.2.br"
+      }
+    ],
+    "source_names": [
+      "SporTV 2"
+    ]
+  },
+  {
+    "id": "br_sportv_3",
+    "name": "SporTV 3",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Globo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "SporTV.3.br"
+      }
+    ],
+    "source_names": [
+      "SporTV 3"
+    ]
+  },
+  {
+    "id": "dk_sport_live",
+    "name": "Sport Live",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_sport_live"
+      }
+    ],
+    "source_names": [
+      "Sport Live HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_plus",
+    "name": "Sport TV+",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "SPORT.TV+.HD.pt"
+      }
+    ],
+    "source_names": [
+      "SPORT TV+ HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_1",
+    "name": "Sport TV1",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "SPORT.TV1.HD.pt"
+      }
+    ],
+    "source_names": [
+      "SPORT TV1 HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_2",
+    "name": "Sport TV2",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "SPORT.TV2.HD.pt"
+      }
+    ],
+    "source_names": [
+      "SPORT TV2 HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_3",
+    "name": "Sport TV3",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "SPORT.TV3.HD.pt"
+      }
+    ],
+    "source_names": [
+      "SPORT TV3 HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_4",
+    "name": "Sport TV4",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "SPORT.TV4.HD.pt"
+      }
+    ],
+    "source_names": [
+      "SPORT TV4 HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_5",
+    "name": "Sport TV5",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "SPORT.TV5.HD.pt"
+      }
+    ],
+    "source_names": [
+      "SPORT TV5 HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_6",
+    "name": "Sport TV6",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "Sport.TV.6.HD.pt"
+      }
+    ],
+    "source_names": [
+      "Sport TV 6 HD"
+    ]
+  },
+  {
+    "id": "pt_sport_tv_7",
+    "name": "Sport TV7",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport TV",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "Sport.TV.7.HD.pt"
+      }
+    ],
+    "source_names": [
+      "Sport TV 7 HD"
+    ]
+  },
+  {
+    "id": "de_sport1",
+    "name": "Sport1",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sport1",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "SPORT1.de"
+      }
+    ],
+    "source_names": [
+      "SPORT1"
+    ]
+  },
+  {
+    "id": "pt_sporting_tv",
+    "name": "Sporting TV",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sporting CP",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "Sporting.TV.HD.pt"
+      }
+    ],
+    "source_names": [
+      "Sporting TV HD"
+    ]
+  },
+  {
+    "id": "ca_sportsnet_east",
+    "name": "Sportsnet East",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sportsnet",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "Sportsnet.East.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "Sportsnet East HD"
+    ]
+  },
+  {
+    "id": "ca_sportsnet_one",
+    "name": "Sportsnet One",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sportsnet",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "Sportsnet.One.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "Sportsnet One HD"
+    ]
+  },
+  {
+    "id": "ca_sportsnet_ontario",
+    "name": "Sportsnet Ontario",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sportsnet",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "Sportsnet.Ontario.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "Sportsnet Ontario HD"
+    ]
+  },
+  {
+    "id": "ca_sportsnet_pacific",
+    "name": "Sportsnet Pacific",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sportsnet",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "Sportsnet.(Pacific).HD.ca2"
+      }
+    ],
+    "source_names": [
+      "Sportsnet (Pacific) HD"
+    ]
+  },
+  {
+    "id": "ca_sportsnet_world",
+    "name": "Sportsnet World",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Sportsnet",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "Sportsnet.World.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "Sportsnet World HD"
+    ]
+  },
+  {
+    "id": "fr_tf1",
+    "name": "TF1",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "TF1 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "TF1.fr"
+      }
+    ],
+    "source_names": [
+      "TF1"
+    ]
+  },
+  {
+    "id": "uk_tnt_sports_1",
+    "name": "TNT Sports 1",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "TNT Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "TNT.Sports.1.HD.uk"
+      }
+    ],
+    "source_names": [
+      "TNT Sports 1 HD"
+    ]
+  },
+  {
+    "id": "uk_tnt_sports_2",
+    "name": "TNT Sports 2",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "TNT Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "TNT.Sports.2.HD.uk"
+      }
+    ],
+    "source_names": [
+      "TNT Sports 2 HD"
+    ]
+  },
+  {
+    "id": "uk_tnt_sports_3",
+    "name": "TNT Sports 3",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "TNT Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "TNT.Sports.3.HD.uk"
+      }
+    ],
+    "source_names": [
+      "TNT Sports 3 HD"
+    ]
+  },
+  {
+    "id": "uk_tnt_sports_4",
+    "name": "TNT Sports 4",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "TNT Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "TNT.Sports.4.HD.uk"
+      }
+    ],
+    "source_names": [
+      "TNT Sports 4 HD"
+    ]
+  },
+  {
+    "id": "uk_tnt_sports_ultimate",
+    "name": "TNT Sports Ultimate",
+    "country": "GB",
+    "broadcast_type": "LINEAR",
+    "network_name": "TNT Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_uk",
+        "source_channel_id": "TNT.Sports.Ultimate.HD.uk"
+      }
+    ],
+    "source_names": [
+      "TNT Sports Ultimate HD"
+    ]
+  },
+  {
+    "id": "tr_trt_spor",
+    "name": "TRT Spor",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "TRT",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "TRT.SPOR.HD.tr"
+      },
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "TRT.SPOR.tr"
+      }
+    ],
+    "source_names": [
+      "TRT SPOR",
+      "TRT SPOR HD"
+    ]
+  },
+  {
+    "id": "ca_tsn_1",
+    "name": "TSN 1",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "TSN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "TSN.1.ca2"
+      }
+    ],
+    "source_names": [
+      "TSN 1"
+    ]
+  },
+  {
+    "id": "ca_tsn_2",
+    "name": "TSN 2",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "TSN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "TSN.2.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "TSN 2 HD"
+    ]
+  },
+  {
+    "id": "ca_tsn_3",
+    "name": "TSN 3",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "TSN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "TSN.3.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "TSN 3 HD"
+    ]
+  },
+  {
+    "id": "ca_tsn_4",
+    "name": "TSN 4",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "TSN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "TSN.4.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "TSN 4 HD"
+    ]
+  },
+  {
+    "id": "ca_tsn_5",
+    "name": "TSN 5",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "TSN",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "TSN.5.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "TSN 5 HD"
+    ]
+  },
+  {
+    "id": "mx_tudn",
+    "name": "TUDN",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "TelevisaUnivision",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Canal.TUDN.(M\u00e9xico).mx"
+      }
+    ],
+    "source_names": [
+      "Canal TUDN (M\u00e9xico)"
+    ]
+  },
+  {
+    "id": "us_tudn",
+    "name": "TUDN",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "TelevisaUnivision",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "TUDN.us2"
+      }
+    ],
+    "source_names": [
+      "TUDN"
+    ]
+  },
+  {
+    "id": "dk_tv2",
+    "name": "TV 2",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2 Danmark",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_tv2"
+      }
+    ],
+    "source_names": [
+      "TV 2 HD (D)"
+    ]
+  },
+  {
+    "id": "no_tv2_direkte",
+    "name": "TV 2 Direkte",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv2_direkte"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_tv2_direkte"
+      }
+    ],
+    "source_names": [
+      "TV 2 Direkte",
+      "TV 2 Direkte HD"
+    ]
+  },
+  {
+    "id": "dk_tv2_sport",
+    "name": "TV 2 Sport",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2 Danmark",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_tv2_sport"
+      }
+    ],
+    "source_names": [
+      "TV 2 SPORT HD"
+    ]
+  },
+  {
+    "id": "no_tv2_sport_1",
+    "name": "TV 2 Sport 1",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "TV.2.Sport.1.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv2_sport_1"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_tv2_sport_1"
+      }
+    ],
+    "source_names": [
+      "TV 2 Sport 1",
+      "TV 2 Sport 1 HD",
+      "TV 2 Sport 1 Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "no_tv2_sport_2",
+    "name": "TV 2 Sport 2",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "TV.2.Sport.2.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv2_sport_2"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_tv2_sport_2"
+      }
+    ],
+    "source_names": [
+      "TV 2 Sport 2",
+      "TV 2 Sport 2 HD",
+      "TV 2 Sport 2 Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "no_tv2_sport_premium",
+    "name": "TV 2 Sport Premium",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "TV.2.Sport.Premium.(NO,NO).no"
+      },
+      {
+        "source_id": "fixture_no_sports",
+        "source_channel_id": "TV2SportPremium.no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv2_sport_premium"
+      }
+    ],
+    "source_names": [
+      "TV 2 Sport Premium",
+      "TV 2 Sport Premium (NO,NO)",
+      "TV 2 Sport Premium HD"
+    ]
+  },
+  {
+    "id": "no_tv2_sport_premium_2",
+    "name": "TV 2 Sport Premium 2",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv2_sport_premium_2"
+      }
+    ],
+    "source_names": [
+      "TV 2 Sport Premium 2 HD"
+    ]
+  },
+  {
+    "id": "dk_tv2_sport_x",
+    "name": "TV 2 Sport X",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV 2 Danmark",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_tv2_sport_x"
+      }
+    ],
+    "source_names": [
+      "TV 2 SPORT X"
+    ]
+  },
+  {
+    "id": "br_tv_cultura",
+    "name": "TV Cultura",
+    "country": "BR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Funda\u00e7\u00e3o Padre Anchieta",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_br",
+        "source_channel_id": "TV.Cultura.br"
+      }
+    ],
+    "source_names": [
+      "TV Cultura"
+    ]
+  },
+  {
+    "id": "se_tv10",
+    "name": "TV10",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv10"
+      }
+    ],
+    "source_names": [
+      "TV10 HD"
+    ]
+  },
+  {
+    "id": "se_tv12",
+    "name": "TV12",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv12"
+      }
+    ],
+    "source_names": [
+      "TV12 HD"
+    ]
+  },
+  {
+    "id": "dk_tv3",
+    "name": "TV3",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_tv3"
+      }
+    ],
+    "source_names": [
+      "TV3 HD (D)"
+    ]
+  },
+  {
+    "id": "no_tv3",
+    "name": "TV3",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv3"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_tv3"
+      }
+    ],
+    "source_names": [
+      "TV3",
+      "TV3 HD (N)"
+    ]
+  },
+  {
+    "id": "se_tv3",
+    "name": "TV3",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv3"
+      }
+    ],
+    "source_names": [
+      "TV3 HD (S)"
+    ]
+  },
+  {
+    "id": "dk_tv3_sport",
+    "name": "TV3 Sport",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_tv3_sport"
+      }
+    ],
+    "source_names": [
+      "TV3 Sport HD (D)"
+    ]
+  },
+  {
+    "id": "dk_tv3_plus",
+    "name": "TV3+",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_tv3_plus"
+      }
+    ],
+    "source_names": [
+      "TV3+ HD (D)"
+    ]
+  },
+  {
+    "id": "no_tv3_plus",
+    "name": "TV3+",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv3_plus"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_tv3_plus"
+      }
+    ],
+    "source_names": [
+      "TV3+",
+      "TV3+ HD (N)"
+    ]
+  },
+  {
+    "id": "se_tv4",
+    "name": "TV4",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv4"
+      }
+    ],
+    "source_names": [
+      "TV4 HD"
+    ]
+  },
+  {
+    "id": "se_tv4_fotboll",
+    "name": "TV4 Fotboll",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv4_fotboll"
+      }
+    ],
+    "source_names": [
+      "TV4 Fotboll HD"
+    ]
+  },
+  {
+    "id": "se_tv4_sport_live_1",
+    "name": "TV4 Sport Live 1",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv4_sport_live_1"
+      }
+    ],
+    "source_names": [
+      "TV4 Sport Live 1 HD"
+    ]
+  },
+  {
+    "id": "se_tv4_sport_live_2",
+    "name": "TV4 Sport Live 2",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv4_sport_live_2"
+      }
+    ],
+    "source_names": [
+      "TV4 Sport Live 2 HD"
+    ]
+  },
+  {
+    "id": "se_tv4_sport_live_3",
+    "name": "TV4 Sport Live 3",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv4_sport_live_3"
+      }
+    ],
+    "source_names": [
+      "TV4 Sport Live 3 HD"
+    ]
+  },
+  {
+    "id": "se_tv4_sport_live_4",
+    "name": "TV4 Sport Live 4",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv4_sport_live_4"
+      }
+    ],
+    "source_names": [
+      "TV4 Sport Live 4 HD"
+    ]
+  },
+  {
+    "id": "se_tv4_sportkanalen",
+    "name": "TV4 Sportkanalen",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv4_sportkanalen"
+      }
+    ],
+    "source_names": [
+      "TV4 Sportkanalen HD"
+    ]
+  },
+  {
+    "id": "no_tv6",
+    "name": "TV6",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tv6"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_tv6"
+      }
+    ],
+    "source_names": [
+      "TV6",
+      "TV6 (N)"
+    ]
+  },
+  {
+    "id": "se_tv6",
+    "name": "TV6",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv6"
+      }
+    ],
+    "source_names": [
+      "TV6 HD (S)"
+    ]
+  },
+  {
+    "id": "it_tv8",
+    "name": "TV8",
+    "country": "IT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_it",
+        "source_channel_id": "TV8.HD.it"
+      }
+    ],
+    "source_names": [
+      "TV8 HD"
+    ]
+  },
+  {
+    "id": "se_tv8",
+    "name": "TV8",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "TV4 Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_tv8"
+      }
+    ],
+    "source_names": [
+      "TV8 HD"
+    ]
+  },
+  {
+    "id": "ca_tva_sports_1",
+    "name": "TVA Sports",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Groupe TVA",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "TVA.Sports.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "TVA Sports HD"
+    ]
+  },
+  {
+    "id": "ca_tva_sports_2",
+    "name": "TVA Sports 2",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "Groupe TVA",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "TVA.Sports.2.HD.ca2"
+      }
+    ],
+    "source_names": [
+      "TVA Sports 2 HD"
+    ]
+  },
+  {
+    "id": "mx_tvc_deportes",
+    "name": "TVC Deportes",
+    "country": "MX",
+    "broadcast_type": "LINEAR",
+    "network_name": "Grupo Multimedios",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_mx",
+        "source_channel_id": "Canal.TVC.Deportes.mx"
+      }
+    ],
+    "source_names": [
+      "Canal TVC Deportes"
+    ]
+  },
+  {
+    "id": "pt_tvi",
+    "name": "TVI",
+    "country": "PT",
+    "broadcast_type": "LINEAR",
+    "network_name": "Cofina Media",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_pt",
+        "source_channel_id": "TVI.HD.pt"
+      }
+    ],
+    "source_names": [
+      "TVI HD"
+    ]
+  },
+  {
+    "id": "nz_tvnz_1",
+    "name": "TVNZ 1",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "TVNZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "TVNZ.1.nz"
+      }
+    ],
+    "source_names": [
+      "TVNZ 1"
+    ]
+  },
+  {
+    "id": "nz_tvnz_2",
+    "name": "TVNZ 2",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "TVNZ",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "TVNZ.2.nz"
+      }
+    ],
+    "source_names": [
+      "TVNZ 2"
+    ]
+  },
+  {
+    "id": "no_tvnorge",
+    "name": "TVNorge",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_tvnorge"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_tvnorge"
+      }
+    ],
+    "source_names": [
+      "TVNorge",
+      "TVNorge HD"
+    ]
+  },
+  {
+    "id": "es_telecinco",
+    "name": "Telecinco",
+    "country": "ES",
+    "broadcast_type": "LINEAR",
+    "network_name": "Mediaset Espa\u00f1a",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_es",
+        "source_channel_id": "Telecinco.es"
+      }
+    ],
+    "source_names": [
+      "Telecinco"
+    ]
+  },
+  {
+    "id": "ar_telefe",
+    "name": "Telefe",
+    "country": "AR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Telefe",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ar",
+        "source_channel_id": "Canal.Telef\u00e9.(Argentina).ar"
+      }
+    ],
+    "source_names": [
+      "Canal Telef\u00e9 (Argentina)"
+    ]
+  },
+  {
+    "id": "us_telemundo",
+    "name": "Telemundo",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "NBCUniversal",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "Telemundo.Satellite.Feed.us2"
+      }
+    ],
+    "source_names": [
+      "Telemundo Satellite Feed"
+    ]
+  },
+  {
+    "id": "ar_television_publica",
+    "name": "Televisi\u00f3n P\u00fablica",
+    "country": "AR",
+    "broadcast_type": "LINEAR",
+    "network_name": "Televisi\u00f3n P\u00fablica",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ar",
+        "source_channel_id": "Canal.Televisi\u00f3n.P\u00fablica.(Argentina).ar"
+      }
+    ],
+    "source_names": [
+      "Canal Televisi\u00f3n P\u00fablica (Argentina)"
+    ]
+  },
+  {
+    "id": "nz_three",
+    "name": "Three",
+    "country": "NZ",
+    "broadcast_type": "LINEAR",
+    "network_name": "Warner Bros. Discovery",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nz",
+        "source_channel_id": "Three.nz"
+      }
+    ],
+    "source_names": [
+      "Three"
+    ]
+  },
+  {
+    "id": "ar_tyc_sports",
+    "name": "TyC Sports",
+    "country": "AR",
+    "broadcast_type": "LINEAR",
+    "network_name": "TyC Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ar",
+        "source_channel_id": "Canal.TyC.Sports.ar"
+      }
+    ],
+    "source_names": [
+      "Canal TyC Sports"
+    ]
+  },
+  {
+    "id": "us_tyc_sports_internacional",
+    "name": "TyC Sports Internacional",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "TyC Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "TyC.Sports.Internacional.USA.us2"
+      }
+    ],
+    "source_names": [
+      "TyC Sports Internacional USA"
+    ]
+  },
+  {
+    "id": "us_unimas",
+    "name": "UniMas",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "TelevisaUnivision",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "UniMas.us2"
+      }
+    ],
+    "source_names": [
+      "UniMas"
+    ]
+  },
+  {
+    "id": "us_universo",
+    "name": "Universo",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "NBCUniversal",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "UNIVERSO.HD.us2"
+      }
+    ],
+    "source_names": [
+      "UNIVERSO HD"
+    ]
+  },
+  {
+    "id": "us_univision",
+    "name": "Univision",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "TelevisaUnivision",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "Univision.Network.HD.us2"
+      }
+    ],
+    "source_names": [
+      "Univision Network HD"
+    ]
+  },
+  {
+    "id": "no_vsport_plus",
+    "name": "V Sport +",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_plus"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_vsport_plus"
+      }
+    ],
+    "source_names": [
+      "V Sport +",
+      "V sport + HD"
+    ]
+  },
+  {
+    "id": "no_vsport_1",
+    "name": "V Sport 1",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_1"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_vsport_1"
+      }
+    ],
+    "source_names": [
+      "V Sport 1",
+      "V sport 1 HD (N)"
+    ]
+  },
+  {
+    "id": "se_vsport_1",
+    "name": "V Sport 1",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [
+      "Viaplay Sport 1"
+    ],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_1"
+      }
+    ],
+    "source_names": [
+      "V sport 1 HD (S)"
+    ]
+  },
+  {
+    "id": "no_vsport_2",
+    "name": "V Sport 2",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_vsport_2"
+      }
+    ],
+    "source_names": [
+      "V Sport 2"
+    ]
+  },
+  {
+    "id": "no_vsport_3",
+    "name": "V Sport 3",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_3"
+      },
+      {
+        "source_id": "iptv_org_rikstv_no",
+        "source_channel_id": "no_vsport_3"
+      }
+    ],
+    "source_names": [
+      "V Sport 3",
+      "V sport 3 HD"
+    ]
+  },
+  {
+    "id": "se_vsport_extra",
+    "name": "V Sport Extra",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_extra"
+      }
+    ],
+    "source_names": [
+      "V sport extra HD"
+    ]
+  },
+  {
+    "id": "se_vsport_football",
+    "name": "V Sport Football",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_football"
+      }
+    ],
+    "source_names": [
+      "V sport football HD (S)"
+    ]
+  },
+  {
+    "id": "dk_vsport_live_1",
+    "name": "V Sport Live 1",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_vsport_live_1"
+      }
+    ],
+    "source_names": [
+      "V sport live 1"
+    ]
+  },
+  {
+    "id": "no_vsport_live_1",
+    "name": "V Sport Live 1",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_live_1"
+      }
+    ],
+    "source_names": [
+      "V sport live 1"
+    ]
+  },
+  {
+    "id": "se_vsport_live_1",
+    "name": "V Sport Live 1",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_live_1"
+      }
+    ],
+    "source_names": [
+      "V sport live 1"
+    ]
+  },
+  {
+    "id": "dk_vsport_live_2",
+    "name": "V Sport Live 2",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_vsport_live_2"
+      }
+    ],
+    "source_names": [
+      "V sport live 2"
+    ]
+  },
+  {
+    "id": "no_vsport_live_2",
+    "name": "V Sport Live 2",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_live_2"
+      }
+    ],
+    "source_names": [
+      "V sport live 2"
+    ]
+  },
+  {
+    "id": "se_vsport_live_2",
+    "name": "V Sport Live 2",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_live_2"
+      }
+    ],
+    "source_names": [
+      "V sport live 2"
+    ]
+  },
+  {
+    "id": "dk_vsport_live_3",
+    "name": "V Sport Live 3",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_vsport_live_3"
+      }
+    ],
+    "source_names": [
+      "V sport live 3"
+    ]
+  },
+  {
+    "id": "no_vsport_live_3",
+    "name": "V Sport Live 3",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_live_3"
+      }
+    ],
+    "source_names": [
+      "V sport live 3"
+    ]
+  },
+  {
+    "id": "se_vsport_live_3",
+    "name": "V Sport Live 3",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_live_3"
+      }
+    ],
+    "source_names": [
+      "V sport live 3"
+    ]
+  },
+  {
+    "id": "dk_vsport_live_4",
+    "name": "V Sport Live 4",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_vsport_live_4"
+      }
+    ],
+    "source_names": [
+      "V sport live 4"
+    ]
+  },
+  {
+    "id": "no_vsport_live_4",
+    "name": "V Sport Live 4",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_live_4"
+      }
+    ],
+    "source_names": [
+      "V sport live 4"
+    ]
+  },
+  {
+    "id": "se_vsport_live_4",
+    "name": "V Sport Live 4",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_live_4"
+      }
+    ],
+    "source_names": [
+      "V sport live 4"
+    ]
+  },
+  {
+    "id": "dk_vsport_live_5",
+    "name": "V Sport Live 5",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_vsport_live_5"
+      }
+    ],
+    "source_names": [
+      "V sport live 5"
+    ]
+  },
+  {
+    "id": "no_vsport_live_5",
+    "name": "V Sport Live 5",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_live_5"
+      }
+    ],
+    "source_names": [
+      "V sport live 5"
+    ]
+  },
+  {
+    "id": "se_vsport_live_5",
+    "name": "V Sport Live 5",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_live_5"
+      }
+    ],
+    "source_names": [
+      "V sport live 5"
+    ]
+  },
+  {
+    "id": "no_vsport_premier_league",
+    "name": "V Sport Premier League",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "V.sport.Premier.League.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "fixture_no_sports",
+        "source_channel_id": "VSportPremierLeague.no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_premier_league"
+      }
+    ],
+    "source_names": [
+      "NO | V SPORT PREMIER LEAGUE FHD",
+      "V sport Premier League HD",
+      "V sport Premier League Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "no_vsport_premier_league_1",
+    "name": "V Sport Premier League 1",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "V.sport.Premier.League.1.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_premier_league_1"
+      }
+    ],
+    "source_names": [
+      "V sport Premier League 1 HD",
+      "V sport Premier League 1 Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "no_vsport_premier_league_2",
+    "name": "V Sport Premier League 2",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "V.sport.Premier.League.2.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_premier_league_2"
+      }
+    ],
+    "source_names": [
+      "V sport Premier League 2 HD",
+      "V sport Premier League 2 Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "no_vsport_premier_league_3",
+    "name": "V Sport Premier League 3",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "V.sport.Premier.League.3.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_premier_league_3"
+      }
+    ],
+    "source_names": [
+      "V sport Premier League 3 HD",
+      "V sport Premier League 3 Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "no_vsport_premier_league_4",
+    "name": "V Sport Premier League 4",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_no",
+        "source_channel_id": "V.sport.Premier.League.4.Norway.(NO,NO).no"
+      },
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_premier_league_4"
+      }
+    ],
+    "source_names": [
+      "V sport Premier League 4 HD",
+      "V sport Premier League 4 Norway (NO,NO)"
+    ]
+  },
+  {
+    "id": "se_vsport_premium",
+    "name": "V Sport Premium",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_premium"
+      }
+    ],
+    "source_names": [
+      "V sport premium HD (S)"
+    ]
+  },
+  {
+    "id": "no_vsport_ultra",
+    "name": "V Sport Ultra",
+    "country": "NO",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_no",
+        "source_channel_id": "no_vsport_ultra"
+      }
+    ],
+    "source_names": [
+      "V sport ultra HD"
+    ]
+  },
+  {
+    "id": "se_vsport_ultra",
+    "name": "V Sport Ultra",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_vsport_ultra"
+      }
+    ],
+    "source_names": [
+      "V sport ultra HD"
+    ]
+  },
+  {
+    "id": "be_vrt_1",
+    "name": "VRT 1",
+    "country": "BE",
+    "broadcast_type": "LINEAR",
+    "network_name": "VRT",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_be",
+        "source_channel_id": "VRT.1.be"
+      }
+    ],
+    "source_names": [
+      "VRT 1"
+    ]
+  },
+  {
+    "id": "se_viaplay_sport",
+    "name": "Viaplay Sport",
+    "country": "SE",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_se",
+        "source_channel_id": "se_viaplay_sport"
+      }
+    ],
+    "source_names": [
+      "Viaplay Sport HD"
+    ]
+  },
+  {
+    "id": "dk_viaplay_sport_news",
+    "name": "Viaplay Sport News",
+    "country": "DK",
+    "broadcast_type": "LINEAR",
+    "network_name": "Viaplay Group",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "iptv_org_allente_dk",
+        "source_channel_id": "dk_viaplay_sport_news"
+      }
+    ],
+    "source_names": [
+      "Viaplay Sport News"
+    ]
+  },
+  {
+    "id": "de_zdf",
+    "name": "ZDF",
+    "country": "DE",
+    "broadcast_type": "LINEAR",
+    "network_name": "ZDF",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_de",
+        "source_channel_id": "ZDF.de"
+      }
+    ],
+    "source_names": [
+      "ZDF"
+    ]
+  },
+  {
+    "id": "nl_ziggo_sport_1",
+    "name": "Ziggo Sport 1",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Ziggo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Ziggo.Sport.1.nl"
+      }
+    ],
+    "source_names": [
+      "Ziggo Sport 1"
+    ]
+  },
+  {
+    "id": "nl_ziggo_sport_2",
+    "name": "Ziggo Sport 2",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Ziggo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Ziggo.Sport.2.nl"
+      }
+    ],
+    "source_names": [
+      "Ziggo Sport 2"
+    ]
+  },
+  {
+    "id": "nl_ziggo_sport_3",
+    "name": "Ziggo Sport 3",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Ziggo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Ziggo.Sport.3.nl"
+      }
+    ],
+    "source_names": [
+      "Ziggo Sport 3"
+    ]
+  },
+  {
+    "id": "nl_ziggo_sport_4",
+    "name": "Ziggo Sport 4",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Ziggo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Ziggo.Sport.4.nl"
+      }
+    ],
+    "source_names": [
+      "Ziggo Sport 4"
+    ]
+  },
+  {
+    "id": "nl_ziggo_sport_5",
+    "name": "Ziggo Sport 5",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Ziggo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Ziggo.Sport.5.nl"
+      }
+    ],
+    "source_names": [
+      "Ziggo Sport 5"
+    ]
+  },
+  {
+    "id": "nl_ziggo_sport_6",
+    "name": "Ziggo Sport 6",
+    "country": "NL",
+    "broadcast_type": "LINEAR",
+    "network_name": "Ziggo",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_nl",
+        "source_channel_id": "Ziggo.Sport.6.nl"
+      }
+    ],
+    "source_names": [
+      "Ziggo Sport 6"
+    ]
+  },
+  {
+    "id": "au_bein_sports_1",
+    "name": "beIN Sports 1",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "beINSports1.au"
+      }
+    ],
+    "source_names": [
+      "beIN Sports 1"
+    ]
+  },
+  {
+    "id": "fr_bein_sports_1",
+    "name": "beIN Sports 1",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "beIN.SPORTS.1.fr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS 1"
+    ]
+  },
+  {
+    "id": "tr_bein_sports_1",
+    "name": "beIN Sports 1",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "beIN.SPORTS.1.tr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS 1"
+    ]
+  },
+  {
+    "id": "au_bein_sports_2",
+    "name": "beIN Sports 2",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "beINSports2.au"
+      }
+    ],
+    "source_names": [
+      "beIN Sports 2"
+    ]
+  },
+  {
+    "id": "fr_bein_sports_2",
+    "name": "beIN Sports 2",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "beIN.SPORTS.2.fr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS 2"
+    ]
+  },
+  {
+    "id": "tr_bein_sports_2",
+    "name": "beIN Sports 2",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "beIN.SPORTS.2.tr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS 2"
+    ]
+  },
+  {
+    "id": "au_bein_sports_3",
+    "name": "beIN Sports 3",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "beINSports3.au"
+      }
+    ],
+    "source_names": [
+      "beIN Sports 3"
+    ]
+  },
+  {
+    "id": "fr_bein_sports_3",
+    "name": "beIN Sports 3",
+    "country": "FR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_fr",
+        "source_channel_id": "beIN.SPORTS.3.fr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS 3"
+    ]
+  },
+  {
+    "id": "tr_bein_sports_3",
+    "name": "beIN Sports 3",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "beIN.SPORTS.3.tr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS 3"
+    ]
+  },
+  {
+    "id": "tr_bein_sports_4",
+    "name": "beIN Sports 4",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "beIN.SPORTS.4.tr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS 4"
+    ]
+  },
+  {
+    "id": "ca_bein_sports",
+    "name": "beIN Sports Canada",
+    "country": "CA",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_ca",
+        "source_channel_id": "beIN.Sports.HD.(Canada).ca2"
+      }
+    ],
+    "source_names": [
+      "beIN Sports HD (Canada)"
+    ]
+  },
+  {
+    "id": "us_bein_sports_espanol",
+    "name": "beIN Sports En Espa\u00f1ol",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "beIN.Sports.En.Espa\u00f1ol.HD.us2"
+      }
+    ],
+    "source_names": [
+      "beIN Sports En Espa\u00f1ol HD"
+    ]
+  },
+  {
+    "id": "tr_bein_sports_max_1",
+    "name": "beIN Sports Max 1",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "beIN.SPORTS.MAX.1.tr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS MAX 1"
+    ]
+  },
+  {
+    "id": "tr_bein_sports_max_2",
+    "name": "beIN Sports Max 2",
+    "country": "TR",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_tr",
+        "source_channel_id": "beIN.SPORTS.MAX.2.tr"
+      }
+    ],
+    "source_names": [
+      "beIN SPORTS MAX 2"
+    ]
+  },
+  {
+    "id": "us_bein_sports",
+    "name": "beIN Sports USA",
+    "country": "US",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_us",
+        "source_channel_id": "beIN.Sports.USA.HD.us2"
+      }
+    ],
+    "source_names": [
+      "beIN Sports USA HD"
+    ]
+  },
+  {
+    "id": "au_bein_sports_xtra",
+    "name": "beIN Sports Xtra",
+    "country": "AU",
+    "broadcast_type": "LINEAR",
+    "network_name": "beIN Sports",
+    "channel_number": null,
+    "channel_variant": null,
+    "aliases": [],
+    "external_ids": [
+      {
+        "source_id": "epgshare01_au",
+        "source_channel_id": "beINSportsXtra.au"
+      }
+    ],
+    "source_names": [
+      "beIN Sports Xtra"
+    ]
+  }
+]

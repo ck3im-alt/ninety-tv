@@ -28,6 +28,7 @@
 import type { NinetyLogicalChannel } from './ninetyApiClient'
 import type { PlaylistChannelIdentity } from './channelIdentityProjection'
 import { parseCategory } from '../../features/channels/parseCategory'
+import { matchLeadingCountry, matchTrailingCountry } from '../countryCodes'
 import { meaningfulWords, namesExactMatch, namesOverlap, normalizeCountryKey, qualifierWords, sameSet } from './channelMatchCore'
 
 // ---------------------------------------------------------------------
@@ -247,13 +248,36 @@ function structuredConflict(catalogName: string, playlistName: string): Structur
 // ---------------------------------------------------------------------
 // Country signal (Part 3.1) — never inferred when either side lacks an
 // explicit country; playlist country comes from the SAME group-title
-// parsing channelMatch.ts already uses (parseCategory), so this stays
+// parsing channelMatch.ts already uses (parseCategory) first, so this stays
 // consistent with the live matcher's notion of "this channel's country".
-// ---------------------------------------------------------------------
+//
+// M3U-corpus validation (2026-08-20) found a real gap: many real playlists
+// embed the country directly in the channel's own NAME ("US | ESPN FHD")
+// rather than in a separate group-title, and mergeChannels.ts's
+// normalizeChannelName already strips that prefix into the merge key — but
+// the stripped country was never carried forward anywhere the resolver
+// could see it. With ~7 differently-countried catalog channels literally
+// named "ESPN" (US/AR/AU/BR/MX/NL/NZ) after the 20-market expansion, a
+// group-title-less playlist entry like this had no way to rule out the
+// other 6 and landed AMBIGUOUS/NONE via the reverse-collision guard even
+// though the country needed to disambiguate it was right there in the raw
+// name. Falls back to re-deriving it from `rawNames` (the pre-merge-key
+// original name(s), e.g. "US | ESPN FHD" verbatim) only when group-title
+// has nothing — group-title stays the primary signal, unchanged.
+function nameEmbeddedCountryKey(identity: PlaylistChannelIdentity): string | null {
+  for (const raw of identity.rawNames ?? []) {
+    const leading = matchLeadingCountry(raw)
+    if (leading) return leading.countryName.toUpperCase()
+    const trailing = matchTrailingCountry(raw)
+    if (trailing) return trailing.countryName.toUpperCase()
+  }
+  return null
+}
 
 function playlistCountryKey(identity: PlaylistChannelIdentity): string | null {
-  const parsed = parseCategory(identity.groupTitle ?? '').countryName
-  return parsed ? parsed.toUpperCase() : null
+  const fromGroupTitle = parseCategory(identity.groupTitle ?? '').countryName
+  if (fromGroupTitle) return fromGroupTitle.toUpperCase()
+  return nameEmbeddedCountryKey(identity)
 }
 
 function catalogCountryKey(logical: NinetyLogicalChannel): string | null {

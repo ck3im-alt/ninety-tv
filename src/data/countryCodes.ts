@@ -61,11 +61,32 @@ export const COUNTRY_NAMES: Record<string, string> = {
   ZA: 'South Africa',
   SA: 'Saudi Arabia',
   AE: 'United Arab Emirates',
+  // Real playlists commonly prefix/suffix channel names with the
+  // colloquial 3-letter form of a country instead of its 2-letter ISO
+  // code or full spelled-out name ("USA:", "GER:", "NOR:", "MEX |", "ARG:",
+  // "AUS:" — all seen in real M3U corpuses across the 20-market EPG
+  // expansion). None of these are real ISO 3166-1 alpha-3 codes (those
+  // would be USA/DEU/NOR/SWE/DNK/MEX/CAN/BRA/ARG/AUS-ish but inconsistently
+  // so) — they're simply the shorthand IPTV panels actually use. Same
+  // "second key, same value" pattern as UK/GB above for United Kingdom.
+  USA: 'United States',
+  GER: 'Germany',
+  NOR: 'Norway',
+  SWE: 'Sweden',
+  DEN: 'Denmark',
+  MEX: 'Mexico',
+  CAN: 'Canada',
+  BRA: 'Brazil',
+  ARG: 'Argentina',
+  AUS: 'Australia',
 }
 
 import { foldForMatching, stripDecorativeEdges } from './fancyUnicode'
 
-const SEPARATOR = '[\\s:|\\-_/]+'
+// Includes brackets/parens alongside the plain punctuation separators so a
+// wrapped prefix ("[UK] Sky Sports", "(NO) TV2 Sport") is recognized the
+// same as an unwrapped one — real playlists use both shapes.
+const SEPARATOR = '[\\s:|\\-_/[\\]()]+'
 
 // Sorted longest-first: multi-word names ("United Kingdom") must be tried
 // before any single-word name that could otherwise shadow part of them.
@@ -82,8 +103,20 @@ const NAME_ENTRIES = [...NAME_TO_CODE.keys()].sort((a, b) => b.length - a.length
 // the worst case, for a playlist with tens of thousands of channel/category
 // strings to match against). Same entries, same longest-match-first order,
 // same pattern shape as before — purely a "when is the RegExp built" change.
-const NAME_PATTERNS = NAME_ENTRIES.map((name) => ({ name, re: new RegExp(`^${name}\\b${SEPARATOR}?`) }))
-const CODE_PATTERNS = CODE_ENTRIES.map((code) => ({ code, re: new RegExp(`^${code}\\b${SEPARATOR}`) }))
+// `(?![A-Z0-9])` rather than `\b` for the boundary right after the
+// name/code: `\b` treats "_" as a word character (same class as a letter),
+// so it never fires between a code and an immediately-following "_"
+// separator ("US_ESPN") — the separator would be consumed with no boundary
+// ever having matched. A plain not-alnum lookahead has no such blind spot
+// and still rejects a real prefix collision the same way `\b` did (e.g.
+// "USA" must not register as code "US" followed by boundary — the "A"
+// right after is alnum, so the lookahead correctly fails there too).
+// Leading `${SEPARATOR}?` absorbs a wrapping open bracket/paren ("[UK] Sky
+// Sports", "(NO) TV2 Sport") sitting before the code/name itself — harmless
+// no-op for the ordinary unwrapped case, since it's optional and there's
+// nothing there to consume.
+const NAME_PATTERNS = NAME_ENTRIES.map((name) => ({ name, re: new RegExp(`^(?:${SEPARATOR})?${name}(?![A-Z0-9])${SEPARATOR}?`) }))
+const CODE_PATTERNS = CODE_ENTRIES.map((code) => ({ code, re: new RegExp(`^(?:${SEPARATOR})?${code}(?![A-Z0-9])${SEPARATOR}`) }))
 
 export interface LeadingCountryMatch {
   code: string
@@ -117,12 +150,61 @@ export function matchLeadingCountry(text: string): LeadingCountryMatch | null {
   return null
 }
 
+// Same lookup as matchLeadingCountry, anchored at the END of the string
+// instead of the start ("TNT SPORTS 1 UK", "CBS SPORTS NETWORK US",
+// "TELEFE ARG" — country appended rather than prefixed is just as common in
+// real playlists, especially ones that never adopted a "COUNTRY | Name"
+// convention). A mandatory separator before the code (never `?`, unlike the
+// leading form) keeps a real trailing brand word from being misread as a
+// country — "...NETWORK US" must have a separating space; a hypothetical
+// "...NETWORKUS" would not match. Full-name form tried first, same
+// longest-match-first reasoning as the leading matcher.
+const TRAILING_NAME_PATTERNS = NAME_ENTRIES.map((name) => ({ name, re: new RegExp(`${SEPARATOR}${name}\\b$`) }))
+const TRAILING_CODE_PATTERNS = CODE_ENTRIES.map((code) => ({ code, re: new RegExp(`${SEPARATOR}${code}\\b$`) }))
+
+export function matchTrailingCountry(text: string): LeadingCountryMatch | null {
+  const cleaned = stripDecorativeEdges(text)
+  const folded = foldForMatching(cleaned)
+
+  for (const { name, re } of TRAILING_NAME_PATTERNS) {
+    const match = folded.match(re)
+    if (!match) continue
+    const code = NAME_TO_CODE.get(name)!
+    return { code, countryName: COUNTRY_NAMES[code], rest: cleaned.slice(0, cleaned.length - match[0].length).trim() }
+  }
+
+  for (const { code, re } of TRAILING_CODE_PATTERNS) {
+    const match = folded.match(re)
+    if (!match) continue
+    return { code, countryName: COUNTRY_NAMES[code], rest: cleaned.slice(0, cleaned.length - match[0].length).trim() }
+  }
+
+  return null
+}
+
 // SVG flags copied from the `country-flag-icons` package into public/flags
 // at dev-time (see TIZEN-PLAN.md) — self-hosted, no CDN, works offline on a
 // TV. "UK" is a common IPTV prefix but not a real ISO code; ISO uses GB.
 // Same idea for SR/BH, this panel's own non-standard codes for Serbia/
 // Bosnia — mapped to the real ISO codes whose flag files actually exist.
-const FLAG_CODE_ALIASES: Record<string, string> = { UK: 'GB', SR: 'RS', BH: 'BA' }
+// Same again for the colloquial 3-letter codes added above (USA/GER/NOR/...)
+// — none of them are the real ISO 3166-1 alpha-2 code, so each needs its
+// own mapping to the code whose flag file actually exists.
+const FLAG_CODE_ALIASES: Record<string, string> = {
+  UK: 'GB',
+  SR: 'RS',
+  BH: 'BA',
+  USA: 'US',
+  GER: 'DE',
+  NOR: 'NO',
+  SWE: 'SE',
+  DEN: 'DK',
+  MEX: 'MX',
+  CAN: 'CA',
+  BRA: 'BR',
+  ARG: 'AR',
+  AUS: 'AU',
+}
 
 // Exact (not fuzzy) case-insensitive lookup against the same display-name
 // table matchLeadingCountry uses -- safe because every value ever written
