@@ -8,8 +8,8 @@ import { groupChannelMatches } from './groupChannelMatches'
 import type { MatchGroup, SourceOption } from './groupChannelMatches'
 import { estimateQualityTier, qualityTierLabel } from './rankStreamQuality'
 import type { QualityTier } from './rankStreamQuality'
-import { getChannelDisplayName } from './ppvDisplayName'
-import type { PpvDisplayNameContext } from './ppvDisplayName'
+import { getChannelDisplayName, buildEventStreamDisplayParts } from './ppvDisplayName'
+import type { PpvDisplayNameContext, EventStreamDisplayParts } from './ppvDisplayName'
 import { confidenceRank } from './streamConfidence'
 import type { StreamMatchConfidence } from './streamConfidence'
 import { parseCategory } from '../channels/parseCategory'
@@ -30,6 +30,16 @@ export interface EventStreamOption {
   logo?: string
   countryName: string | null
   matchConfidence: StreamMatchConfidence
+  // Structured contextual identity (provider/event title/start time/best
+  // quality) — see ppvDisplayName.ts's EventStreamDisplayParts. `displayName`
+  // above is already the right single-line text for Event Details' own
+  // rows (quality omitted, since StreamRow renders quality via its own
+  // pills — see Part X of the redesign task); this is exposed separately
+  // so a DIFFERENT consumer with no such pills (the full-screen player
+  // overlay, see App.tsx's watchChannel/ChannelPlayerScreen) can compose
+  // its own full line (provider + event + time + quality) from the SAME
+  // underlying parts instead of re-deriving them or duplicating quality UI.
+  displayParts: EventStreamDisplayParts
   // Best quality tier first, one entry per distinct quality tier (see
   // dedupeSourcesByTier) — sourceOptions[0] is always the correct default
   // selection ("select the best one initially").
@@ -90,6 +100,7 @@ export function buildEventStreamOptions(
       logo: group.logo,
       countryName: resolveCountryName(group),
       matchConfidence: group.confidence,
+      displayParts: buildEventStreamDisplayParts(group.name, eventContext, sourceOptions[0]?.qualityLabel ?? null),
       sourceOptions,
       bestQualityTier: sourceOptions[0]?.qualityTier ?? 0,
       isFavorite: group.sourceOptions.some((option) => favoriteChannels.has(option.channel.id)),

@@ -74,6 +74,7 @@ function makeOption(overrides: Partial<EventStreamOption>): EventStreamOption {
     displayName: `Option ${channelCounter}`,
     countryName: null,
     matchConfidence: 'likely',
+    displayParts: { provider: null, eventTitle: null, startTime: null, quality: null },
     sourceOptions: [],
     bestQualityTier: 0,
     isFavorite: false,

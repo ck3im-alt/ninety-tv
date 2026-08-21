@@ -5,11 +5,19 @@ import type { PlayerState, SubtitleTrack } from '../../core/player'
 import type { ChannelSource } from '../../data/channel'
 import { useBackHandler, useFocusScrollIntoView, useModalFocusScope } from '../../core/platform'
 import type { Channel } from '../../data/channel'
+import { estimateQualityTier, qualityTierLabel } from '../eventDetails/rankStreamQuality'
+import { formatEventStreamDisplayLine } from '../eventDetails/ppvDisplayName'
+import type { EventStreamDisplayParts } from '../eventDetails/ppvDisplayName'
 import './ChannelPlayerScreen.css'
 
 interface Props {
   channels: Channel[]
   initialSourceLabel?: string
+  // Contextual event-stream display identity from Event Details' StreamRow
+  // (see App.tsx's watchChannel) — undefined for every other watch path
+  // (Home, Browse, Favorites, Recent), which keep today's exact
+  // selected?.name behavior untouched. See Part V/W of the redesign task.
+  initialDisplayParts?: EventStreamDisplayParts
   onBack: () => void
 }
 
@@ -184,7 +192,7 @@ function SubtitlesPopup({
   )
 }
 
-export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Props) {
+export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDisplayParts, onBack }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const player = useMemo(() => createHtmlVideoPlayer(), [])
   const [selected] = useState<Channel | null>(channels[0] ?? null)
@@ -357,6 +365,25 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
 
   const activeSource = selected?.sources[sourceIndex] ?? selected?.sources[0]
 
+  // Full contextual line (provider | event | time | quality — see Part Y's
+  // regression example) for the overlay header, recomputed from the
+  // CURRENTLY ACTIVE source every render rather than the tier baked in at
+  // watch-time — see Part W ("active source quality in player"): if the
+  // user switches from 8K to 1080p mid-session, the overlay must not keep
+  // claiming 8K. null (not initialDisplayParts's own possibly-stale
+  // quality) when there's no active source to measure yet. Only used when
+  // initialDisplayParts actually carries a real provider identity (i.e.
+  // this playback came from Event Details with usable event context) --
+  // every other watch path falls through to the existing selected?.name
+  // rendering below, completely unchanged.
+  const liveDisplayLine =
+    initialDisplayParts?.provider && selected && activeSource
+      ? formatEventStreamDisplayLine({
+          ...initialDisplayParts,
+          quality: qualityTierLabel(estimateQualityTier({ channel: selected, source: activeSource })),
+        })
+      : null
+
   useEffect(() => {
     if (!activeSource) return
     void player.load(activeSource.url).then(() => player.play())
@@ -405,8 +432,8 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
         >
           <div className="overlay-top">
             <div className="overlay-channel-info">
-              <span className="overlay-channel-name">{selected?.name ?? 'No channel'}</span>
-              {selected?.groupTitle && <span className="overlay-channel-group">{selected.groupTitle}</span>}
+              <span className="overlay-channel-name">{liveDisplayLine ?? selected?.name ?? 'No channel'}</span>
+              {!liveDisplayLine && selected?.groupTitle && <span className="overlay-channel-group">{selected.groupTitle}</span>}
             </div>
           </div>
 

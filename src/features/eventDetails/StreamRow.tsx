@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import type { EventStreamOption } from './buildEventStreamOptions'
+import type { EventStreamDisplayParts } from './ppvDisplayName'
 import type { Channel, ChannelSource } from '../../data/channel'
 
 export type StreamRowVariant = 'top' | 'other' | 'candidate'
@@ -19,7 +20,12 @@ interface StreamRowProps {
   // user is actively navigating — see EventDetailsScreen.tsx's ranking memo.
   favoriteChannels: ReadonlySet<string>
   onToggleFavoriteChannel: (channelId: string) => void
-  onWatch: (channel: Channel, source: ChannelSource) => void
+  // The optional third argument carries this row's contextual event-stream
+  // display identity through to playback (see App.tsx's watchChannel /
+  // ChannelPlayerScreen) — see Part V of the redesign task. Ordinary
+  // channel-browsing screens' own onWatch handlers simply never read a
+  // third argument, so this is additive, not a behavior change for them.
+  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
   // Grabs initial focus on mount — set only on the #1 recommended stream
   // once matches are ready (see EventDetailsScreen.tsx); choosing a stream
   // is this screen's whole purpose, so that's the right initial target,
@@ -66,11 +72,17 @@ export function StreamRow({
   const [sourceIndex, setSourceIndex] = useState(0)
   const selected = option.sourceOptions[sourceIndex] ?? option.sourceOptions[0]
   const favorited = selected ? favoriteChannels.has(selected.channel.id) : false
+  // Reflects whichever source the user actually has selected right now
+  // (they may have cycled Left/Right through quality tiers before
+  // pressing Watch — see the row's own onArrowPress) rather than always
+  // the group's single best tier baked into option.displayParts at build
+  // time — see Part W of the redesign task ("active source quality").
+  const selectedDisplayParts = selected ? { ...option.displayParts, quality: selected.qualityLabel } : option.displayParts
 
   const { ref, focused } = useFocusable({
     focusKey,
     forceFocus,
-    onEnterPress: () => selected && onWatch(selected.channel, selected.source),
+    onEnterPress: () => selected && onWatch(selected.channel, selected.source, selectedDisplayParts),
     onArrowPress: (direction) => {
       if (direction === 'right' && sourceIndex < option.sourceOptions.length - 1) {
         setSourceIndex((i) => i + 1)
@@ -99,7 +111,7 @@ export function StreamRow({
       <button
         ref={ref}
         className="stream-row-main"
-        onClick={() => selected && onWatch(selected.channel, selected.source)}
+        onClick={() => selected && onWatch(selected.channel, selected.source, selectedDisplayParts)}
       >
         <LogoTile logo={option.logo} displayName={option.displayName} />
         <span className="stream-row-name">{option.displayName}</span>

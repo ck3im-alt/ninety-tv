@@ -3,12 +3,13 @@ import { setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation
 import { useFocusScrollIntoView } from '../../core/platform'
 import { StreamRow } from './StreamRow'
 import type { EventStreamOption } from './buildEventStreamOptions'
+import type { EventStreamDisplayParts } from './ppvDisplayName'
 import type { Channel, ChannelSource } from '../../data/channel'
 
 interface SharedRowProps {
   favoriteChannels: ReadonlySet<string>
   onToggleFavoriteChannel: (channelId: string) => void
-  onWatch: (channel: Channel, source: ChannelSource) => void
+  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
 }
 
 function streamCountLabel(count: number): string {

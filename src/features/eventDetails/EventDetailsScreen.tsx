@@ -9,6 +9,7 @@ import { FootballEventHeader, GenericEventHeader } from './EventHeader'
 import { StreamRecommendations, StreamList, CandidateStreamList } from './StreamSections'
 import { loadPreferences } from '../../data/preferences'
 import type { SportEvent } from '../../data/sports/types'
+import type { EventStreamDisplayParts } from './ppvDisplayName'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials } from '../../data/xtream/types'
 import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
@@ -24,7 +25,10 @@ interface Props {
   // doesn't own or persist favorite state itself.
   favoriteChannels: ReadonlySet<string>
   onToggleFavoriteChannel: (channelId: string) => void
-  onWatch: (channel: Channel, source: ChannelSource) => void
+  // The optional third argument carries the row's contextual event-stream
+  // display identity through to App.tsx's watchChannel — see Part V of the
+  // redesign task ("Event Details → Player propagation").
+  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
   onBack: () => void
   onBrowseChannels: () => void
 }
@@ -98,9 +102,14 @@ export function EventDetailsScreen({
     const options = buildEventStreamOptions(state.matches, favoriteChannels, {
       homeTeam: event.homeTeam,
       awayTeam: event.awayTeam,
+      // Non-team events (F1 sessions, etc) have no home/away — event.title
+      // is the canonical identity for those (see ppvDisplayName.ts's
+      // buildEventStreamDisplayParts, Part O of the redesign task).
+      eventTitle: event.title,
+      dateTimeUtc: event.dateTimeUtc,
     })
     return partitionStreamOptions(rankEventStreamOptions(options, favoriteCountries))
-  }, [state, event.homeTeam, event.awayTeam])
+  }, [state, event.homeTeam, event.awayTeam, event.title, event.dateTimeUtc])
 
   const topPickFocusKey = partitioned && partitioned.top.length > 0 ? partitioned.top[0].key : undefined
 
@@ -179,7 +188,7 @@ function StreamAreaReady({
   partitioned: ReturnType<typeof partitionStreamOptions>
   favoriteChannels: ReadonlySet<string>
   onToggleFavoriteChannel: (channelId: string) => void
-  onWatch: (channel: Channel, source: ChannelSource) => void
+  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
 }) {
   const shared = { favoriteChannels, onToggleFavoriteChannel, onWatch }
   return (

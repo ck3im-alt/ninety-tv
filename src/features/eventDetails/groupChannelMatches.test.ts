@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { groupChannelMatches } from './groupChannelMatches'
+import { getChannelDisplayName } from './ppvDisplayName'
 import type { Channel } from '../../data/channel'
 import type { ChannelMatch } from '../../data/sports/channelMatch'
 
@@ -35,6 +36,35 @@ describe('groupChannelMatches PPV quality-variant grouping', () => {
     const groups = groupChannelMatches(matches)
 
     expect(groups).toHaveLength(2)
+  })
+
+  // Part U of the redesign task, verbatim regression: two different
+  // one-off event streams from the SAME provider ("Arsenal - Coventry ...
+  // VIAPLAY PPV 15" and "Liverpool - Chelsea ... VIAPLAY PPV 16") must
+  // stay as two independently selectable groups even though the NEW
+  // contextual display normalizer (extractProviderIdentity, see
+  // ppvDisplayName.ts) shows BOTH as just "VIAPLAY" for display. Grouping
+  // identity (normalizePpvDisplayName, unchanged) intentionally keeps the
+  // slot number; only the separate DISPLAY layer strips it.
+  it('two different one-off events from the same provider never collapse into one group, even though their contextual display names are identical', () => {
+    const arsenalCoventry = 'NEXT | PREMIER LEAGUE ARSENAL - COVENTRY | Fri 21 Aug 20:00 CEST (NO) | 8K EXCLUSIVE | NO: VIAPLAY PPV 15'
+    const liverpoolChelsea = 'NEXT | PREMIER LEAGUE LIVERPOOL - CHELSEA | Fri 21 Aug 20:00 CEST (NO) | 8K EXCLUSIVE | NO: VIAPLAY PPV 16'
+    const matches: ChannelMatch[] = [ppvMatch('ch-15', arsenalCoventry, 'NO| PPV'), ppvMatch('ch-16', liverpoolChelsea, 'NO| PPV')]
+
+    const groups = groupChannelMatches(matches)
+    expect(groups).toHaveLength(2)
+
+    const arsenalDisplay = getChannelDisplayName(groups[0], { homeTeam: 'Arsenal', awayTeam: 'Coventry' })
+    const liverpoolDisplay = getChannelDisplayName(groups[1], { homeTeam: 'Liverpool', awayTeam: 'Chelsea' })
+    // Both raw names advertise the same "20:00" -- the display's own
+    // raw-extracted start time (see the PPV time-source correction) is
+    // identical between the two, same as the provider name; only the slot
+    // number distinguishes the underlying groups, exactly as intended.
+    expect(arsenalDisplay).toBe('VIAPLAY | Arsenal - Coventry | 20:00')
+    expect(liverpoolDisplay).toBe('VIAPLAY | Liverpool - Chelsea | 20:00')
+    // Same provider, but the two lines (and the groups behind them) are
+    // still distinguishable -- never collapsed into one selectable stream.
+    expect(arsenalDisplay).not.toBe(liverpoolDisplay)
   })
 
   it('keeps PPV entries from different countries separate even with the same slot name', () => {

@@ -29,3 +29,22 @@ export function formatKickoffTime(dateTimeUtc: string | null): string {
   const d = parseValidDate(dateTimeUtc)
   return d ? d.toLocaleTimeString([], TIME_FORMAT) : ''
 }
+
+// Fixed 24-hour "HH:mm", no date — the PPV/event-stream display line's
+// FALLBACK time source only (see ppvDisplayName.ts's
+// buildEventStreamDisplayParts), used when the raw stream name itself
+// carries no extractable advertised time. Deliberately NOT locale-aware
+// like formatKickoffTime (which intentionally follows device
+// AM/PM-vs-24h conventions for the event header) — this segment sits right
+// next to extractRawStreamStartTime's own always-24h output, so it needs
+// to match that shape for visual consistency regardless of device locale.
+// Still converts the UTC instant to the device's actual local time (via
+// Date's own local getHours/getMinutes) — only the DISPLAY FORMAT is
+// fixed, not the timezone. Returns '' (never a fabricated time) when
+// dateTimeUtc is absent/invalid, same contract as the other formatters
+// here.
+export function formatTimeOnly24h(dateTimeUtc: string | null): string {
+  const d = parseValidDate(dateTimeUtc)
+  if (!d) return ''
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}

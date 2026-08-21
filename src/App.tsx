@@ -36,6 +36,7 @@ import { DEBUG_FORCE_SCREEN_KEY } from './core/debugForceScreen'
 import type { Channel } from './data/channel'
 import type { PlaylistSourceRecord } from './data/session'
 import type { SportEvent } from './data/sports/types'
+import type { EventStreamDisplayParts } from './features/eventDetails/ppvDisplayName'
 
 // Lazy-loaded: screens that are rare (first-run-only onboarding, dev-admin
 // already tree-shaken separately) or off the primary Home->Channels->Watch
@@ -249,6 +250,13 @@ function App() {
   const [settingsReturnScreen, setSettingsReturnScreen] = useState<Screen>('home')
   const [playingChannel, setPlayingChannel] = useState<Channel | null>(null)
   const [playingSourceLabel, setPlayingSourceLabel] = useState<string | undefined>(undefined)
+  // Contextual event-stream display identity (provider/event title/start
+  // time/quality) carried from Event Details' StreamRow through to the
+  // player overlay — see Part V of the redesign task. Undefined for every
+  // OTHER watch path (Home, Browse, Favorites, Recent), which never pass a
+  // third argument to watchChannel at all — the player falls back to its
+  // existing selected?.name behavior for those, completely unchanged.
+  const [playingDisplayParts, setPlayingDisplayParts] = useState<EventStreamDisplayParts | undefined>(undefined)
   // Where the player's Back button should return to — whichever list screen
   // (the cascade browser, favorites, or recently-watched) the user watched
   // from. Non-persisted, same as the rest of this in-memory nav state.
@@ -465,10 +473,16 @@ function App() {
     return recentlyWatched.map((id) => channelIndex.getChannelById(id)).filter((c): c is Channel => c != null)
   }, [channelIndex, recentlyWatched])
 
-  function watchChannel(channel: Channel, source: { label: string }, fromScreen: Screen) {
+  function watchChannel(
+    channel: Channel,
+    source: { label: string },
+    fromScreen: Screen,
+    displayParts?: EventStreamDisplayParts,
+  ) {
     recordWatched(channel.id)
     setPlayingChannel(channel)
     setPlayingSourceLabel(source.label)
+    setPlayingDisplayParts(displayParts)
     setPlayerReturnScreen(fromScreen)
     setScreen('player')
   }
@@ -568,7 +582,7 @@ function App() {
           identityIndex={identityIndex}
           favoriteChannels={favoriteChannels}
           onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
-          onWatch={(channel, source) => watchChannel(channel, source, 'event-details')}
+          onWatch={(channel, source, displayParts) => watchChannel(channel, source, 'event-details', displayParts)}
           onBack={() => setScreen(eventDetailsReturnScreen)}
           onBrowseChannels={() => setScreen('browse-cascade')}
         />
@@ -682,6 +696,7 @@ function App() {
         <ChannelPlayerScreen
           channels={playerChannels}
           initialSourceLabel={playingSourceLabel}
+          initialDisplayParts={playingDisplayParts}
           onBack={() => setScreen(playerReturnScreen)}
         />
       )}
