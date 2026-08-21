@@ -84,3 +84,27 @@
 .avatar.focused {
   box-shadow: 0 0 0 3px var(--surface-focus), 0 0 0 5px var(--border-focus);
 }
+
+/* Dev/debug panel entry point — only rendered in dev builds (see TopNav's
+   onOpenAdmin prop), never part of a production build's focus tree. */
+.nav-admin-dev {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.nav-admin-dev.clickable {
+  cursor: pointer;
+}
+
+.nav-admin-dev.focused {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--surface-focus);
+}

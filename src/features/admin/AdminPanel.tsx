@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { FocusContext, getCurrentFocusKey, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { useBackHandler } from '../../core/platform'
+import { useState } from 'react'
+import { FocusContext, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useModalFocusScope } from '../../core/platform'
 import { clearAllAppStorage } from '../../core/storage/localStore'
 import { hasCompletedOnboarding, loadPreferences } from '../../data/preferences'
 import { clearPlaylist, loadFavoriteChannels, loadFavoriteCategories } from '../../data/session'
@@ -50,24 +50,7 @@ export function AdminPanel({ channels, onClose }: Props) {
   const savedFavoriteCategories = loadFavoriteCategories()
 
   const { ref: closeRef, focused: closeFocused } = useFocusable({ onEnterPress: onClose })
-  const { ref: popupRef, focusKey: popupFocusKey } = useFocusable({
-    focusKey: POPUP_FOCUS_KEY,
-    trackChildren: true,
-    isFocusBoundary: true,
-  })
-
-  useEffect(() => {
-    const previousFocusKey = getCurrentFocusKey()
-    void setFocus(POPUP_FOCUS_KEY)
-    return () => {
-      void setFocus(previousFocusKey)
-    }
-  }, [])
-
-  useBackHandler(() => {
-    onClose()
-    return true
-  })
+  const { ref: popupRef, focusKey: popupFocusKey } = useModalFocusScope({ focusKey: POPUP_FOCUS_KEY, onClose })
 
   function resetOnboarding() {
     clearAllAppStorage()

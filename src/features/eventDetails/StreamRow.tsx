@@ -25,6 +25,13 @@ interface StreamRowProps {
   // is this screen's whole purpose, so that's the right initial target,
   // not Back.
   forceFocus?: boolean
+  // Stable identity (option.key, the same value already used as this row's
+  // React `key`) — lets EventDetailsScreen's root container target this
+  // exact row via preferredChildFocusKey/setFocus once matches are ready,
+  // instead of depending on forceFocus alone (which only affects the
+  // global ROOT_FOCUS_KEY-resolution path, not a scoped screen key — see
+  // App.tsx's SCREEN_FOCUS_KEYS for why this screen now needs one).
+  focusKey?: string
 }
 
 function LogoTile({ logo, displayName }: { logo?: string; displayName: string }) {
@@ -54,12 +61,14 @@ export function StreamRow({
   onToggleFavoriteChannel,
   onWatch,
   forceFocus,
+  focusKey,
 }: StreamRowProps) {
   const [sourceIndex, setSourceIndex] = useState(0)
   const selected = option.sourceOptions[sourceIndex] ?? option.sourceOptions[0]
   const favorited = selected ? favoriteChannels.has(selected.channel.id) : false
 
   const { ref, focused } = useFocusable({
+    focusKey,
     forceFocus,
     onEnterPress: () => selected && onWatch(selected.channel, selected.source),
     onArrowPress: (direction) => {

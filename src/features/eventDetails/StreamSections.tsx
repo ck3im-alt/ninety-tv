@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useState } from 'react'
+import { setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusScrollIntoView } from '../../core/platform'
 import { StreamRow } from './StreamRow'
 import type { EventStreamOption } from './buildEventStreamOptions'
 import type { Channel, ChannelSource } from '../../data/channel'
@@ -33,7 +34,7 @@ export function StreamRecommendations({ options, ...shared }: { options: EventSt
       </div>
       <div className="stream-row-list">
         {options.map((option, index) => (
-          <StreamRow key={option.key} option={option} variant="top" primary={index === 0} forceFocus={index === 0} {...shared} />
+          <StreamRow key={option.key} focusKey={option.key} option={option} variant="top" primary={index === 0} forceFocus={index === 0} {...shared} />
         ))}
       </div>
     </section>
@@ -49,7 +50,7 @@ export function StreamList({ options, ...shared }: { options: EventStreamOption[
       <h2 className="stream-section-title-secondary">All other streams</h2>
       <div className="stream-row-list stream-row-list-compact">
         {options.map((option) => (
-          <StreamRow key={option.key} option={option} variant="other" {...shared} />
+          <StreamRow key={option.key} focusKey={option.key} option={option} variant="other" {...shared} />
         ))}
       </div>
     </section>
@@ -66,24 +67,38 @@ export function CandidateStreamList({
   ...shared
 }: { options: EventStreamOption[]; defaultOpen: boolean } & SharedRowProps) {
   const [open, setOpen] = useState(defaultOpen)
-  const { ref: toggleRef, focused: toggleFocused } = useFocusable({ onEnterPress: () => setOpen(true) })
-  useEffect(() => {
-    if (toggleFocused) toggleRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [toggleFocused, toggleRef])
+  const { ref: toggleRef, focused: toggleFocused } = useFocusable({
+    onEnterPress: () => {
+      setOpen(true)
+      // The toggle button unmounts the instant `open` becomes true (see
+      // `{!open && <button>...}` below) and is replaced by the candidate
+      // rows — without explicitly moving focus, it was left pointing at a
+      // component that had just been removed from the tree. Uses a stable
+      // key (see StreamRow's `focusKey` prop, `option.key`) rather than a
+      // timer, same pattern as every other "an action is replaced by newly
+      // rendered children" case in this pass.
+      if (options[0]) void setFocus(options[0].key)
+    },
+  })
+  useFocusScrollIntoView(toggleRef, toggleFocused)
 
   if (options.length === 0) return null
   return (
     <section className="stream-section stream-section-candidates">
       <h2 className="stream-section-title-secondary">Channels that might show it</h2>
       {!open && (
-        <button ref={toggleRef} className={`stream-section-toggle ${toggleFocused ? 'focused' : ''}`} onClick={() => setOpen(true)}>
+        <button
+          ref={toggleRef}
+          className={`stream-section-toggle ${toggleFocused ? 'focused' : ''}`}
+          onClick={() => setOpen(true)}
+        >
           Show {options.length} channel{options.length === 1 ? '' : 's'} that might also have it
         </button>
       )}
       {open && (
         <div className="stream-row-list stream-row-list-compact">
           {options.map((option) => (
-            <StreamRow key={option.key} option={option} variant="candidate" {...shared} />
+            <StreamRow key={option.key} focusKey={option.key} option={option} variant="candidate" {...shared} />
           ))}
         </div>
       )}

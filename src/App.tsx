@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
-import { ROOT_FOCUS_KEY, setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { ROOT_FOCUS_KEY, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusDebugOverlay } from './core/platform'
 import { TopNav } from './features/navigation/TopNav'
 import { HomeScreen } from './features/home/HomeScreen'
 import { AdminPanel } from './features/admin/AdminPanel'
@@ -60,6 +61,7 @@ const EventDetailsScreen = lazy(() =>
 const CompetitionsScreen = lazy(() =>
   import('./features/competitions/CompetitionsScreen').then((m) => ({ default: m.CompetitionsScreen })),
 )
+const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen').then((m) => ({ default: m.SettingsScreen })))
 
 markPerf('app:module-load')
 
@@ -79,8 +81,29 @@ type Screen =
   | 'player'
   | 'event-details'
   | 'competitions'
+  | 'settings'
 
 const RECENTLY_WATCHED_LIMIT = 30
+
+// Root focus key each LAZY (React.lazy/Suspense) screen registers itself
+// under (see each screen's own top-level useFocusable call). Screens NOT
+// listed here (home, browse-cascade, the two CategoryChannelsScreen
+// instances, player) are eagerly mounted, so the plain
+// setFocus(ROOT_FOCUS_KEY) + forceFocus convention they already use has no
+// race to fix — see the initial-focus effect below for why lazy screens
+// need this instead.
+//
+// 'setup' and 'onboarding' share PlaylistSetupScreen's key: onboarding's
+// step 1 IS PlaylistSetupScreen (see OnboardingFlow.tsx), so a fresh
+// onboarding entry resolves to the same target as the standalone Setup
+// screen.
+const SCREEN_FOCUS_KEYS: Partial<Record<Screen, string>> = {
+  setup: 'setup-screen',
+  onboarding: 'setup-screen',
+  'event-details': 'event-details-screen',
+  competitions: 'competitions-screen',
+  settings: 'settings-screen',
+}
 
 // The connected playlist's channels/source/generationId, updated together as
 // one atomic unit (via installPlaylist below) so no code path can ever
@@ -221,6 +244,9 @@ function App() {
   // Competitions, whichever the user drilled in from (same pattern as
   // playerReturnScreen below).
   const [eventDetailsReturnScreen, setEventDetailsReturnScreen] = useState<Screen>('home')
+  // Where Settings' Back button should return to — whichever screen the
+  // avatar was pressed from (Home, Competitions, or a Channels screen).
+  const [settingsReturnScreen, setSettingsReturnScreen] = useState<Screen>('home')
   const [playingChannel, setPlayingChannel] = useState<Channel | null>(null)
   const [playingSourceLabel, setPlayingSourceLabel] = useState<string | undefined>(undefined)
   // Where the player's Back button should return to — whichever list screen
@@ -254,14 +280,44 @@ function App() {
   // have no current focus to navigate from and silently do nothing. Needs
   // to re-run on every screen change since the focusable tree is replaced.
   // Skips browse-cascade: that screen restores focus itself based on which
-  // column (country/category/channel) was last active, via its own
+  // column (country/category/channel/preview) was last active, via its own
   // `level`-keyed effect — since effects run child-before-parent, this
-  // blanket ROOT-focus call would otherwise fire afterward and win the
-  // race, always snapping back to the Countries column (its forceFocus
-  // target) regardless of where the user actually was.
+  // blanket call would otherwise fire afterward and win the race, always
+  // snapping back to its default target regardless of where the user
+  // actually was.
+  //
+  // For lazy (Suspense) screens this targets that screen's OWN root
+  // focusKey (see SCREEN_FOCUS_KEYS above) instead of ROOT_FOCUS_KEY. That
+  // isn't just cosmetic — it fixes a real race: `screen` can change (e.g.
+  // 'home' -> 'competitions') while Suspense is still rendering `null`
+  // waiting for the chunk, so this effect fires before the lazy screen's
+  // focus tree exists. setFocus(ROOT_FOCUS_KEY) resolves synchronously
+  // against whatever's registered RIGHT NOW (getForcedFocusKey scans
+  // currently-mounted forceFocus components only) — with nothing mounted
+  // yet, it silently aborts, and since `screen` itself doesn't change again
+  // once the chunk finishes loading, nothing ever retries. Targeting the
+  // screen's own focusKey instead relies on norigin's "preset key" behavior
+  // (see SpatialNavigationService.addFocusable): setFocus(key) still
+  // records that key as the pending focus target even when nothing with
+  // that key is registered yet, and the screen's root container
+  // self-focuses (via its own preferredChildFocusKey) the moment it mounts
+  // and registers under that exact key — whenever that ends up happening.
+  // No timers, no waiting for a ref.
+  // Tracks the PREVIOUS screen value so leaving Settings can restore focus
+  // to the exact avatar it was opened from — Settings is a full screen swap
+  // (not a modal), so there's no local "remember the opener" closure the
+  // way FilterPopup/AdminPanel have; App is the only place that knows both
+  // the old and new screen.
+  const previousScreenRef = useRef<Screen>(screen)
   useEffect(() => {
+    const previousScreen = previousScreenRef.current
+    previousScreenRef.current = screen
     if (screen === 'browse-cascade') return
-    void setFocus(ROOT_FOCUS_KEY)
+    if (previousScreen === 'settings' && screen !== 'settings') {
+      void setFocus('nav-avatar')
+      return
+    }
+    void setFocus(SCREEN_FOCUS_KEYS[screen] ?? ROOT_FOCUS_KEY)
   }, [screen])
 
   // Startup: hydrate playlist state from IndexedDB (fast, async, never
@@ -421,7 +477,25 @@ function App() {
     <>
       {screen !== 'player' && screen !== 'onboarding' && (
         <TopNav
-          activeItem={screen === 'home' ? 'Home' : screen === 'competitions' ? 'Competitions' : 'Channels'}
+          // Tied to actual navigation origin, not just the current screen —
+          // Event Details opened from Home vs. from Competitions must show
+          // the tab the user actually came from as active, not always
+          // "Channels" (event-details doesn't belong to any tab on its
+          // own). Settings gets no tab highlighted; the avatar's own focus
+          // style already marks it.
+          activeItem={
+            screen === 'home'
+              ? 'Home'
+              : screen === 'competitions'
+                ? 'Competitions'
+                : screen === 'event-details'
+                  ? eventDetailsReturnScreen === 'competitions'
+                    ? 'Competitions'
+                    : 'Home'
+                  : screen === 'settings'
+                    ? 'Settings'
+                    : 'Channels'
+          }
           onSelectHome={() => setScreen('home')}
           onSelectChannels={
             hydrationStatus === 'pending'
@@ -438,6 +512,10 @@ function App() {
                 }
           }
           onSelectCompetitions={() => setScreen('competitions')}
+          onOpenSettings={() => {
+            setSettingsReturnScreen(screen)
+            setScreen('settings')
+          }}
           onOpenAdmin={import.meta.env.DEV ? () => setAdminOpen(true) : undefined}
         />
       )}
@@ -470,6 +548,15 @@ function App() {
             setScreen('event-details')
           }}
           onBack={() => setScreen('home')}
+        />
+      )}
+
+      {screen === 'settings' && (
+        <SettingsScreen
+          channels={playlist.channels}
+          source={playlist.source}
+          onBack={() => setScreen(settingsReturnScreen)}
+          onReconnectPlaylist={() => setScreen('setup')}
         />
       )}
 
@@ -612,20 +699,44 @@ function App() {
         />
       )}
 
-      {playlistNotice && (
-        <div className="playlist-persistence-toast" role="status">
-          <span>{playlistNotice}</span>
-          <button aria-label="Dismiss" onClick={() => setPlaylistNotice(null)}>
-            ×
-          </button>
-        </div>
-      )}
+      {playlistNotice && <PlaylistToast message={playlistNotice} onDismiss={() => setPlaylistNotice(null)} />}
 
       {import.meta.env.DEV && adminOpen && (
         <AdminPanel channels={playlist.channels} onClose={() => setAdminOpen(false)} />
       )}
+      {import.meta.env.DEV && (
+        <FocusDebugOverlay screen={screen} region={screen === 'browse-cascade' ? cascadeLevel : undefined} overlay={filterOpen ? 'filter' : adminOpen ? 'admin' : null} />
+      )}
       </Suspense>
     </>
+  )
+}
+
+// Was mouse-only (a plain onClick button) — the × can now be reached with
+// the remote too, via a stable (not forceFocus) key: this toast can appear
+// over any screen, so it deliberately doesn't compete for that screen's own
+// initial-focus target, but a user who does navigate to it can still
+// dismiss it. Also auto-dismisses on a timer so a persistence failure
+// notice can't sit there indefinitely covering content if nobody happens to
+// navigate to it.
+const PLAYLIST_TOAST_AUTO_DISMISS_MS = 12000
+
+function PlaylistToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  const { ref, focused } = useFocusable({ focusKey: 'playlist-toast-dismiss', onEnterPress: onDismiss })
+
+  useEffect(() => {
+    const id = setTimeout(onDismiss, PLAYLIST_TOAST_AUTO_DISMISS_MS)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message])
+
+  return (
+    <div className="playlist-persistence-toast" role="status">
+      <span>{message}</span>
+      <button ref={ref} className={focused ? 'focused' : ''} aria-label="Dismiss" onClick={onDismiss}>
+        ×
+      </button>
+    </div>
   )
 }
 

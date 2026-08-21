@@ -87,6 +87,9 @@ export function OnboardingCountriesScreen({
 
   const BACK_FOCUS_KEY = 'countries-back'
   const CONTINUE_FOCUS_KEY = 'countries-continue'
+  const SELECT_ALL_FOCUS_KEY = 'countries-select-all'
+  const DESELECT_ALL_FOCUS_KEY = 'countries-deselect-all'
+  const firstCountryFocusKey = countries[0] ? `country-${countries[0].name}` : undefined
   const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: BACK_FOCUS_KEY, onEnterPress: onBack })
   const { ref: continueRef, focused: continueFocused } = useFocusable({
     focusKey: CONTINUE_FOCUS_KEY,
@@ -102,8 +105,35 @@ export function OnboardingCountriesScreen({
   // remote, not just slow to reach. Sports screen never had this bug
   // because its own forceFocus already targets a grid card directly (the
   // football SelectableCard) -- mirrored below onto the first country card.
-  const { ref: selectAllRef, focused: selectAllFocused } = useFocusable({ onEnterPress: onSelectAll })
-  const { ref: deselectAllRef, focused: deselectAllFocused } = useFocusable({ onEnterPress: onDeselectAll })
+  //
+  // Down explicitly targets the first country card for the same geometric-
+  // overlap reason — this is also the fix for the reverse direction (Down
+  // FROM these buttons), which previously depended on the same unreliable
+  // geometry as the forceFocus bug above and was still "can still be
+  // problematic" even after the initial-focus fix. First row's onArrowUp
+  // (below, on the grid itself) targets these back.
+  const { ref: selectAllRef, focused: selectAllFocused } = useFocusable({
+    focusKey: SELECT_ALL_FOCUS_KEY,
+    onEnterPress: onSelectAll,
+    onArrowPress: (direction) => {
+      if (direction === 'down' && firstCountryFocusKey) {
+        void setFocus(firstCountryFocusKey)
+        return false
+      }
+      return true
+    },
+  })
+  const { ref: deselectAllRef, focused: deselectAllFocused } = useFocusable({
+    focusKey: DESELECT_ALL_FOCUS_KEY,
+    onEnterPress: onDeselectAll,
+    onArrowPress: (direction) => {
+      if (direction === 'down' && firstCountryFocusKey) {
+        void setFocus(firstCountryFocusKey)
+        return false
+      }
+      return true
+    },
+  })
 
   // Every standalone (non-grid-card) focus target on this screen needs its
   // own scroll-into-view -- SelectableCard has one, these don't, same gap
@@ -212,6 +242,7 @@ export function OnboardingCountriesScreen({
                   onToggle={() => onToggleCountry(country.name)}
                   forceFocus={index === 0}
                   onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
+                  onArrowUp={index < GRID_COLUMNS ? () => void setFocus(DESELECT_ALL_FOCUS_KEY) : undefined}
                   onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
                 >
                   <div className="pick-card-icon round">

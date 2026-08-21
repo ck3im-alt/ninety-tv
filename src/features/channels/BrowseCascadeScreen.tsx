@@ -3,7 +3,8 @@ import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spat
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentials, XtreamEpgListing } from '../../data/xtream/types'
 import type { ChannelIndex } from '../../data/channelIndex'
-import { useBackHandler } from '../../core/platform'
+import { useBackHandler, pickFallbackAfterRemoval } from '../../core/platform'
+import { previousCascadeStep } from './cascadeNavigation'
 import { preloadPlayerEngine } from '../../core/player'
 import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
@@ -48,6 +49,13 @@ const COUNTRY_COL_FOCUS_KEY = 'cascade-countries'
 const CATEGORY_COL_FOCUS_KEY = 'cascade-categories'
 const CHANNEL_COL_FOCUS_KEY = 'cascade-channels'
 const SEARCH_COL_FOCUS_KEY = 'cascade-search-results'
+// Stable keys for the Preview pane's two actions — needed so focus can be
+// restored to a SPECIFIC one of them (not just "the preview column") after
+// returning from Player, and so Left from a channel row back into Preview
+// (and Left again out of it) has a deterministic, non-geometric target. See
+// the 'preview' branch of the level-restoration effect below.
+const PREVIEW_WATCH_FOCUS_KEY = 'cascade-preview-watch'
+const PREVIEW_FAVORITE_FOCUS_KEY = 'cascade-preview-favorite'
 // Filter/Recently Watched/Favorites — the search input itself isn't in this
 // region (see SearchField: no on-screen keyboard yet, so it isn't a
 // spatial-nav target). Geometry-based nav alone doesn't reliably reach this
@@ -93,19 +101,27 @@ interface Props {
   onSelectedChannelChange: (channel: Channel | null) => void
 }
 
-// Down steps into the Countries column — the toolbar sits above all three
-// cascade columns but only lines up horizontally with none of them, so
-// default geometry-based nav can't be relied on to land there.
-function toolbarArrowPress(direction: string): boolean {
-  if (direction === 'down') {
-    void setFocus(COUNTRY_COL_FOCUS_KEY)
-    return false
+// Down steps into whichever list is actually showing below the toolbar —
+// the Countries column normally, but the flat search-results list while a
+// search query is active (the Countries column isn't even rendered then).
+// The toolbar sits above all of these but only lines up horizontally with
+// none of them, so default geometry-based nav can't be relied on to land
+// there either way — and targeting a fixed COUNTRY_COL_FOCUS_KEY
+// unconditionally (the previous behavior) meant Down from Filter/Recently
+// Watched/Favorites during a search tried to focus a column that wasn't
+// mounted, silently stranding focus on a dead key.
+function makeToolbarArrowPress(downTarget: string) {
+  return (direction: string): boolean => {
+    if (direction === 'down') {
+      void setFocus(downTarget)
+      return false
+    }
+    return true
   }
-  return true
 }
 
-function FilterButton({ onOpen }: { onOpen: () => void }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onOpen, onArrowPress: toolbarArrowPress })
+function FilterButton({ onOpen, downTarget }: { onOpen: () => void; downTarget: string }) {
+  const { ref, focused } = useFocusable({ onEnterPress: onOpen, onArrowPress: makeToolbarArrowPress(downTarget) })
   return (
     <button ref={ref} className={`filter-btn ${focused ? 'focused' : ''}`} onClick={onOpen} title="Show or hide entire countries or categories from the lists below">
       Filter Countries &amp; Categories
@@ -113,8 +129,8 @@ function FilterButton({ onOpen }: { onOpen: () => void }) {
   )
 }
 
-function BarButton({ label, onSelect }: { label: string; onSelect: () => void }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onSelect, onArrowPress: toolbarArrowPress })
+function BarButton({ label, onSelect, downTarget }: { label: string; onSelect: () => void; downTarget: string }) {
+  const { ref, focused } = useFocusable({ onEnterPress: onSelect, onArrowPress: makeToolbarArrowPress(downTarget) })
   return (
     <button ref={ref} className={`filter-btn ${focused ? 'focused' : ''}`} onClick={onSelect}>
       {label}
@@ -208,10 +224,15 @@ function PreviewCard({
   // pipeline has caught up to.
   const watchSource = channel.sources[0]
   const { ref: watchRef, focused: watchFocused } = useFocusable({
+    focusKey: PREVIEW_WATCH_FOCUS_KEY,
     onEnterPress: () => watchSource && onWatch(channel, watchSource),
     onFocus: onFocusPreview,
   })
-  const { ref: favRef, focused: favFocused } = useFocusable({ onEnterPress: onToggleFavorite, onFocus: onFocusPreview })
+  const { ref: favRef, focused: favFocused } = useFocusable({
+    focusKey: PREVIEW_FAVORITE_FOCUS_KEY,
+    onEnterPress: onToggleFavorite,
+    onFocus: onFocusPreview,
+  })
 
   const [now, ...rest] = epg.listings
   const upcoming = rest.slice(0, 3)
@@ -300,19 +321,9 @@ export function BrowseCascadeScreen({
       setQuery('')
       return true
     }
-    if (level === 'preview') {
-      setLevel('channel')
-      return true
-    }
-    if (level === 'channel') {
-      setLevel('category')
-      return true
-    }
-    if (level === 'category') {
-      setLevel('country')
-      return true
-    }
-    onExit()
+    const step = previousCascadeStep(level)
+    if ('exit' in step) onExit()
+    else setLevel(step.level)
     return true
   })
 
@@ -457,8 +468,19 @@ export function BrowseCascadeScreen({
   // than the actual stream startup time. The expensive part (starting a
   // stream load, fetching EPG) is debounced separately, inside PreviewCard,
   // so fast-scrolling still never fires either of those per row.
+  // Also used as VirtualChannelList's onFocusChannel — i.e. this fires as
+  // arrow-key focus MOVES onto a channel row, not just on Enter. That
+  // includes moving focus back Left out of the Preview pane onto a channel
+  // row: level must follow it back to 'channel' here, or it's left stuck at
+  // 'preview' (set by PreviewCard's onFocus) even though actual focus has
+  // already moved — which used to make a single Back press silently just
+  // "correct" the level without visibly doing anything, requiring a second
+  // press to actually go up to Category. Actual focus region and navigation
+  // state must agree; this is what keeps them in sync outside of explicit
+  // selectCategory/selectCountry drill-downs.
   function selectChannel(channel: Channel) {
     setSelectedChannel(channel)
+    setLevel('channel')
   }
 
   // Enter on a channel row jumps straight into full-screen playback — no
@@ -507,6 +529,24 @@ export function BrowseCascadeScreen({
     if (level === 'country') void setFocus(COUNTRY_COL_FOCUS_KEY)
     else if (level === 'category') void setFocus(CATEGORY_COL_FOCUS_KEY)
     else if (level === 'channel') void setFocus(CHANNEL_COL_FOCUS_KEY)
+    // 'preview' was previously unhandled here entirely — App.tsx
+    // deliberately skips its own blanket screen-focus effect for this
+    // screen (see App.tsx), so on remount (e.g. Back from Player, with
+    // `level` restored to 'preview' via the lifted App state) NOTHING
+    // called setFocus at all: this screen's whole focus tree had just been
+    // freshly (re)registered with nothing focused, and arrow keys had
+    // nowhere to navigate from. Target the Watch button specifically (a
+    // stable key — see PREVIEW_WATCH_FOCUS_KEY) rather than a container, so
+    // this doesn't depend on geometry to land somewhere sensible.
+    else if (level === 'preview' && selectedChannel) void setFocus(PREVIEW_WATCH_FOCUS_KEY)
+    else if (level === 'preview') void setFocus(CHANNEL_COL_FOCUS_KEY) // preview with no channel selected can't happen in normal use, but never leave focus unresolved if it somehow does
+    // Deliberately keyed on `level` alone, not `selectedChannel` too —
+    // `selectedChannel` is a prop (lifted to App) that's already correct by
+    // the time this effect first runs on mount, and re-running this on
+    // every subsequent channel-focus change while already at level
+    // 'channel'/'preview' would just re-issue a redundant (if harmless)
+    // setFocus call on every arrow press.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level])
 
   useEffect(() => {
@@ -524,6 +564,39 @@ export function BrowseCascadeScreen({
       setSelectedCountry(countries[0].name)
     }
   }, [countries, selectedCountry, setSelectedCountry])
+
+  // Filter can remove the country/category the user is CURRENTLY drilled
+  // into (hiddenCountries/hiddenCategories changing while this screen stays
+  // mounted) — its ListRow just unmounted out from under whatever had
+  // focus. Fall back to a deterministic neighbor rather than leaving focus
+  // pointing at a component that no longer exists.
+  const prevCountriesRef = useRef(countries)
+  useEffect(() => {
+    if (selectedCountry !== null && !countries.some((c) => c.name === selectedCountry)) {
+      const previousIndex = prevCountriesRef.current.findIndex((c) => c.name === selectedCountry)
+      const fallback = previousIndex === -1 ? null : pickFallbackAfterRemoval(previousIndex, countries)
+      setSelectedCategory(null)
+      setSelectedChannel(null)
+      setSelectedCountry(fallback?.item.name ?? null)
+      setLevel('country')
+    }
+    prevCountriesRef.current = countries
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countries])
+
+  const allCategoriesForRemovalCheck = useMemo(() => [...regularCategories, ...ppvCategories], [regularCategories, ppvCategories])
+  const prevCategoriesRef = useRef(allCategoriesForRemovalCheck)
+  useEffect(() => {
+    if (selectedCategory !== null && !allCategoriesForRemovalCheck.some((c) => c.label === selectedCategory)) {
+      const previousIndex = prevCategoriesRef.current.findIndex((c) => c.label === selectedCategory)
+      const fallback = previousIndex === -1 ? null : pickFallbackAfterRemoval(previousIndex, allCategoriesForRemovalCheck)
+      setSelectedChannel(null)
+      setSelectedCategory(fallback?.item.label ?? null)
+      setLevel(fallback ? 'category' : 'country')
+    }
+    prevCategoriesRef.current = allCategoriesForRemovalCheck
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allCategoriesForRemovalCheck])
 
   // DEV-perf: country-focus -> updated category presentation, and
   // category-focus -> updated channel presentation (§13 instrumentation —
@@ -559,10 +632,16 @@ export function BrowseCascadeScreen({
 
       <FocusContext.Provider value={toolbarFocusKey}>
         <div ref={toolbarRef} className="cascade-search-row">
-          <SearchField value={query} onChange={setQuery} placeholder="Search channels" />
-          <FilterButton onOpen={onOpenFilter} />
-          <BarButton label="Recently Watched" onSelect={onOpenRecent} />
-          <BarButton label="Favorites" onSelect={onOpenFavorites} />
+          <SearchField
+            focusKey="cascade-search-field"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search channels"
+            onArrowDown={() => void setFocus(isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY)}
+          />
+          <FilterButton onOpen={onOpenFilter} downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY} />
+          <BarButton label="Recently Watched" onSelect={onOpenRecent} downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY} />
+          <BarButton label="Favorites" onSelect={onOpenFavorites} downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY} />
         </div>
       </FocusContext.Provider>
 
@@ -610,6 +689,7 @@ export function BrowseCascadeScreen({
                 {countries.map((country, index) => (
                   <ListRow
                     key={country.name}
+                    focusKey={`cascade-country-row-${country.name}`}
                     icon={country.code && flagSrc(country.code) ? <img className="flag-icon" src={flagSrc(country.code)!} alt="" /> : undefined}
                     label={country.name}
                     count={country.count}
@@ -633,6 +713,7 @@ export function BrowseCascadeScreen({
                   {regularCategories.map((category, index) => (
                     <ListRow
                       key={category.label || '(general)'}
+                      focusKey={`cascade-category-row-${category.label || '(general)'}`}
                       label={category.label || 'General'}
                       count={category.count}
                       active={category.label === selectedCategory}
@@ -640,8 +721,18 @@ export function BrowseCascadeScreen({
                       onFocus={() => previewCategory(category.label)}
                       onArrowLeft={() => void setFocus(COUNTRY_COL_FOCUS_KEY)}
                       onArrowUp={index === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined}
-                      favorited={favoriteCategories.has(categoryFavoriteKey(selectedCountry, category.label))}
-                      onToggleFavorite={() => onToggleFavoriteCategory(categoryFavoriteKey(selectedCountry, category.label))}
+                      // At 4 columns the star is CSS-hidden (see
+                      // BrowseCascadeScreen.css's [data-cols='4'] rule) to
+                      // keep the fully-expanded view calm — omitting these
+                      // two props here (rather than just hiding it visually)
+                      // is what keeps a hidden star from also being a
+                      // registered spatial-nav target a remote user could
+                      // silently land on. See ChannelRow's `showFavorite`
+                      // prop for the equivalent fix on channel rows.
+                      favorited={colCount < 4 ? favoriteCategories.has(categoryFavoriteKey(selectedCountry, category.label)) : undefined}
+                      onToggleFavorite={
+                        colCount < 4 ? () => onToggleFavoriteCategory(categoryFavoriteKey(selectedCountry, category.label)) : undefined
+                      }
                     />
                   ))}
                   {ppvCategories.length > 0 && (
@@ -650,6 +741,7 @@ export function BrowseCascadeScreen({
                       {ppvCategories.map((category, index) => (
                         <ListRow
                           key={category.label}
+                          focusKey={`cascade-category-row-${category.label}`}
                           label={category.label}
                           count={category.count}
                           active={category.label === selectedCategory}
@@ -659,8 +751,10 @@ export function BrowseCascadeScreen({
                           onArrowUp={
                             index === 0 && regularCategories.length === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined
                           }
-                          favorited={favoriteCategories.has(categoryFavoriteKey(selectedCountry, category.label))}
-                          onToggleFavorite={() => onToggleFavoriteCategory(categoryFavoriteKey(selectedCountry, category.label))}
+                          favorited={colCount < 4 ? favoriteCategories.has(categoryFavoriteKey(selectedCountry, category.label)) : undefined}
+                          onToggleFavorite={
+                            colCount < 4 ? () => onToggleFavoriteCategory(categoryFavoriteKey(selectedCountry, category.label)) : undefined
+                          }
                         />
                       ))}
                     </>
@@ -688,6 +782,9 @@ export function BrowseCascadeScreen({
                     onArrowLeft={() => void setFocus(CATEGORY_COL_FOCUS_KEY)}
                     onArrowUpAtTop={() => void setFocus(TOOLBAR_FOCUS_KEY)}
                     emptyMessage="No channels in this category."
+                    // See the matching comment on the category ListRow
+                    // above — same CSS rule, same fix.
+                    showFavorite={colCount < 4}
                   />
                 </div>
               </div>

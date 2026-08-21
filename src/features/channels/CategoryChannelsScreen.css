@@ -22,10 +22,18 @@
 .back-link {
   font: inherit;
   background: none;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: var(--font-body);
+  padding: var(--space-1) var(--space-2);
+}
+
+.back-link.focused {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  background: var(--surface-focus);
 }
 
 .split {

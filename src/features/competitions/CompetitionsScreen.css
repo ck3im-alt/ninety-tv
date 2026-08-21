@@ -24,6 +24,23 @@
   padding: var(--space-4) 0;
 }
 
+.back-link {
+  font: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-body);
+  padding: var(--space-1) var(--space-2);
+}
+
+.back-link.focused {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  background: var(--surface-focus);
+}
+
 .league-pills {
   display: flex;
   gap: var(--space-2);
@@ -90,6 +107,12 @@
 
 .round-header.expanded {
   color: var(--accent);
+}
+
+.round-header.focused {
+  outline: 1.5px solid var(--border-focus);
+  outline-offset: -1.5px;
+  background: #0e1822;
 }
 
 .round-count {

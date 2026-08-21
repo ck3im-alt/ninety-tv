@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel, ChannelSource } from '../../data/channel'
-import { useBackHandler } from '../../core/platform'
+import { useBackHandler, useFocusScrollIntoView, pickFallbackAfterRemoval } from '../../core/platform'
 import { createHtmlVideoPlayer } from '../../core/player'
 import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
@@ -187,10 +187,18 @@ export function InfoPanel({
   onToggleFavorite: () => void
   onWatch: (channel: Channel, source: ChannelSource) => void
 }) {
+  // `focusable: channel != null` — when nothing is selected (an empty
+  // Favorites/Recently Watched list), the early return below never renders
+  // these buttons at all, but the useFocusable HOOK CALL still runs
+  // (Rules of Hooks) with `ref.current` forever null. Without this guard
+  // that registered a real, invisible, zero-geometry spatial-nav target at
+  // the origin — the exact "registers focusable actions with no DOM
+  // target" bug this whole pass is about eliminating.
   const { ref: watchRef, focused: watchFocused } = useFocusable({
+    focusable: channel != null,
     onEnterPress: () => channel && onWatch(channel, channel.sources[0]),
   })
-  const { ref: favRef, focused: favFocused } = useFocusable({ onEnterPress: onToggleFavorite })
+  const { ref: favRef, focused: favFocused } = useFocusable({ focusable: channel != null, onEnterPress: onToggleFavorite })
 
   // DEV-perf: the instant D-pad focus actually lands on a channel — see
   // PreviewPlayer's 'preview:load-start'/'preview:playing' marks for what
@@ -241,6 +249,8 @@ export function InfoPanel({
   )
 }
 
+const BACK_FOCUS_KEY = 'category-channels-back'
+
 export function CategoryChannelsScreen({
   country,
   category,
@@ -256,6 +266,11 @@ export function CategoryChannelsScreen({
 }: Props) {
   const [selected, setSelected] = useState<Channel | null>(channels[0] ?? null)
 
+  const { ref: screenRef, focusKey: screenFocusKey } = useFocusable({
+    focusKey: 'category-channels-screen',
+    trackChildren: true,
+  })
+
   // Selection itself updates immediately on every focus move — it drives
   // the channel name and Watch/Favorite actions in InfoPanel, which must
   // track focus instantly, not lag behind a debounce. The expensive part
@@ -266,46 +281,78 @@ export function CategoryChannelsScreen({
     setSelected(channel)
   }
 
+  // Removing the currently-focused/selected channel out from under the
+  // user — e.g. unfavoriting it from THIS Favorites screen — unmounts its
+  // row. Fall back to whatever slid into its place, or the previous row if
+  // it was last, or Back if the list is now empty entirely. Without this,
+  // `selected` (and spatial focus) kept pointing at a channel no longer in
+  // `channels`, which either froze arrow navigation (dead focus key) or, at
+  // best, left InfoPanel showing a channel that no longer has a row.
+  const prevChannelsRef = useRef(channels)
+  useEffect(() => {
+    if (selected && !channels.some((c) => c.id === selected.id)) {
+      const previousIndex = prevChannelsRef.current.findIndex((c) => c.id === selected.id)
+      const fallback = previousIndex === -1 ? null : pickFallbackAfterRemoval(previousIndex, channels)
+      setSelected(fallback?.item ?? null)
+      void setFocus(fallback ? `category-channel-row-${fallback.index}` : BACK_FOCUS_KEY)
+    }
+    prevChannelsRef.current = channels
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels])
+
   useBackHandler(() => {
     onBack()
     return true
   })
 
+  const { ref: backRef, focused: backFocused } = useFocusable({
+    focusKey: BACK_FOCUS_KEY,
+    // Deterministic initial target for an empty list (see the header
+    // requirement: remote navigation must never start dead) — VirtualChannelList
+    // renders no focusable rows at all when `channels` is empty, so Back
+    // would otherwise be the only thing on screen but not actually focused.
+    forceFocus: channels.length === 0,
+    onEnterPress: onBack,
+  })
+  useFocusScrollIntoView(backRef, backFocused)
+
   const title = titleOverride ?? (category || 'General')
 
   return (
-    <main className="category-channels">
-      <div className="category-header">
-        <div>
-          <h1 className="category-title">{titleOverride ?? `${title} Channels`}</h1>
-          <Breadcrumb items={breadcrumb ?? ['Channels', country, title]} />
+    <FocusContext.Provider value={screenFocusKey}>
+      <main ref={screenRef} className="category-channels">
+        <div className="category-header">
+          <div>
+            <h1 className="category-title">{titleOverride ?? `${title} Channels`}</h1>
+            <Breadcrumb items={breadcrumb ?? ['Channels', country, title]} />
+          </div>
+          <button ref={backRef} className={`back-link ${backFocused ? 'focused' : ''}`} onClick={onBack}>
+            ← Back
+          </button>
         </div>
-        <button className="back-link" onClick={onBack}>
-          ← Back
-        </button>
-      </div>
-      <div className="split">
-        <div className="ch-list">
-          <VirtualChannelList
-            channels={channels}
-            favoriteChannels={favoriteChannels}
-            selectedChannelId={selected?.id}
-            focusKeyPrefix="category-channel-row"
-            onSelect={(channel) => channel.sources[0] && onWatch(channel, channel.sources[0])}
-            onFocusChannel={onFocusChannel}
-            onToggleFavorite={onToggleFavoriteChannel}
-            forceFocusFirst
-            emptyMessage={emptyMessage}
+        <div className="split">
+          <div className="ch-list">
+            <VirtualChannelList
+              channels={channels}
+              favoriteChannels={favoriteChannels}
+              selectedChannelId={selected?.id}
+              focusKeyPrefix="category-channel-row"
+              onSelect={(channel) => channel.sources[0] && onWatch(channel, channel.sources[0])}
+              onFocusChannel={onFocusChannel}
+              onToggleFavorite={onToggleFavoriteChannel}
+              forceFocusFirst
+              emptyMessage={emptyMessage}
+            />
+          </div>
+          <InfoPanel
+            channel={selected}
+            xtreamCreds={xtreamCreds}
+            favorited={selected ? favoriteChannels.has(selected.id) : false}
+            onToggleFavorite={() => selected && onToggleFavoriteChannel(selected.id)}
+            onWatch={onWatch}
           />
         </div>
-        <InfoPanel
-          channel={selected}
-          xtreamCreds={xtreamCreds}
-          favorited={selected ? favoriteChannels.has(selected.id) : false}
-          onToggleFavorite={() => selected && onToggleFavoriteChannel(selected.id)}
-          onWatch={onWatch}
-        />
-      </div>
-    </main>
+      </main>
+    </FocusContext.Provider>
   )
 }

@@ -38,6 +38,8 @@ interface VirtualChannelListProps {
   onArrowUpAtTop?: () => void // only absolute-index 0 gets this
   emptyMessage?: string
   forceFocusFirst?: boolean
+  // Threaded straight to ChannelRow — see its own doc comment. Defaults true.
+  showFavorite?: boolean
 }
 
 export function VirtualChannelList({
@@ -54,6 +56,7 @@ export function VirtualChannelList({
   onArrowUpAtTop,
   emptyMessage,
   forceFocusFirst,
+  showFavorite = true,
 }: VirtualChannelListProps) {
   const [windowStart, setWindowStart] = useState(0)
   const [rowStride, setRowStride] = useState(FALLBACK_ROW_STRIDE)
@@ -182,6 +185,7 @@ export function VirtualChannelList({
               onArrowLeft={onArrowLeft}
               onArrowUp={isFirstOverall ? onArrowUpAtTop : nearTop ? () => shiftWindow(absoluteIndex - 1) : undefined}
               onArrowDown={nearBottom ? () => shiftWindow(absoluteIndex + 1) : undefined}
+              showFavorite={showFavorite}
             />
           </div>
         )

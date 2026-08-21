@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusScrollIntoView } from '../../core/platform'
 import type { Channel } from '../../data/channel'
 
 // Shared channel-row component for CategoryChannelsScreen (Favorites/
@@ -20,6 +20,7 @@ export function ChannelRow({
   onArrowUp,
   onArrowDown,
   focusKey,
+  showFavorite = true,
 }: {
   channel: Channel
   active: boolean
@@ -48,9 +49,24 @@ export function ChannelRow({
   onArrowDown?: () => void
   // Stable per-absolute-index key so VirtualChannelList can setFocus() a
   // specific row once it's mounted after a window shift. Optional — falls
-  // back to norigin's auto-generated key for any other caller.
+  // back to norigin's auto-generated key for any other caller. Also used
+  // (below) to derive the favorite star's own key, so Right/Left between
+  // the row and its star has an explicit, deterministic target instead of
+  // depending on norigin's geometry-based search — which, since the row and
+  // its nested star both register under whatever the ambient FocusContext
+  // is (this component doesn't introduce its own), are really SIBLINGS in
+  // the focus tree, not parent/child, despite the visual nesting. Geometry
+  // alone previously meant Right from a row could occasionally land on a
+  // DIFFERENT row's star, or Left from a star could skip past its own row.
   focusKey?: string
+  // Four-column Browse Cascade hides the star via CSS to keep that fully-
+  // expanded view calm (see BrowseCascadeScreen.css's [data-cols='4']
+  // rule) — this must also stop it from being a registered spatial-nav
+  // target, or a hidden/zero-size star becomes a dead landing spot for
+  // Right from the row. Defaults true for every other caller.
+  showFavorite?: boolean
 }) {
+  const starFocusKey = focusKey ? `${focusKey}-favorite` : undefined
   const { ref, focused } = useFocusable({
     focusKey,
     onEnterPress: onSelect,
@@ -69,15 +85,28 @@ export function ChannelRow({
         onArrowDown()
         return false
       }
+      if (direction === 'right' && showFavorite && starFocusKey) {
+        void setFocus(starFocusKey)
+        return false
+      }
       return true
     },
   })
-  const { ref: starRef, focused: starFocused } = useFocusable({ onEnterPress: onToggleFavorite })
+  const { ref: starRef, focused: starFocused } = useFocusable({
+    focusKey: starFocusKey,
+    focusable: showFavorite,
+    onEnterPress: onToggleFavorite,
+    onArrowPress: (direction) => {
+      if (direction === 'left' && focusKey) {
+        void setFocus(focusKey)
+        return false
+      }
+      return true
+    },
+  })
 
   // Spatial nav moves focus but never scrolls its container for you.
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
+  useFocusScrollIntoView(ref, focused)
 
   return (
     <div ref={ref} className={`ch-row ${active ? 'active' : ''} ${focused ? 'focused' : ''}`} onClick={onSelect}>
@@ -90,17 +119,19 @@ export function ChannelRow({
       ) : (
         channel.sources[0] && <span className="ch-row-source-count">{channel.sources[0].label}</span>
       )}
-      <button
-        ref={starRef}
-        className={`ch-row-favorite ${favorited ? 'active' : ''} ${starFocused ? 'focused' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleFavorite()
-        }}
-        aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        {favorited ? '★' : '☆'}
-      </button>
+      {showFavorite && (
+        <button
+          ref={starRef}
+          className={`ch-row-favorite ${favorited ? 'active' : ''} ${starFocused ? 'focused' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleFavorite()
+          }}
+          aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          {favorited ? '★' : '☆'}
+        </button>
+      )}
     </div>
   )
 }

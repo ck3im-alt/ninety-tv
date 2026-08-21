@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { parseM3u } from '../../data/m3u/parseM3u'
 import { parseXtreamPlaylistUrl } from '../../data/xtream/xtreamClient'
 import { recoverChannelsFromSource } from '../../data/playlistRecovery'
 import { mergeChannelSources } from '../channels/mergeChannels'
+import { useFocusScrollIntoView, useSpatialTextInput } from '../../core/platform'
 import { OnboardingTopBar } from '../onboarding/OnboardingStepper'
 import { ArrowRightIcon } from '../onboarding/sportIcons'
 import { QrCode } from './QrCode'
@@ -12,6 +13,10 @@ import type { Channel } from '../../data/channel'
 import type { M3uUrlSourceRecord, PlaylistSourceRecord, XtreamSourceRecord } from '../../data/session'
 import '../onboarding/onboardingShared.css'
 import './PlaylistSetupScreen.css'
+
+const ROOT_FOCUS_KEY = 'setup-screen'
+const URL_FOCUS_KEY = 'setup-url'
+const STREAM_CODE_TOGGLE_FOCUS_KEY = 'setup-stream-code-toggle'
 
 type LoadState = { status: 'idle' | 'loading' | 'error'; message?: string }
 
@@ -60,6 +65,9 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
   const [state, setState] = useState<LoadState>({ status: 'idle' })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+  const serverInputRef = useRef<HTMLInputElement>(null)
+  const usernameInputRef = useRef<HTMLInputElement>(null)
+  const passwordInputRef = useRef<HTMLInputElement>(null)
 
   // Returns whether the connect actually succeeded -- the QR-pairing flow
   // below needs this to know whether it's safe to acknowledge the pairing
@@ -121,41 +129,72 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
 
   const canContinue = state.status !== 'loading' && (streamCodeOpen ? Boolean(server && username && password) : Boolean(urlValue.trim()))
 
-  // forceFocus: the initial-focus target norigin's setFocus(ROOT_FOCUS_KEY)
-  // lands on — without one, nothing is ever focused and arrow keys/remote
-  // navigation silently do nothing on this screen.
+  // This screen is lazy-loaded (see App.tsx's SCREEN_FOCUS_KEYS) and also
+  // reused as onboarding's step 1 — targeted by its own root key (rather
+  // than ROOT_FOCUS_KEY/forceFocus) so initial focus resolves correctly
+  // even if App's `screen` state changes to 'setup'/'onboarding' before
+  // this chunk finishes loading. See App.tsx's initial-focus effect for the
+  // full explanation of why that race exists for lazy screens.
+  const { ref: screenRef, focusKey: screenFocusKey } = useFocusable({
+    focusKey: ROOT_FOCUS_KEY,
+    trackChildren: true,
+    preferredChildFocusKey: URL_FOCUS_KEY,
+  })
+
   // onEnterPress: norigin's spatial focus is a separate concept from real DOM
   // focus — pressing OK on the highlighted card doesn't focus the nested
   // native <input> on its own, and Samsung's on-screen keyboard only appears
-  // for an <input> that actually has DOM focus.
-  const { ref: urlRef, focused: urlFocused } = useFocusable({
-    forceFocus: true,
-    onEnterPress: () => urlInputRef.current?.focus(),
-  })
-  // norigin only tracks spatial focus (a boolean it hands back for CSS
-  // highlighting) — it never touches real DOM focus for elements other than
-  // the one you explicitly .focus() yourself. Without this, the <input>
-  // keeps native focus forever once opened, so the remote's OK button keeps
-  // reopening Samsung's on-screen keyboard on it even after the user has
-  // spatially navigated to (and visually highlighted) a different card.
-  useEffect(() => {
-    if (!urlFocused) urlInputRef.current?.blur()
-  }, [urlFocused])
+  // for an <input> that actually has DOM focus. See useSpatialTextInput for
+  // the shared bridge (blurs the native input again once spatial focus
+  // moves elsewhere, generalized from what used to be this field's own
+  // one-off implementation).
+  const { ref: urlRef, focused: urlFocused } = useSpatialTextInput(urlInputRef, { focusKey: URL_FOCUS_KEY })
   const { ref: streamCodeToggleRef, focused: streamCodeToggleFocused } = useFocusable({
+    focusKey: STREAM_CODE_TOGGLE_FOCUS_KEY,
     onEnterPress: () => setStreamCodeOpen((v) => !v),
   })
+  // Server/Username/Password used to be plain native <input>s with no
+  // spatial wrapper at all — reachable only once the card was expanded, and
+  // even then only by mouse. Same bridge as the URL field above.
+  const { ref: serverRef, focused: serverFocused } = useSpatialTextInput(serverInputRef)
+  const { ref: usernameRef, focused: usernameFocused } = useSpatialTextInput(usernameInputRef)
+  const { ref: passwordRef, focused: passwordFocused } = useSpatialTextInput(passwordInputRef)
+  useFocusScrollIntoView(urlRef, urlFocused)
+  useFocusScrollIntoView(streamCodeToggleRef, streamCodeToggleFocused)
+  useFocusScrollIntoView(serverRef, serverFocused)
+  useFocusScrollIntoView(usernameRef, usernameFocused)
+  useFocusScrollIntoView(passwordRef, passwordFocused)
+
+  // Collapsing the stream-code card while one of its own fields owns focus
+  // (its useSpatialTextInput registration unmounts the instant
+  // `streamCodeOpen` flips false) must not leave focus pointing at a
+  // removed component — hand it back to the toggle that owns this section.
+  useEffect(() => {
+    if (!streamCodeOpen) void setFocus(STREAM_CODE_TOGGLE_FOCUS_KEY)
+  }, [streamCodeOpen])
+
   const { ref: fileRef, focused: fileFocused } = useFocusable({
     onEnterPress: () => fileInputRef.current?.click(),
   })
+  useFocusScrollIntoView(fileRef, fileFocused)
+  // `focusable: canContinue` — a disabled Continue button couldn't do
+  // anything on Enter anyway (canContinue already gates handleContinue's
+  // own effect), but it was still a registered, reachable spatial target,
+  // which reads as a broken/unresponsive button rather than an
+  // intentionally-unavailable one.
   const { ref: continueRef, focused: continueFocused } = useFocusable({
+    focusable: canContinue,
     onEnterPress: handleContinue,
   })
+  useFocusScrollIntoView(continueRef, continueFocused)
   const { ref: qrRetryRef, focused: qrRetryFocused } = useFocusable({
     onEnterPress: pairing.retry,
   })
+  useFocusScrollIntoView(qrRetryRef, qrRetryFocused)
 
   return (
-    <main className="onboarding-screen">
+    <FocusContext.Provider value={screenFocusKey}>
+    <main ref={screenRef} className="onboarding-screen">
       <OnboardingTopBar current={stepperCurrent} />
 
       {notice && (
@@ -270,27 +309,36 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
             </div>
           ) : (
             <div className="setup-code-fields" onClick={(e) => e.stopPropagation()}>
-              <input
-                className="setup-code-input"
-                type="text"
-                placeholder="Server (https://your-provider.com:port)"
-                value={server}
-                onChange={(e) => setServer(e.target.value)}
-              />
-              <input
-                className="setup-code-input"
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-              <input
-                className="setup-code-input"
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div ref={serverRef} className={`setup-code-input-wrap ${serverFocused ? 'focused' : ''}`}>
+                <input
+                  ref={serverInputRef}
+                  className="setup-code-input"
+                  type="text"
+                  placeholder="Server (https://your-provider.com:port)"
+                  value={server}
+                  onChange={(e) => setServer(e.target.value)}
+                />
+              </div>
+              <div ref={usernameRef} className={`setup-code-input-wrap ${usernameFocused ? 'focused' : ''}`}>
+                <input
+                  ref={usernameInputRef}
+                  className="setup-code-input"
+                  type="text"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </div>
+              <div ref={passwordRef} className={`setup-code-input-wrap ${passwordFocused ? 'focused' : ''}`}>
+                <input
+                  ref={passwordInputRef}
+                  className="setup-code-input"
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -323,6 +371,7 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
         </button>
       </div>
     </main>
+    </FocusContext.Provider>
   )
 }
 

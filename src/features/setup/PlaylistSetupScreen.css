@@ -128,19 +128,35 @@
   gap: var(--space-2);
 }
 
+/* Spatial-nav focus lands on the WRAPPER (see PlaylistSetupScreen.tsx's
+   useSpatialTextInput bridge — pressing Enter on the wrapper hands off to
+   the real <input> so Tizen's keyboard appears), not the <input> itself, so
+   the focused ring is drawn there. The input's own CSS :focus state (real
+   DOM focus, which the wrapper's Enter handler triggers) gets the same
+   treatment for keyboard/mouse dev use. */
+.setup-code-input-wrap {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.setup-code-input-wrap.focused {
+  border-color: var(--border-focus);
+}
+
 .setup-code-input {
+  width: 100%;
+  box-sizing: border-box;
   font: inherit;
   height: 48px;
   border-radius: var(--radius-sm);
   background: var(--surface-elevated);
-  border: 1px solid var(--border);
+  border: none;
   color: var(--text-primary);
   padding: 0 var(--space-3);
 }
 
 .setup-code-input:focus {
   outline: none;
-  border-color: var(--border-focus);
 }
 
 .setup-info-box {

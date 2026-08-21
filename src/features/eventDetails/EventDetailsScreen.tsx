@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { useBackHandler } from '../../core/platform'
+import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useBackHandler, useFocusScrollIntoView } from '../../core/platform'
 import { matchChannelsForEvent } from '../../data/sports/channelMatch'
 import type { ChannelMatch, BroadcastStationInfo } from '../../data/sports/channelMatch'
 import { buildEventStreamOptions, rankEventStreamOptions, partitionStreamOptions } from './buildEventStreamOptions'
@@ -83,13 +83,6 @@ export function EventDetailsScreen({
     return true
   })
 
-  // Back is the only usable target while matches are still resolving (or
-  // when nothing matched at all) — once real streams exist, the #1
-  // recommendation takes over as the initial focus target instead (see
-  // StreamSections.tsx's StreamRecommendations, and StreamRow's forceFocus
-  // comment). Never steals focus back afterwards: this only ever
-  // transitions true -> false for a given screen instance.
-  const { ref: backRef, focused: backFocused } = useFocusable({ onEnterPress: onBack, forceFocus: state.status !== 'ready' })
   const isTeamFixture = Boolean(event.homeTeam && event.awayTeam)
 
   // Deliberately keyed on `state`/event identity only, NOT favoriteChannels
@@ -109,33 +102,71 @@ export function EventDetailsScreen({
     return partitionStreamOptions(rankEventStreamOptions(options, favoriteCountries))
   }, [state, event.homeTeam, event.awayTeam])
 
+  const topPickFocusKey = partitioned && partitioned.top.length > 0 ? partitioned.top[0].key : undefined
+
+  // This screen is lazy-loaded (see App.tsx's SCREEN_FOCUS_KEYS) — the root
+  // container is targeted by its own key rather than ROOT_FOCUS_KEY so
+  // initial focus resolves correctly even if `screen` changes to
+  // 'event-details' before this chunk finishes loading (see App.tsx's
+  // initial-focus effect for the full explanation). Back is the only
+  // resolvable target while matches are still loading (state.status starts
+  // 'loading' on every mount, so this is always correct at the moment the
+  // container first registers); once ready, this points at the #1
+  // recommended stream instead.
+  const { ref, focusKey } = useFocusable({
+    focusKey: 'event-details-screen',
+    trackChildren: true,
+    preferredChildFocusKey: topPickFocusKey ?? 'event-details-back',
+  })
+
+  // Explicitly advances focus onto the #1 recommendation the moment
+  // matches finish resolving — changing preferredChildFocusKey above only
+  // affects FUTURE focus resolutions (e.g. if this container gets
+  // setFocus'd again later), it does not retroactively move focus that's
+  // already sitting on Back. Keyed on the status transition alone (not on
+  // `partitioned`, which is a fresh object every render) so this fires
+  // exactly once per loading->ready transition, not on every render while
+  // already ready — it must never repeatedly yank focus back to the top
+  // pick while the user is actively browsing other streams.
+  useEffect(() => {
+    if (state.status === 'ready' && topPickFocusKey) {
+      void setFocus(topPickFocusKey)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status])
+
+  const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: 'event-details-back', onEnterPress: onBack })
+  useFocusScrollIntoView(backRef, backFocused)
+
   return (
-    <main className="event-details">
-      <button ref={backRef} className={`event-details-back ${backFocused ? 'focused' : ''}`} onClick={onBack}>
-        ← Back
-      </button>
+    <FocusContext.Provider value={focusKey}>
+      <main ref={ref} className="event-details">
+        <button ref={backRef} className={`event-details-back ${backFocused ? 'focused' : ''}`} onClick={onBack}>
+          ← Back
+        </button>
 
-      {isTeamFixture ? <FootballEventHeader event={event} /> : <GenericEventHeader event={event} />}
+        {isTeamFixture ? <FootballEventHeader event={event} /> : <GenericEventHeader event={event} />}
 
-      <section className="stream-area">
-        {state.status === 'loading' && <StreamAreaLoading />}
-        {state.status === 'not-found' && <NoMatchState apiStations={state.apiStations} onBrowseChannels={onBrowseChannels} />}
-        {state.status === 'ready' && partitioned && (
-          <StreamAreaReady
-            partitioned={partitioned}
-            favoriteChannels={favoriteChannels}
-            onToggleFavoriteChannel={onToggleFavoriteChannel}
-            onWatch={onWatch}
-          />
+        <section className="stream-area">
+          {state.status === 'loading' && <StreamAreaLoading />}
+          {state.status === 'not-found' && <NoMatchState apiStations={state.apiStations} onBrowseChannels={onBrowseChannels} />}
+          {state.status === 'ready' && partitioned && (
+            <StreamAreaReady
+              partitioned={partitioned}
+              favoriteChannels={favoriteChannels}
+              onToggleFavoriteChannel={onToggleFavoriteChannel}
+              onWatch={onWatch}
+            />
+          )}
+        </section>
+
+        <p className="event-details-footer">Stream availability depends on your connected playlist and region.</p>
+
+        {import.meta.env.DEV && state.status === 'ready' && (state.apiStations.length > 0 || partitioned) && (
+          <DevBroadcastDebug apiStations={state.apiStations} partitioned={partitioned} />
         )}
-      </section>
-
-      <p className="event-details-footer">Stream availability depends on your connected playlist and region.</p>
-
-      {import.meta.env.DEV && state.status === 'ready' && (state.apiStations.length > 0 || partitioned) && (
-        <DevBroadcastDebug apiStations={state.apiStations} partitioned={partitioned} />
-      )}
-    </main>
+      </main>
+    </FocusContext.Provider>
   )
 }
 

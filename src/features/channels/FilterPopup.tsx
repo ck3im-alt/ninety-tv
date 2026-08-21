@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FocusContext, getCurrentFocusKey, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useMemo, useState } from 'react'
+import { FocusContext, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import type { ChannelIndex } from '../../data/channelIndex'
-import { useBackHandler } from '../../core/platform'
+import { useFocusScrollIntoView, useModalFocusScope } from '../../core/platform'
 import { categoryFavoriteKey } from './favorites'
 import './FilterPopup.css'
 
 const OTHER = 'Other'
 const POPUP_FOCUS_KEY = 'filter-popup'
+const CLOSE_FOCUS_KEY = 'filter-close'
 
 interface Props {
   // Prepared/indexed view of the playlist (see data/channelIndex.ts) —
@@ -26,44 +27,51 @@ interface Props {
 }
 
 function FilterRow({
+  focusKey,
   label,
   checked,
   active,
   count,
   onToggle,
-  onSelect,
+  // Countries only — moving focus onto a country row (arrow-scrolling, not
+  // just Enter) switches which country's categories the right-hand column
+  // shows, same live-preview-on-focus pattern as the main Browse Cascade
+  // screen. Enter always toggles visibility now (see the header comment
+  // below for why that used to be broken).
+  onFocusRow,
 }: {
+  focusKey?: string
   label: string
   checked: boolean
   active?: boolean
   count: number
   onToggle: () => void
-  onSelect?: () => void
+  onFocusRow?: () => void
 }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onSelect ?? onToggle })
+  const { ref, focused } = useFocusable({ focusKey, onEnterPress: onToggle, onFocus: onFocusRow })
+  useFocusScrollIntoView(ref, focused)
   return (
-    <div
-      ref={ref}
-      className={`filter-row ${focused ? 'focused' : ''} ${active ? 'active' : ''}`}
-      onClick={onSelect ?? onToggle}
-    >
-      <span
-        className={`filter-checkbox ${checked ? 'checked' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle()
-        }}
-      >
-        {checked ? '✓' : ''}
-      </span>
+    <div ref={ref} className={`filter-row ${focused ? 'focused' : ''} ${active ? 'active' : ''}`} onClick={onToggle}>
+      <span className={`filter-checkbox ${checked ? 'checked' : ''}`}>{checked ? '✓' : ''}</span>
       <span className="filter-row-label">{label}</span>
       <span className="filter-row-count">{count}</span>
     </div>
   )
 }
 
-function ActionButton({ label, onSelect, tone = 'default' }: { label: string; onSelect: () => void; tone?: 'default' | 'primary' }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onSelect })
+function ActionButton({
+  focusKey,
+  label,
+  onSelect,
+  tone = 'default',
+}: {
+  focusKey?: string
+  label: string
+  onSelect: () => void
+  tone?: 'default' | 'primary'
+}) {
+  const { ref, focused } = useFocusable({ focusKey, onEnterPress: onSelect })
+  useFocusScrollIntoView(ref, focused)
   return (
     <button ref={ref} className={`filter-action ${tone} ${focused ? 'focused' : ''}`} onClick={onSelect}>
       {label}
@@ -95,40 +103,23 @@ export function FilterPopup({ channelIndex, hiddenCountries, hiddenCategories, o
     return channelIndex.getCategoriesForCountry(activeCountry).sort((a, b) => b.count - a.count)
   }, [channelIndex, activeCountry])
 
-  const { ref: closeRef, focused: closeFocused } = useFocusable({ onEnterPress: onClose })
+  const firstCountryFocusKey = countries[0] ? `filter-country-${countries[0].name}` : CLOSE_FOCUS_KEY
 
-  // The screen underneath stays mounted (and keeps its own focused row)
-  // while this overlay is open — without explicitly moving focus in here,
-  // arrow presses keep driving that now-hidden background list instead of
-  // the popup, which reads as "the popup's arrows don't work" even though
-  // its rows are perfectly navigable once focus is actually inside them.
-  // isFocusBoundary keeps focus from wandering back out once it's in.
-  const { ref: popupRef, focusKey: popupFocusKey } = useFocusable({
+  // Captures the opener, becomes the sole Back target, restores the opener
+  // on close (isFocusBoundary keeps focus from wandering back out to the
+  // still-mounted screen underneath) — see useModalFocusScope's own header
+  // for why this used to be reimplemented ad hoc per overlay. Lands on the
+  // first country row deterministically (not just "the popup container",
+  // which would fall back to geometry) — same first-focus fix as every
+  // other screen in this pass.
+  const { ref: popupRef, focusKey: popupFocusKey } = useModalFocusScope({
     focusKey: POPUP_FOCUS_KEY,
-    trackChildren: true,
-    isFocusBoundary: true,
+    onClose,
+    preferredChildFocusKey: firstCountryFocusKey,
   })
 
-  useEffect(() => {
-    // The screen underneath stays mounted, so its previously-focused row is
-    // still a valid target — remember it and hand focus back on close
-    // instead of leaving nothing focused (which would silently break arrow
-    // keys again, same as never focusing the popup in the first place).
-    const previousFocusKey = getCurrentFocusKey()
-    void setFocus(POPUP_FOCUS_KEY)
-    return () => {
-      void setFocus(previousFocusKey)
-    }
-  }, [])
-
-  // Without this, Back/Escape falls through to whatever handler the
-  // (still-mounted, just hidden) screen behind this overlay registered —
-  // closing the popup with the X button worked, but the remote's Back
-  // button silently did something to the invisible screen underneath.
-  useBackHandler(() => {
-    onClose()
-    return true
-  })
+  const { ref: closeRef, focused: closeFocused } = useFocusable({ focusKey: CLOSE_FOCUS_KEY, onEnterPress: onClose })
+  useFocusScrollIntoView(closeRef, closeFocused)
 
   function toggleCountry(name: string) {
     setDraftHiddenCountries((prev) => {
@@ -207,20 +198,21 @@ export function FilterPopup({ channelIndex, hiddenCountries, hiddenCategories, o
             <div className="filter-column-header">
               <h3 className="filter-column-title">Countries</h3>
               <div className="filter-column-actions">
-                <ActionButton label="Select all" onSelect={selectAllCountries} />
-                <ActionButton label="Deselect all" onSelect={deselectAllCountries} />
+                <ActionButton focusKey="filter-countries-select-all" label="Select all" onSelect={selectAllCountries} />
+                <ActionButton focusKey="filter-countries-deselect-all" label="Deselect all" onSelect={deselectAllCountries} />
               </div>
             </div>
             <div className="filter-list">
               {countries.map((country) => (
                 <FilterRow
                   key={country.name}
+                  focusKey={`filter-country-${country.name}`}
                   label={country.name}
                   count={country.count}
-                  checked={!draftHiddenCountries.has(country.name)}
                   active={country.name === activeCountry}
+                  checked={!draftHiddenCountries.has(country.name)}
                   onToggle={() => toggleCountry(country.name)}
-                  onSelect={() => setActiveCountry(country.name)}
+                  onFocusRow={() => setActiveCountry(country.name)}
                 />
               ))}
             </div>
@@ -232,14 +224,15 @@ export function FilterPopup({ channelIndex, hiddenCountries, hiddenCategories, o
                 Categories <span className="filter-column-title-scope">({activeCountry || '—'})</span>
               </h3>
               <div className="filter-column-actions">
-                <ActionButton label="Select all" onSelect={selectAllCategories} />
-                <ActionButton label="Deselect all" onSelect={deselectAllCategories} />
+                <ActionButton focusKey="filter-categories-select-all" label="Select all" onSelect={selectAllCategories} />
+                <ActionButton focusKey="filter-categories-deselect-all" label="Deselect all" onSelect={deselectAllCategories} />
               </div>
             </div>
             <div className="filter-list">
               {categoriesForActiveCountry.map((category) => (
                 <FilterRow
                   key={category.label || '(general)'}
+                  focusKey={`filter-category-${activeCountry}-${category.label || '(general)'}`}
                   label={category.label || 'General'}
                   count={category.count}
                   checked={!draftHiddenCategories.has(categoryFavoriteKey(activeCountry, category.label))}
@@ -251,9 +244,9 @@ export function FilterPopup({ channelIndex, hiddenCountries, hiddenCategories, o
         </div>
 
         <div className="filter-actions">
-          <ActionButton label="Clear filters" onSelect={handleClear} />
-          <ActionButton label="Apply filters" onSelect={handleApply} tone="primary" />
-          <ActionButton label="Cancel" onSelect={onClose} />
+          <ActionButton focusKey="filter-clear" label="Clear filters" onSelect={handleClear} />
+          <ActionButton focusKey="filter-apply" label="Apply filters" onSelect={handleApply} tone="primary" />
+          <ActionButton focusKey="filter-cancel" label="Cancel" onSelect={onClose} />
         </div>
       </div>
       </FocusContext.Provider>

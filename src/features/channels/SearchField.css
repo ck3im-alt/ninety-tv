@@ -10,7 +10,8 @@
   box-sizing: border-box;
 }
 
-.search-field:focus-within {
+.search-field:focus-within,
+.search-field.focused {
   border: 1.5px solid var(--border-focus);
 }
 

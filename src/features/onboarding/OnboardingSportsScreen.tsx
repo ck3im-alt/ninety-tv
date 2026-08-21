@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation'
 import type { SportKey } from '../../data/sports/types'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
 import { OnboardingTopBar } from './OnboardingStepper'
@@ -42,6 +42,7 @@ export function SelectableCard({
   // pattern as ListRow.tsx/BrowseCascadeScreen.tsx use for the identical
   // problem in the channel browser.
   onArrowLeft,
+  onArrowUp,
   onArrowDown,
   children,
 }: {
@@ -50,6 +51,10 @@ export function SelectableCard({
   onToggle: () => void
   forceFocus?: boolean
   onArrowLeft?: () => void
+  // Escapes UP out of the topmost row of a grid — e.g. Settings' Countries
+  // grid back to the section above it, where default geometry can't be
+  // trusted any more than it can for onArrowLeft/onArrowDown (see those).
+  onArrowUp?: () => void
   onArrowDown?: () => void
   children: React.ReactNode
 }) {
@@ -60,6 +65,10 @@ export function SelectableCard({
     onArrowPress: (direction) => {
       if (direction === 'left' && onArrowLeft) {
         onArrowLeft()
+        return false
+      }
+      if (direction === 'up' && onArrowUp) {
+        onArrowUp()
         return false
       }
       if (direction === 'down' && onArrowDown) {
@@ -142,6 +151,19 @@ export function OnboardingSportsScreen({
   // same-column downward move that already works.
   const GRID_COLUMNS = 6
   const isLastPickerSection = !footballSelected || footballLeagues.length === 0
+
+  // Deselecting Football removes the entire league grid — normally that
+  // only happens via Enter directly on the Football card, so focus is
+  // already sitting there and nothing is orphaned. But this stays cheap
+  // insurance against exactly the scenario the interaction audit calls
+  // out (focus stranded inside a grid that just disappeared) for any other
+  // path that might toggle it later: only redirects when the currently
+  // focused key actually WAS one of the now-removed league cards.
+  useEffect(() => {
+    if (!footballSelected && getCurrentFocusKey().startsWith('league-')) {
+      void setFocus('sport-football')
+    }
+  }, [footballSelected])
 
   return (
     <FocusContext.Provider value={focusKey}>

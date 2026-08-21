@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FocusContext, useFocusable, setFocus, ROOT_FOCUS_KEY } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { createHtmlVideoPlayer } from '../../core/player'
-import type { PlayerState } from '../../core/player'
-import { useBackHandler } from '../../core/platform'
+import type { PlayerState, SubtitleTrack } from '../../core/player'
+import type { ChannelSource } from '../../data/channel'
+import { useBackHandler, useFocusScrollIntoView, useModalFocusScope } from '../../core/platform'
 import type { Channel } from '../../data/channel'
 import './ChannelPlayerScreen.css'
 
@@ -14,6 +15,8 @@ interface Props {
 
 const OVERLAY_FOCUS_KEY = 'player-overlay'
 const TOOLBAR_FOCUS_KEY = 'player-toolbar'
+const SOURCE_TOGGLE_FOCUS_KEY = 'player-source-toggle'
+const SUBTITLES_TOGGLE_FOCUS_KEY = 'player-subtitles-toggle'
 const SOURCE_POPUP_FOCUS_KEY = 'player-source-popup'
 const SUBTITLES_POPUP_FOCUS_KEY = 'player-subtitles-popup'
 const OVERLAY_IDLE_MS = 6000
@@ -48,17 +51,19 @@ function playerUiStateEqual(a: PlayerState, b: PlayerState): boolean {
 }
 
 function ToolbarButton({
+  focusKey,
   icon,
   label,
   onSelect,
   active = false,
 }: {
+  focusKey?: string
   icon: string
   label: string
   onSelect: () => void
   active?: boolean
 }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onSelect })
+  const { ref, focused } = useFocusable({ focusKey, onEnterPress: onSelect })
   return (
     <button ref={ref} className={`toolbar-btn ${focused ? 'focused' : ''} ${active ? 'active' : ''}`} onClick={onSelect}>
       <span className="toolbar-btn-icon">{icon}</span>
@@ -68,23 +73,114 @@ function ToolbarButton({
 }
 
 function OptionRow({
+  focusKey,
   chip,
   label,
   active,
   onSelect,
 }: {
+  focusKey?: string
   chip: string
   label: string
   active: boolean
   onSelect: () => void
 }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onSelect })
+  const { ref, focused } = useFocusable({ focusKey, onEnterPress: onSelect })
+  useFocusScrollIntoView(ref, focused)
   return (
     <div ref={ref} className={`option-row ${focused ? 'focused' : ''}`} onClick={onSelect}>
       <span className="option-row-chip">{chip}</span>
       <span className="option-row-label">{label}</span>
       {active && <span className="option-row-check">✓</span>}
     </div>
+  )
+}
+
+// Extracted into its own component (not inline JSX in the toolbar, as it
+// used to be) specifically so it only MOUNTS while actually open — the
+// inline version called useFocusable() unconditionally in
+// ChannelPlayerScreen's own body, which meant this container was always a
+// registered focusable component (with a null DOM node while closed) even
+// when never rendered. useModalFocusScope's capture/restore lifecycle also
+// depends on a real mount/unmount boundary to fire at the right time.
+function SourcePopup({
+  sources,
+  sourceIndex,
+  onSelectSource,
+  onClose,
+}: {
+  sources: ChannelSource[]
+  sourceIndex: number
+  onSelectSource: (index: number) => void
+  onClose: () => void
+}) {
+  // Focus the currently selected source if it exists, otherwise the first
+  // one — never just "the popup container" (which would fall back to
+  // norigin's geometry-based child search rather than the deliberate
+  // choice this popup actually wants).
+  const preferredChildFocusKey = sources[sourceIndex] ? `player-source-option-${sourceIndex}` : sources[0] ? 'player-source-option-0' : undefined
+  const { ref, focusKey } = useModalFocusScope({ focusKey: SOURCE_POPUP_FOCUS_KEY, onClose, preferredChildFocusKey })
+  return (
+    <FocusContext.Provider value={focusKey}>
+      <div ref={ref} className="options-popup">
+        <div className="options-group">
+          {sources.length > 0 ? (
+            sources.map((source, index) => (
+              <OptionRow
+                key={source.label + index}
+                focusKey={`player-source-option-${index}`}
+                chip={source.label}
+                label={source.label}
+                active={index === sourceIndex}
+                onSelect={() => onSelectSource(index)}
+              />
+            ))
+          ) : (
+            <p className="options-empty">No sources available for this channel.</p>
+          )}
+        </div>
+      </div>
+    </FocusContext.Provider>
+  )
+}
+
+function SubtitlesPopup({
+  tracks,
+  activeTrack,
+  onSelectTrack,
+  onClose,
+}: {
+  tracks: SubtitleTrack[]
+  activeTrack: string | null
+  onSelectTrack: (id: string | null) => void
+  onClose: () => void
+}) {
+  const preferredChildFocusKey = activeTrack === null ? 'player-subtitle-option-off' : `player-subtitle-option-${activeTrack}`
+  const { ref, focusKey } = useModalFocusScope({ focusKey: SUBTITLES_POPUP_FOCUS_KEY, onClose, preferredChildFocusKey })
+  return (
+    <FocusContext.Provider value={focusKey}>
+      <div ref={ref} className="options-popup">
+        <div className="options-group">
+          {tracks.length > 0 ? (
+            <>
+              <OptionRow focusKey="player-subtitle-option-off" chip="OFF" label="Off" active={activeTrack === null} onSelect={() => onSelectTrack(null)} />
+              {tracks.map((track) => (
+                <OptionRow
+                  key={track.id}
+                  focusKey={`player-subtitle-option-${track.id}`}
+                  chip="CC"
+                  label={track.label}
+                  active={activeTrack === track.id}
+                  onSelect={() => onSelectTrack(track.id)}
+                />
+              ))}
+            </>
+          ) : (
+            <p className="options-empty">No subtitles available for this channel — the stream doesn't declare any subtitle track.</p>
+          )}
+        </div>
+      </div>
+    </FocusContext.Provider>
   )
 }
 
@@ -116,43 +212,53 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
 
   const { ref: overlayRef, focusKey: overlayFocusKey } = useFocusable({ focusKey: OVERLAY_FOCUS_KEY, trackChildren: true })
   const { ref: toolbarRef, focusKey: toolbarFocusKey } = useFocusable({ focusKey: TOOLBAR_FOCUS_KEY, trackChildren: true })
-  const { ref: sourcePopupRef, focusKey: sourcePopupFocusKey } = useFocusable({
-    focusKey: SOURCE_POPUP_FOCUS_KEY,
-    trackChildren: true,
-  })
-  const { ref: subtitlesPopupRef, focusKey: subtitlesPopupFocusKey } = useFocusable({
-    focusKey: SUBTITLES_POPUP_FOCUS_KEY,
-    trackChildren: true,
-  })
-
-  const anyPopupOpen = sourcePopupOpen || subtitlesPopupOpen
 
   const closePopups = () => {
     setSourcePopupOpen(false)
     setSubtitlesPopupOpen(false)
   }
 
-  const showMenu = () => {
-    setMenuVisible(true)
-    if (idleTimer.current) clearTimeout(idleTimer.current)
-    idleTimer.current = setTimeout(() => {
-      setMenuVisible(false)
-      closePopups()
-    }, OVERLAY_IDLE_MS)
-  }
-
-  const hideMenu = () => {
+  // Single source of truth for "hide the OSD" — the idle timeout used to
+  // have its OWN inline copy of this (setMenuVisible + closePopups, with NO
+  // focus handling at all) instead of calling this function, which is how
+  // an idle timeout firing while a Source/Subtitle OptionRow had focus
+  // could leave spatial focus pointing at a component that had just been
+  // removed (both the option AND its popup unmount together, so there was
+  // nothing left for the library's own autoRestoreFocus safety net to land
+  // on either). Landing on TOOLBAR_FOCUS_KEY here (a real, always-mounted
+  // — see the pre-focus effect below — anchor) instead of the previous
+  // ROOT_FOCUS_KEY also fixes a second bug: ROOT_FOCUS_KEY resolution only
+  // ever considers currently-mounted forceFocus components, and nothing on
+  // this screen uses forceFocus, so that call was silently a no-op.
+  function hideMenu() {
     if (idleTimer.current) clearTimeout(idleTimer.current)
     setMenuVisible(false)
     closePopups()
-    void setFocus(ROOT_FOCUS_KEY)
+    void setFocus(TOOLBAR_FOCUS_KEY)
   }
 
-  useEffect(() => {
-    if (sourcePopupOpen) void setFocus(SOURCE_POPUP_FOCUS_KEY)
-    else if (subtitlesPopupOpen) void setFocus(SUBTITLES_POPUP_FOCUS_KEY)
-    else if (menuVisible) void setFocus(TOOLBAR_FOCUS_KEY)
-  }, [menuVisible, sourcePopupOpen, subtitlesPopupOpen])
+  function scheduleIdleHide() {
+    if (idleTimer.current) clearTimeout(idleTimer.current)
+    idleTimer.current = setTimeout(hideMenu, OVERLAY_IDLE_MS)
+  }
+
+  function showMenu() {
+    setMenuVisible(true)
+    scheduleIdleHide()
+  }
+
+  function closeSourcePopup() {
+    setSourcePopupOpen(false)
+    // Keeps the overlay open and gives the user the full window again —
+    // without this, closing a popup via Back could leave a much shorter
+    // (or already-expired) idle window than a fresh interaction should get.
+    scheduleIdleHide()
+  }
+
+  function closeSubtitlesPopup() {
+    setSubtitlesPopupOpen(false)
+    scheduleIdleHide()
+  }
 
   // Unlike every other screen here, nothing on this one uses forceFocus —
   // the overlay starts hidden and there's nothing else to land on. Without
@@ -172,12 +278,13 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
     }
   }, [])
 
+  // Popups own Back while they're open — see SourcePopup/SubtitlesPopup's
+  // useModalFocusScope, which registers strictly AFTER (so takes LIFO
+  // priority over) this handler while mounted. So this only ever needs to
+  // handle "hide the OSD" and "leave the player"; the old anyPopupOpen
+  // branch here was fully redundant with that once popups became real
+  // mount/unmount-scoped components.
   useBackHandler(() => {
-    if (anyPopupOpen) {
-      closePopups()
-      showMenu()
-      return true
-    }
     if (menuVisible) {
       hideMenu()
       return true
@@ -186,11 +293,16 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
     return true
   })
 
-  // Any remote/keyboard press while the OSD is hidden should reveal it
-  // instead of silently doing nothing, matching normal TV player behavior.
+  // Any remote/keyboard press while the OSD is hidden should reveal it,
+  // matching normal TV player behavior. While it's already visible, the
+  // same press must instead just REFRESH the idle window — previously this
+  // only called showMenu() in the `!menuVisible` branch, so normal arrow-
+  // key/Enter activity while actively using the toolbar or a popup did
+  // nothing to the timer, and the OSD could disappear mid-interaction.
   useEffect(() => {
     const onKeyDown = () => {
-      if (!menuVisible) showMenu()
+      if (menuVisible) scheduleIdleHide()
+      else showMenu()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -333,6 +445,7 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
 
               <div className="toolbar-item">
                 <ToolbarButton
+                  focusKey={SOURCE_TOGGLE_FOCUS_KEY}
                   icon="🖥"
                   label="Source"
                   active={sourcePopupOpen}
@@ -342,33 +455,21 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
                   }}
                 />
                 {sourcePopupOpen && selected && (
-                  <FocusContext.Provider value={sourcePopupFocusKey}>
-                    <div ref={sourcePopupRef} className="options-popup">
-                      <div className="options-group">
-                        {selected.sources.length > 0 ? (
-                          selected.sources.map((source, index) => (
-                            <OptionRow
-                              key={source.label + index}
-                              chip={source.label}
-                              label={source.label}
-                              active={index === sourceIndex}
-                              onSelect={() => {
-                                setSourceIndex(index)
-                                showMenu()
-                              }}
-                            />
-                          ))
-                        ) : (
-                          <p className="options-empty">No sources available for this channel.</p>
-                        )}
-                      </div>
-                    </div>
-                  </FocusContext.Provider>
+                  <SourcePopup
+                    sources={selected.sources}
+                    sourceIndex={sourceIndex}
+                    onSelectSource={(index) => {
+                      setSourceIndex(index)
+                      showMenu()
+                    }}
+                    onClose={closeSourcePopup}
+                  />
                 )}
               </div>
 
               <div className="toolbar-item">
                 <ToolbarButton
+                  focusKey={SUBTITLES_TOGGLE_FOCUS_KEY}
                   icon="CC"
                   label="Text"
                   active={subtitlesPopupOpen}
@@ -378,41 +479,15 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, onBack }: Pr
                   }}
                 />
                 {subtitlesPopupOpen && (
-                  <FocusContext.Provider value={subtitlesPopupFocusKey}>
-                    <div ref={subtitlesPopupRef} className="options-popup">
-                      <div className="options-group">
-                        {hasSubtitles ? (
-                          <>
-                            <OptionRow
-                              chip="OFF"
-                              label="Off"
-                              active={playerState.activeSubtitleTrack === null}
-                              onSelect={() => {
-                                player.setSubtitleTrack(null)
-                                showMenu()
-                              }}
-                            />
-                            {playerState.subtitleTracks.map((track) => (
-                              <OptionRow
-                                key={track.id}
-                                chip="CC"
-                                label={track.label}
-                                active={playerState.activeSubtitleTrack === track.id}
-                                onSelect={() => {
-                                  player.setSubtitleTrack(track.id)
-                                  showMenu()
-                                }}
-                              />
-                            ))}
-                          </>
-                        ) : (
-                          <p className="options-empty">
-                            No subtitles available for this channel — the stream doesn't declare any subtitle track.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </FocusContext.Provider>
+                  <SubtitlesPopup
+                    tracks={hasSubtitles ? playerState.subtitleTracks : []}
+                    activeTrack={playerState.activeSubtitleTrack}
+                    onSelectTrack={(id) => {
+                      player.setSubtitleTrack(id)
+                      showMenu()
+                    }}
+                    onClose={closeSubtitlesPopup}
+                  />
                 )}
               </div>
             </div>

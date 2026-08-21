@@ -94,4 +94,10 @@ code {
   line-height: 1;
   cursor: pointer;
   padding: 0 4px;
+  border-radius: var(--radius-sm, 4px);
+}
+
+.playlist-persistence-toast button.focused {
+  color: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
