@@ -217,7 +217,10 @@ function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: (event:
         <span className="live-badge">
           <span className="live-dot" /> LIVE
         </span>
-        <span className="sport-label">{event.sportLabel}</span>
+        {/* Football is the overwhelming majority of events and the label
+            was purely redundant there — still shown for other sports
+            (e.g. F1) where it's the only thing distinguishing the card. */}
+        {event.sportLabel !== 'FOOTBALL' && <span className="sport-label">{event.sportLabel}</span>}
         {/* Only real football live data has a clock (see isLiveHeuristic
             on SportEvent) — a guessed-live F1/tennis card never claims a
             score or time it doesn't actually have. */}
@@ -238,7 +241,7 @@ function ComingUpCard({ event, onSelect }: { event: SportEvent; onSelect: (event
     <div ref={ref} className={`event-card ${focused ? 'focused' : ''}`} onClick={() => onSelect(event)}>
       <div className="event-card-header">
         <span className="event-card-time">{event.timeLabel.replace(/^Today /, '')}</span>
-        <span className="sport-label">{event.sportLabel}</span>
+        {event.sportLabel !== 'FOOTBALL' && <span className="sport-label">{event.sportLabel}</span>}
       </div>
       <CardBody event={event} />
       <CardCompetition event={event} />
