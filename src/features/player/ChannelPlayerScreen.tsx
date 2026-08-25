@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
-import { createHtmlVideoPlayer } from '../../core/player'
-import type { PlayerState, SubtitleTrack } from '../../core/player'
+import { usePlayerSession } from '../../core/player'
+import type { SubtitleTrack } from '../../core/player'
 import type { ChannelSource } from '../../data/channel'
 import { useBackHandler, useFocusScrollIntoView, useModalFocusScope } from '../../core/platform'
 import type { Channel } from '../../data/channel'
@@ -33,29 +33,6 @@ function sourceIndexFor(channel: Channel | null, label?: string): number {
   if (!channel || !label) return 0
   const index = channel.sources.findIndex((s) => s.label === label)
   return index === -1 ? 0 : index
-}
-
-// Only compares the fields this screen actually reads in its JSX — status,
-// error (code/message), muted, subtitleTracks, activeSubtitleTrack.
-// Deliberately excludes currentTime/duration: fixing this at the shared
-// PlayerState type (or splitting playback telemetry out of it) would touch
-// a contract documented as staying stable for a future Tizen AVPlay
-// implementation, for no benefit today — this is the only PlayerState
-// subscriber in the app (PreviewPlayer, the other createHtmlVideoPlayer()
-// consumer, never subscribes to state at all).
-function playerUiStateEqual(a: PlayerState, b: PlayerState): boolean {
-  if (a === b) return true
-  if (a.status !== b.status) return false
-  if (a.muted !== b.muted) return false
-  if (a.activeSubtitleTrack !== b.activeSubtitleTrack) return false
-  if ((a.error?.code ?? null) !== (b.error?.code ?? null)) return false
-  if ((a.error?.message ?? null) !== (b.error?.message ?? null)) return false
-  if (a.subtitleTracks.length !== b.subtitleTracks.length) return false
-  for (let i = 0; i < a.subtitleTracks.length; i++) {
-    if (a.subtitleTracks[i].id !== b.subtitleTracks[i].id) return false
-    if (a.subtitleTracks[i].label !== b.subtitleTracks[i].label) return false
-  }
-  return true
 }
 
 function ToolbarButton({
@@ -193,11 +170,14 @@ function SubtitlesPopup({
 }
 
 export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDisplayParts, onBack }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const player = useMemo(() => createHtmlVideoPlayer(), [])
   const [selected] = useState<Channel | null>(channels[0] ?? null)
-  const [sourceIndex, setSourceIndex] = useState(() => sourceIndexFor(channels[0] ?? null, initialSourceLabel))
-  const [playerState, setPlayerState] = useState<PlayerState>(player.getState())
+  const { videoRef, state: session, controller } = usePlayerSession(
+    selected?.sources.map((s) => s.url) ?? [],
+    sourceIndexFor(channels[0] ?? null, initialSourceLabel),
+  )
+  const playerState = session.playerState
+  const sourceIndex = session.sourceIndex
+  const allSourcesFailed = session.allSourcesFailed
   const [menuVisible, setMenuVisible] = useState(false)
   const [sourcePopupOpen, setSourcePopupOpen] = useState(false)
   const [subtitlesPopupOpen, setSubtitlesPopupOpen] = useState(false)
@@ -332,25 +312,6 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
     }
   }, [])
 
-  useEffect(() => {
-    if (videoRef.current) player.attach(videoRef.current)
-    // The player emits a new PlayerState on every native `timeupdate`
-    // (~4x/sec during playback) for currentTime/duration alone — fields
-    // this screen never reads in its JSX (grep confirms zero uses). Setting
-    // state directly from every emission forced a full re-render on every
-    // tick; comparing only the fields this component actually cares about
-    // (status/error/mute/subtitles) means React bails out of re-rendering
-    // for pure playback-clock ticks, while those fields still update
-    // immediately, with no debounce.
-    const unsubscribe = player.subscribe((next) => {
-      setPlayerState((prev) => (playerUiStateEqual(prev, next) ? prev : next))
-    })
-    return () => {
-      unsubscribe()
-      player.dispose()
-    }
-  }, [player])
-
   // Starts muted to satisfy autoplay policy, then unmutes itself the moment
   // both conditions are true: a real user gesture has happened, and playback
   // has actually started (so there's something audible to unmute into). If
@@ -359,9 +320,9 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
   // channel switch resuming playback after the user has already interacted.
   useEffect(() => {
     if (playerState.status === 'playing' && playerState.muted && hasInteractedRef.current && !userMutedRef.current) {
-      player.setMuted(false)
+      controller.setMuted(false)
     }
-  }, [playerState.status, playerState.muted, player])
+  }, [playerState.status, playerState.muted, controller])
 
   const activeSource = selected?.sources[sourceIndex] ?? selected?.sources[0]
 
@@ -383,38 +344,6 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
           quality: qualityTierLabel(estimateQualityTier({ channel: selected, source: activeSource })),
         })
       : null
-
-  useEffect(() => {
-    if (!activeSource) return
-    void player.load(activeSource.url).then(() => player.play())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSource?.url, player])
-
-  // Automatic local failover (blueprint section 42): a source that fails to
-  // start is a dead end for the user otherwise — they'd have to notice the
-  // error, open the Source popup, and manually try another quality. Instead,
-  // step through the channel's remaining untried sources in playlist order
-  // until one works or all have been tried, at which point the error is left
-  // showing since there's nothing left to try automatically.
-  const triedSourceIndices = useRef<Set<number>>(new Set())
-  const [allSourcesFailed, setAllSourcesFailed] = useState(false)
-
-  useEffect(() => {
-    triedSourceIndices.current = new Set()
-    setAllSourcesFailed(false)
-  }, [selected])
-
-  useEffect(() => {
-    if (playerState.status !== 'error' || !selected || selected.sources.length === 0) return
-    triedSourceIndices.current.add(sourceIndex)
-    const nextIndex = selected.sources.findIndex((_, i) => !triedSourceIndices.current.has(i))
-    if (nextIndex !== -1) {
-      setSourceIndex(nextIndex)
-    } else {
-      setAllSourcesFailed(true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerState.status])
 
   const isPaused = playerState.status === 'paused'
   const hasSubtitles = playerState.subtitleTracks.length > 0
@@ -454,10 +383,10 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
               <ToolbarButton
                 icon={isPaused ? '▶' : '❚❚'}
                 label={isPaused ? 'Play' : 'Pause'}
-                onSelect={() => (isPaused ? player.play() : player.pause())}
+                onSelect={() => (isPaused ? controller.play() : controller.pause())}
               />
 
-              <ToolbarButton icon="((•))" label="Sync Live" onSelect={() => player.seekToLive()} />
+              <ToolbarButton icon="((•))" label="Sync Live" onSelect={() => controller.seekToLive()} />
 
               <ToolbarButton
                 icon={playerState.muted ? '🔇' : '🔊'}
@@ -466,7 +395,7 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
                   const next = !playerState.muted
                   userMutedRef.current = next
                   hasInteractedRef.current = true
-                  player.setMuted(next)
+                  controller.setMuted(next)
                 }}
               />
 
@@ -486,7 +415,7 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
                     sources={selected.sources}
                     sourceIndex={sourceIndex}
                     onSelectSource={(index) => {
-                      setSourceIndex(index)
+                      controller.selectSource(index)
                       showMenu()
                     }}
                     onClose={closeSourcePopup}
@@ -510,7 +439,7 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
                     tracks={hasSubtitles ? playerState.subtitleTracks : []}
                     activeTrack={playerState.activeSubtitleTrack}
                     onSelectTrack={(id) => {
-                      player.setSubtitleTrack(id)
+                      controller.setSubtitleTrack(id)
                       showMenu()
                     }}
                     onClose={closeSubtitlesPopup}

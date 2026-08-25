@@ -4,11 +4,33 @@
 // open to swap in Tizen's native AVPlay (better codec/DRM support on Samsung
 // TVs) behind the same shape later, without touching feature code.
 
-export type PlayerErrorCode = 'source-unavailable' | 'network' | 'decode' | 'unknown'
+// 'stalled' is raised by the generic currentTime-progress watchdog (see
+// playbackStallWatchdog.ts) — playback stopped advancing without the
+// underlying engine (hls.js/mpegts.js/native) ever reporting video.error or
+// its own ERROR event. Found via a real failure: mpegts.js's remuxer hit an
+// internal exception compensating for a bogus timestamp gap and never
+// surfaced it any other way — the watchdog is the safety net for exactly
+// that class of otherwise-invisible failure.
+export type PlayerErrorCode = 'source-unavailable' | 'network' | 'decode' | 'stalled' | 'unknown'
+
+// Extra context attached only to a 'stalled' PlayerError — cheap to include
+// always (it's a plain object assembled from data already read every tick),
+// and diagnostic-only: nothing in the app depends on its shape for
+// correctness, only for logging (see playerSessionController.ts).
+export interface PlaybackDiagnostics {
+  sourceType: 'hls' | 'mpegts' | 'native'
+  currentTime: number
+  previousProgressingCurrentTime: number
+  stalledDurationMs: number
+  readyState: number
+  networkState: number
+  bufferedRanges: Array<{ start: number; end: number }>
+}
 
 export interface PlayerError {
   code: PlayerErrorCode
   message: string
+  diagnostics?: PlaybackDiagnostics
 }
 
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'ended' | 'error'
