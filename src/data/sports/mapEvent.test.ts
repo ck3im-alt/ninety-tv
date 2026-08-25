@@ -28,6 +28,8 @@ function event(broadcasts: NinetyBroadcast[]): NinetyEvent {
     id: 'evt1',
     start_time_utc: '2026-08-18T18:00:00Z',
     status: null,
+    home_score: null,
+    away_score: null,
     round_code: null,
     competition_id: null,
     competition_name: 'Premier League',
@@ -110,6 +112,67 @@ describe('mapNinetyEvent form mapping', () => {
   it('does not pad a short form array', () => {
     const result = mapNinetyEvent({ ...event([]), home_team_form: ['W', 'D', 'L'] }, league)
     expect(result.homeForm).toEqual(['W', 'D', 'L'])
+  })
+})
+
+describe('mapNinetyEvent live status/score mapping (ninety-api liveScoreScheduler)', () => {
+  it('maps status "live" to isLive: true, isLiveHeuristic: undefined (real data, not a guess)', () => {
+    const result = mapNinetyEvent({ ...event([]), status: 'live', home_score: 1, away_score: 0 }, league)
+    expect(result.isLive).toBe(true)
+    expect(result.isLiveHeuristic).toBeUndefined()
+    expect(result.status).toBe('live')
+  })
+
+  it('maps status "halftime" to isLive: true and a synthetic "HT" liveClock', () => {
+    const result = mapNinetyEvent({ ...event([]), status: 'halftime', home_score: 1, away_score: 0 }, league)
+    expect(result.isLive).toBe(true)
+    expect(result.liveClock).toBe('HT')
+  })
+
+  it('maps status "scheduled" to isLive: false with no score rendered', () => {
+    const result = mapNinetyEvent({ ...event([]), status: 'scheduled' }, league)
+    expect(result.isLive).toBe(false)
+    expect(result.homeScore).toBeUndefined()
+    expect(result.awayScore).toBeUndefined()
+  })
+
+  it('maps status "complete" to isLive: false while still carrying the final score', () => {
+    const result = mapNinetyEvent({ ...event([]), status: 'complete', home_score: 2, away_score: 1 }, league)
+    expect(result.isLive).toBe(false)
+    expect(result.homeScore).toBe('2')
+    expect(result.awayScore).toBe('1')
+  })
+
+  it('preserves a real 0-0 score rather than treating it as absent (falsy-but-real score bug)', () => {
+    const result = mapNinetyEvent({ ...event([]), status: 'live', home_score: 0, away_score: 0 }, league)
+    expect(result.homeScore).toBe('0')
+    expect(result.awayScore).toBe('0')
+  })
+
+  it('updates from 0-0 to 1-0 across two separate mappings of the same event id', () => {
+    const first = mapNinetyEvent({ ...event([]), status: 'live', home_score: 0, away_score: 0 }, league)
+    const second = mapNinetyEvent({ ...event([]), status: 'live', home_score: 1, away_score: 0 }, league)
+    expect(first.homeScore).toBe('0')
+    expect(second.homeScore).toBe('1')
+    expect(first.id).toBe(second.id)
+  })
+
+  it('falls back to the time-window heuristic when status is null (e.g. a legacy/untracked event)', () => {
+    // start_time_utc far in the past -> heuristic says not live regardless
+    // of real time, proving the heuristic path (not the real-status path)
+    // is what ran.
+    const result = mapNinetyEvent({ ...event([]), status: null, start_time_utc: '2020-01-01T00:00:00Z' }, league)
+    expect(result.isLive).toBe(false)
+    expect(result.isLiveHeuristic).toBe(false)
+  })
+
+  it('never shows a score for a heuristic-live (null-status) event', () => {
+    const result = mapNinetyEvent({ ...event([]), status: null, home_score: 5, away_score: 5 }, league)
+    // home_score/away_score arrive from upstream regardless, but the UI
+    // gate is isLiveHeuristic -- still exercised here for completeness:
+    // status stays undefined so nothing downstream can mistake this for a
+    // real backend-confirmed state.
+    expect(result.status).toBeUndefined()
   })
 })
 

@@ -64,16 +64,21 @@ export function mapEvent(ev: RawSportsDbEvent, league: LeagueDef): SportEvent {
 // ninety-api and TheSportsDB ids live in separate spaces — prefixed so a
 // fixture from either provider can never collide as a React list key.
 //
-// Unlike Sportmonks, ninety-api has no live match-state feed (no state_id,
-// no periods, no running score) — so live detection falls back to the
-// same time-window heuristic already used for every non-football sport
-// (see liveHeuristic.ts), and no score/clock is ever shown for a football
-// fixture from this provider. This is a real capability drop versus the
-// old Sportmonks integration, accepted as part of dropping the €80/month
-// cost — see docs/THIRD_PARTY.md in ninety-api.
+// As of 2026-08-24, ninety-api DOES have a real live match-state feed
+// (its own liveScoreScheduler.ts polls footballdata.io's GET
+// /fixtures/live) — status/home_score/away_score are real, server-tracked
+// data, not a guess, so the time-window heuristic (liveHeuristic.ts) is
+// only used as a defensive fallback for the (in practice essentially
+// never, post-backfill) case of a null status. footballdata.io has no
+// match-minute/clock field in any endpoint (confirmed live) — liveClock
+// is only ever set to 'HT' for a halftime status, itself unconfirmed
+// against a real payload (see ninety-api's liveScores.ts).
 export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
   const title = ev.home_team_name && ev.away_team_name ? `${ev.home_team_name} vs ${ev.away_team_name}` : ev.competition_name ?? 'Match'
-  const isLive = isHeuristicallyLive(league.sportKey, title, ev.start_time_utc)
+  const isLive =
+    ev.status != null
+      ? ev.status === 'live' || ev.status === 'halftime'
+      : isHeuristicallyLive(league.sportKey, title, ev.start_time_utc)
   return {
     id: `ninety:${ev.id}`,
     sportKey: league.sportKey,
@@ -95,7 +100,11 @@ export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
     timeLabel: formatTimeLabel(ev.start_time_utc),
     backgroundUrl: league.staticBackground ?? GENERAL_BACKGROUND,
     isLive,
-    isLiveHeuristic: isLive,
+    isLiveHeuristic: ev.status == null ? isLive : undefined,
+    status: ev.status ?? undefined,
+    homeScore: ev.home_score != null ? String(ev.home_score) : undefined,
+    awayScore: ev.away_score != null ? String(ev.away_score) : undefined,
+    liveClock: ev.status === 'halftime' ? 'HT' : undefined,
     // BOTH means the channel is available as linear AND streaming, so it
     // still counts as a valid linear-playlist match; STREAMING-only and
     // UNKNOWN do not.

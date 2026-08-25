@@ -65,6 +65,16 @@ export function EventDetailsScreen({
     // "this league airs on this channel in this country" fact — so it's
     // still worth calling matchChannelsForEvent for every event, not just
     // team fixtures.
+    //
+    // Deliberately keyed on event.id, NOT the whole `event` object — App.tsx
+    // now passes the freshest known version of the event (see its own
+    // liveSelectedEvent), which gets a NEW object reference roughly every
+    // 60s as ninety-api's live-score poller updates status/score (see the
+    // live-scores feature). None of that affects which channels air this
+    // fixture, only whether it's currently live — re-running this (network-
+    // fallback-enabled) match and flashing back to "Finding the best
+    // streams…" on every background score tick would be exactly the
+    // reload-during-silent-refresh this feature explicitly must not cause.
     let cancelled = false
     const controller = new AbortController()
     setState({ status: 'loading' })
@@ -80,7 +90,8 @@ export function EventDetailsScreen({
       cancelled = true
       controller.abort()
     }
-  }, [event, channels, xtreamCreds, identityIndex])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.id, channels, xtreamCreds, identityIndex])
 
   useBackHandler(() => {
     onBack()

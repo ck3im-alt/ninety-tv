@@ -31,7 +31,17 @@ export interface NinetyBroadcast {
 export interface NinetyEvent {
   id: string
   start_time_utc: string
+  // 'scheduled' | 'live' | 'halftime' | 'complete' | 'cancelled' |
+  // 'postponed' | 'abandoned' (ninety-api's eventStatus.ts) -- kept fresh
+  // by ninety-api's live-score poller while a match is in play, not just
+  // at fixture-ingestion time. See mapEvent.ts's mapNinetyEvent for how
+  // this drives SportEvent.isLive/status.
   status: string | null
+  // Null until the match has actually kicked off; once live, both update
+  // roughly every 60s for as long as any client is polling (see
+  // ninety-api's liveScoreScheduler.ts).
+  home_score: number | null
+  away_score: number | null
   round_code: string | null
   competition_id: string | null
   competition_name: string | null

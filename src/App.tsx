@@ -449,6 +449,17 @@ function App() {
     return [playingChannel, ...channelIndex.getSiblings(playingChannel)]
   }, [playlist.channels, channelIndex, playingChannel])
 
+  // The freshest known version of selectedEvent — looked up by id in
+  // useHomeFeed's own event map (kept current by its silent ~60s/
+  // visibility-regain background refresh, see useHomeFeed.ts) rather than
+  // the frozen snapshot captured at the moment the user drilled in. Falls
+  // back to that frozen snapshot when the id isn't present (e.g. an event
+  // reached via Competitions, which uses its own separate fetch and isn't
+  // part of useHomeFeed's followed-leagues scope — out of scope for this
+  // pass, see the live-scores task's final report) — Event Details still
+  // works exactly as before for those, it just doesn't get live updates.
+  const liveSelectedEvent = selectedEvent ? (homeFeedState.eventsById.get(selectedEvent.id) ?? selectedEvent) : null
+
   function toggleInSet(set: Set<string>, setSet: (s: Set<string>) => void, value: string) {
     const next = new Set(set)
     if (next.has(value)) next.delete(value)
@@ -563,9 +574,9 @@ function App() {
         />
       )}
 
-      {screen === 'event-details' && selectedEvent && (
+      {screen === 'event-details' && liveSelectedEvent && (
         <EventDetailsScreen
-          event={selectedEvent}
+          event={liveSelectedEvent}
           channels={playlist.channels}
           xtreamCreds={xtreamCreds}
           identityIndex={identityIndex}
@@ -686,7 +697,17 @@ function App() {
           channels={playerChannels}
           initialSourceLabel={playingSourceLabel}
           initialDisplayParts={playingDisplayParts}
-          onBack={() => setScreen(playerReturnScreen)}
+          onBack={() => {
+            setScreen(playerReturnScreen)
+            // Immediate silent refresh on Player exit — the primary
+            // staleness scenario this feature exists for (watch a live
+            // match for two hours, Home/Event Details must already show
+            // the final state on return, not wait up to 60s for the next
+            // periodic tick). Safe to call unconditionally: useHomeFeed's
+            // own in-flight guard already no-ops this if a refresh is
+            // already running.
+            homeFeedState.refresh()
+          }}
         />
       )}
 
