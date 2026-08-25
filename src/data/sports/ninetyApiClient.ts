@@ -10,11 +10,21 @@
 
 import type { TeamFormResult } from './types'
 
-const BASE_URL = import.meta.env.VITE_NINETY_API_URL as string | undefined
+// Read lazily (not as a module-level const) so `vi.stubEnv` in tests can
+// override it per-test -- a top-level const freezes whatever
+// VITE_NINETY_API_URL was at first import, before any test's beforeEach
+// runs, which made this module's tests pass only on a machine that happens
+// to have a local .env and fail everywhere else (CI runs `npm test` without
+// one). Production behaviour is identical: Vite statically replaces
+// import.meta.env.VITE_NINETY_API_URL at build time either way.
+function getBaseUrl(): string | undefined {
+  return import.meta.env.VITE_NINETY_API_URL as string | undefined
+}
 
 async function getJson<T>(path: string): Promise<T> {
-  if (!BASE_URL) throw new Error('VITE_NINETY_API_URL is not set (see .env.example)')
-  const res = await fetch(`${BASE_URL}${path}`)
+  const baseUrl = getBaseUrl()
+  if (!baseUrl) throw new Error('VITE_NINETY_API_URL is not set (see .env.example)')
+  const res = await fetch(`${baseUrl}${path}`)
   if (!res.ok) throw new Error(`ninety-api ${path} failed: ${res.status}`)
   return (await res.json()) as T
 }
