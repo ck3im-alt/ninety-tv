@@ -157,6 +157,70 @@ describe('Part 5 — channel identity protection (never merge distinct siblings)
   }
 })
 
+describe('Part 7 — Premier Sports 1 dirty-name variants resolve, and never collide across GB/IE/PH', () => {
+  // The live catalog (checked 2026-08-24) has three real channels literally
+  // named "Premier Sports 1"/"Premier Sports" across GB/IE/PH
+  // (uk_premier_sports_1, ie_premier_sports_1, ph_premier_sports_1) — a
+  // country-less playlist entry is genuinely ambiguous between them, but a
+  // country-carrying one must resolve to exactly the right one and reject
+  // the other two, never silently picking one.
+  function premierSportsCatalog(): NinetyLogicalChannel[] {
+    return [
+      { id: 'uk_premier_sports_1', name: 'Premier Sports 1', country: 'GB', broadcast_type: 'LINEAR', network_name: 'Premier Sports', channel_number: null, channel_variant: null, aliases: [], external_ids: [], source_names: ['Premier Sports 1 HD'] },
+      { id: 'uk_premier_sports_2', name: 'Premier Sports 2', country: 'GB', broadcast_type: 'LINEAR', network_name: 'Premier Sports', channel_number: null, channel_variant: null, aliases: [], external_ids: [], source_names: ['Premier Sports 2 HD'] },
+      { id: 'ie_premier_sports_1', name: 'Premier Sports 1', country: 'IE', broadcast_type: 'LINEAR', network_name: 'Premier Sports 1', channel_number: null, channel_variant: null, aliases: [], external_ids: [], source_names: [] },
+      { id: 'ie_premier_sports_2', name: 'Premier Sports 2', country: 'IE', broadcast_type: 'LINEAR', network_name: 'Premier Sports 2', channel_number: null, channel_variant: null, aliases: [], external_ids: [], source_names: [] },
+      { id: 'ph_premier_sports_1', name: 'Premier Sports', country: 'PH', broadcast_type: 'LINEAR', network_name: 'Premier Sports', channel_number: null, channel_variant: null, aliases: [], external_ids: [], source_names: [] },
+    ]
+  }
+
+  function resolveAgainst(playlistName: string) {
+    const raw: RawChannel[] = [{ id: 'p1', name: playlistName, url: 'http://example.invalid/stream' }]
+    const [channel] = mergeChannelSources(raw)
+    return resolveChannelIdentities(premierSportsCatalog(), [channel])
+  }
+
+  // Deliberately excludes any country-less variant ("PREMIER SPORTS 1 FHD")
+  // — with a real ie_premier_sports_1 in the catalog, a bare name genuinely
+  // is ambiguous, covered separately below, not a case that should confirm.
+  const gbDirtyVariants = ['Premier Sports 1 (GB)', 'Premier Sports 1 UK', 'UK: Premier Sports 1', 'Premier Sports 1 HD UK']
+
+  for (const variant of gbDirtyVariants) {
+    it(`"${variant}" confirms uk_premier_sports_1 only, never ie/ph`, () => {
+      const resolutions = resolveAgainst(variant)
+      const ukClassification = resolutions.get('uk_premier_sports_1')?.classification ?? 'NONE'
+      expect(ukClassification, `uk_premier_sports_1 should confirm for "${variant}"`).toMatch(/CONFIRMED|STRONG/)
+      expect(resolutions.get('uk_premier_sports_2')?.classification ?? 'NONE').toBe('NONE')
+      expect(resolutions.get('ie_premier_sports_1')?.classification ?? 'NONE').toMatch(/AMBIGUOUS|NONE/)
+      expect(resolutions.get('ph_premier_sports_1')?.classification ?? 'NONE').toMatch(/AMBIGUOUS|NONE/)
+    })
+  }
+
+  for (const bareVariant of ['Premier Sports 1', 'PREMIER SPORTS 1 FHD']) {
+    it(`a country-less "${bareVariant}" is genuinely ambiguous between GB and IE, not silently picked`, () => {
+      const resolutions = resolveAgainst(bareVariant)
+      const gb = resolutions.get('uk_premier_sports_1')?.classification ?? 'NONE'
+      const ie = resolutions.get('ie_premier_sports_1')?.classification ?? 'NONE'
+      // Neither side may be silently CONFIRMED/STRONG off a bare name shared
+      // by two real catalog channels with no disambiguating signal.
+      expect(gb).not.toMatch(/CONFIRMED|STRONG/)
+      expect(ie).not.toMatch(/CONFIRMED|STRONG/)
+    })
+  }
+
+  it('Ireland variant "IE: Premier Sports 1" confirms ie_premier_sports_1 only, never uk/ph', () => {
+    const resolutions = resolveAgainst('IE: Premier Sports 1')
+    expect(resolutions.get('ie_premier_sports_1')?.classification ?? 'NONE').toMatch(/CONFIRMED|STRONG/)
+    expect(resolutions.get('uk_premier_sports_1')?.classification ?? 'NONE').toMatch(/AMBIGUOUS|NONE/)
+  })
+
+  it('Premier Sports 1 and 2 never collapse into each other for either GB or IE', () => {
+    const resolutions = resolveAgainst('UK: Premier Sports 2')
+    expect(resolutions.get('uk_premier_sports_2')?.classification ?? 'NONE').toMatch(/CONFIRMED|STRONG/)
+    expect(resolutions.get('uk_premier_sports_1')?.classification ?? 'NONE').toBe('NONE')
+  })
+})
+
 describe('Part 6 — quality-variant merging keeps identity separate from quality', () => {
   it('ESPN FHD / ESPN UHD / ESPN HD from one provider merge into ONE channel with 3 selectable sources', () => {
     const raw: RawChannel[] = [

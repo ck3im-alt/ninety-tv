@@ -24,10 +24,31 @@ import type { MatchGroup } from './groupChannelMatches'
 const FALLBACK_NAME = 'PPV Event'
 
 const WEEKDAY_RE = /\b(MON|TUE|WED|THU|FRI|SAT|SUN)(DAY)?\b/
-const TIME_RE = /\b\d{1,2}:\d{2}\b/
 const MONTH_RE = /\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/
 const TIMEZONE_RE = /\b(UTC|GMT|CEST|CET|BST|EST|EDT|PST|PDT|WAT|WEST|SAST|AEST|WET)\b/
-const MARKETING_RE = /\b(8K|4K|UHD|FHD|EXCLUSIVE|ULTRA)\b/
+
+// Quality/marketing words stripped at TOKEN level from surviving text, not
+// used to discard a whole segment — a real provider identity commonly
+// shares a segment with one of these ("VIAPLAY PPV 4K", "VIAPLAY PPV ⱽᴵᴾ"),
+// and the old whole-segment MARKETING_RE classification threw the provider
+// away with the tag. Checked as exact folded tokens, so brands that merely
+// CONTAIN one of these letter runs ("HD1", "Sky Ultra HD Cinema" keeps
+// "Sky"/"Cinema") are unaffected. Deliberately excludes words that are real
+// branding in the wild: RAW (WWE RAW), GOLD/PREMIUM (ITV Gold, TV 2 Sport
+// Premium), LIVE (Sky Sports News LIVE).
+const MARKETING_TOKENS = new Set(['8K', '4K', 'UHD', 'FHD', 'SD', 'HD', 'EXCLUSIVE', 'ULTRA', 'VIP', 'HEVC', 'H264', 'H265', '50FPS', '60FPS'])
+
+// Date/time-region-only words, removed from an anchored segment's
+// head/tail remainder (see cleanDateAnchoredSegment) — never from an
+// ordinary kept segment, where e.g. a weekday letter-run could be part of
+// real branding and the old whole-segment classification still applies.
+const DATE_WORD_TOKENS = new Set([
+  'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN',
+  'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY',
+  'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+  'UTC', 'GMT', 'CEST', 'CET', 'BST', 'EST', 'EDT', 'PST', 'PDT', 'WAT', 'WEST', 'SAST', 'AEST', 'WET',
+  'AM', 'PM',
+])
 
 const COUNTRY_CODE_SET = new Set(Object.keys(COUNTRY_NAMES))
 const COUNTRY_NAME_SET = new Set(Object.values(COUNTRY_NAMES).map((name) => name.toUpperCase()))
@@ -109,24 +130,124 @@ export interface PpvDisplayNameContext {
   dateTimeUtc?: string | null
 }
 
-// A segment is display noise when it's the "LIVE" marker, a date/time/
-// timezone stamp, purely a country marker, pure technical marketing
-// ("8K EXCLUSIVE"), or — when the calling event's team names are known —
-// the event-title segment itself (both team names present).
-function isNoiseSegment(rawSegment: string, context?: PpvDisplayNameContext): boolean {
-  const folded = foldForMatching(rawSegment).trim()
-  if (folded === '') return true
-  if (folded === 'LIVE') return true
-  if (WEEKDAY_RE.test(folded)) return true
-  if (TIME_RE.test(folded)) return true
-  if (MONTH_RE.test(folded)) return true
-  if (TIMEZONE_RE.test(folded)) return true
-  if (MARKETING_RE.test(folded)) return true
-  if (isStandaloneCountryMarker(folded)) return true
-  if (context?.homeTeam && context?.awayTeam) {
-    if (textMatchesTeam(folded, context.homeTeam) && textMatchesTeam(folded, context.awayTeam)) return true
+// Date/time ANCHORS: concrete, unambiguous date/time shapes that mark the
+// "when" region of a raw event-entry name. A segment containing one is not
+// discarded wholesale any more (the old whole-segment noise classification
+// lost real provider identity written INTO the same segment — the reported
+// regression "Fulham vs Chelsea @ Aug 24 8:15 PM \:Viaplay NO 03" has its
+// entire identity in ONE segment); instead the text AFTER the last anchor
+// (and, failing that, before the first) is treated as the provider-identity
+// remainder and cleaned token-by-token. Standalone weekday/timezone WORDS
+// are deliberately not anchors on their own — they're too brand-collidable
+// ("Sun TV") — only these digit-bearing shapes are.
+const ANCHOR_SOURCES: string[] = [
+  String.raw`\b(?:[01]?\d|2[0-3]):[0-5]\d\s*(?:AM|PM)?\b`, // colon time, optional meridiem
+  String.raw`\b\d{1,2}\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b`, // "17 AUG"
+  String.raw`\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+\d{1,2}\b`, // "AUG 24"
+  String.raw`\b\d{4}-\d{2}-\d{2}\b`, // ISO date
+  String.raw`\b\d{1,2}[/.]\d{1,2}(?:[/.]\d{2,4})?\b`, // "21/08", "20.08.2026", dot time "20.00"
+]
+
+interface AnchorSpan {
+  start: number
+  end: number
+}
+
+function findDateTimeAnchors(folded: string): AnchorSpan[] {
+  const spans: AnchorSpan[] = []
+  for (const source of ANCHOR_SOURCES) {
+    for (const match of folded.matchAll(new RegExp(source, 'g'))) {
+      spans.push({ start: match.index, end: match.index + match[0].length })
+    }
   }
-  return false
+  return spans
+}
+
+// Shared token pass: splits on whitespace, drops tokens with no
+// alphanumeric content (stray "-"/"–" separators), and drops any token the
+// supplied predicate rejects. Token text itself is left intact — a colon in
+// "NO:" is load-bearing for stripLeadingCountryPrefix later, and "+" in
+// "TV3+" is real channel identity (see the mislabeled-PPV passthrough
+// tests). Returns null when nothing with a real letter survives — a bare
+// leftover number ("03") is a feed slot, not a provider identity anyone
+// could read.
+function cleanTokens(text: string, isNoiseToken: (foldedToken: string) => boolean): string | null {
+  const kept: string[] = []
+  for (const token of text.split(/\s+/)) {
+    if (!/[A-Za-z0-9]/.test(token)) continue
+    if (isNoiseToken(foldForMatching(token))) continue
+    kept.push(token)
+  }
+  const joined = kept.join(' ').trim()
+  return joined.length >= 2 && /[A-Za-z]/.test(joined) ? joined : null
+}
+
+// Leading/trailing separator-punctuation runs on a head/tail REMAINDER of a
+// date-anchored segment (e.g. the "\:" glue in "8:15 PM \:Viaplay NO 03")
+// — trimmed off the candidate as a whole, never per token, so mid-name
+// punctuation that carries identity ("PPV-12", "TV3+") is untouched.
+function trimEdgeSeparators(text: string): string {
+  return text.replace(/^[\s\\:.,;@|/#-]+|[\s\\:.,;@|/-]+$/g, '')
+}
+
+function isCandidateNoiseToken(foldedToken: string): boolean {
+  // Parens and a trailing colon are marker formatting ("(NO)", "NO:"), not
+  // part of what the token is — stripped for classification only.
+  const bare = foldedToken.replace(/[():]/g, '')
+  if (DATE_WORD_TOKENS.has(bare)) return true
+  if (MARKETING_TOKENS.has(bare)) return true
+  // The head/tail remainder of a date-anchored segment is metadata
+  // territory — a standalone country code/name there ("NO", "(NO)") is a
+  // market marker, never part of the provider's brand.
+  return COUNTRY_CODE_SET.has(bare) || COUNTRY_NAME_SET.has(bare)
+}
+
+function isKeptSegmentNoiseToken(foldedToken: string): boolean {
+  return MARKETING_TOKENS.has(foldedToken)
+}
+
+// The provider-identity remainder of a segment that carries date/time
+// anchors: text after the LAST anchor first (real corpus shape — "teams @
+// datetime <provider tail>"), text before the FIRST anchor as the fallback.
+// The head fallback is skipped when it's just the event title (both team
+// names, given context) — that text is already represented canonically.
+function cleanDateAnchoredSegment(displaySegment: string, folded: string, anchors: AnchorSpan[], context?: PpvDisplayNameContext): string | null {
+  const lastEnd = Math.max(...anchors.map((a) => a.end))
+  const tail = cleanTokens(trimEdgeSeparators(displaySegment.slice(lastEnd)), isCandidateNoiseToken)
+  if (tail) return tail
+
+  const firstStart = Math.min(...anchors.map((a) => a.start))
+  const head = displaySegment.slice(0, firstStart)
+  if (context?.homeTeam && context?.awayTeam) {
+    const foldedHead = folded.slice(0, firstStart)
+    if (textMatchesTeam(foldedHead, context.homeTeam) && textMatchesTeam(foldedHead, context.awayTeam)) return null
+  }
+  return cleanTokens(trimEdgeSeparators(head), isCandidateNoiseToken)
+}
+
+// Reduces one '|'-separated segment to its usable display content, or null
+// when nothing usable is in it. Segment-level discards are now reserved for
+// segments that genuinely carry nothing else (a lone "LIVE" marker, a
+// standalone country marker, a stray date-word segment, the event-title
+// segment when team context identifies it); anything sharing a segment with
+// noise is recovered token-by-token instead of being thrown away with it.
+function cleanSegment(displaySegment: string, context?: PpvDisplayNameContext): string | null {
+  const folded = foldForMatching(displaySegment).trim()
+  if (folded === '') return null
+  if (folded === 'LIVE') return null
+  if (isStandaloneCountryMarker(folded)) return null
+
+  const anchors = findDateTimeAnchors(folded)
+  if (anchors.length > 0) return cleanDateAnchoredSegment(displaySegment, folded, anchors, context)
+
+  // No concrete date/time anchors: stray date-word segments keep the old
+  // whole-segment classification (brand-collidable words are not safe to
+  // strip token-level from arbitrary channel text).
+  if (WEEKDAY_RE.test(folded) || MONTH_RE.test(folded) || TIMEZONE_RE.test(folded)) return null
+  if (context?.homeTeam && context?.awayTeam) {
+    if (textMatchesTeam(folded, context.homeTeam) && textMatchesTeam(folded, context.awayTeam)) return null
+  }
+  return cleanTokens(displaySegment, isKeptSegmentNoiseToken)
 }
 
 // Strips a leading "XX: " country-code prefix from the final surviving
@@ -161,7 +282,7 @@ export function normalizePpvDisplayName(rawName: string, context?: PpvDisplayNam
     .map((segment) => stripDecorativeEdges(segment))
     .filter((segment) => segment.length > 0)
 
-  const kept = segments.filter((segment) => !isNoiseSegment(segment, context))
+  const kept = segments.map((segment) => cleanSegment(segment, context)).filter((segment): segment is string => segment !== null)
   const providerSegment = kept[kept.length - 1]
   if (!providerSegment) return FALLBACK_NAME
 
@@ -172,12 +293,18 @@ export function normalizePpvDisplayName(rawName: string, context?: PpvDisplayNam
 // A disposable event-slot identifier glued onto an otherwise-real provider
 // name — "PPV 15", "PPV-15", "PPV #15", "PPV15", or the same shapes with
 // EVENT/FEED instead of PPV (real corpus patterns, Part R of the redesign
-// task). Deliberately requires one of these specific words immediately
-// before the number — never strips a bare trailing number on its own, so
-// real channel identities that just happen to end in a digit ("TV 2",
-// "Sky Sports 1", "ESPN 2", "beIN SPORTS 3") are completely unaffected: none
-// of them have "PPV"/"EVENT"/"FEED" immediately before their number.
-const EVENT_SLOT_SUFFIX_RE = /\s*[-#]?\s*(?:PPV|EVENT|FEED)[\s#-]*\d+\.?\s*$/i
+// task). Two additions beyond the numbered PPV/EVENT/FEED shapes:
+// - a trailing bare "PPV" with no number at all ("VIAPLAY PPV" once the ⱽᴵᴾ
+//   decoration is token-stripped) — deliberately ONLY "PPV", never bare
+//   "EVENT"/"FEED", which are real channel branding ("Sky Sports Main
+//   Event") that must survive untouched.
+// - a trailing LEADING-ZERO number ("Viaplay 03", the anchored-segment tail
+//   shape) — a zero-padded number is a rotating feed slot's formatting,
+//   never how real numbered channels write themselves ("TV 2",
+//   "Sky Sports 1", "TNT Sports 10" — all unaffected, no leading zero).
+// The whole suffix must be preceded by whitespace or be the entire string,
+// so a brand merely ENDING in these letters ("SUPPV"?) is never sliced.
+const EVENT_SLOT_SUFFIX_RE = /(?:^|\s)[-#]?\s*(?:(?:PPV|EVENT|FEED)[\s#-]*\d+|PPV|0\d+)\.?\s*$/i
 
 // DISPLAY-only provider identity: same cleanup as normalizePpvDisplayName,
 // plus stripping a trailing disposable event-slot number when the event's
@@ -249,15 +376,19 @@ export function formatEventStreamDisplayLine(parts: EventStreamDisplayParts): st
 
 // Contextual PPV display name for Event Details' single-line stream rows
 // (no quality — see formatEventStreamDisplayLine's own comment). Returns
-// null when there's no usable event context at all (falls back to the
-// plain normalizePpvDisplayName cleanup, see getChannelDisplayName) or when
-// provider extraction found nothing usable — never a half-built "| |"
-// string with just an event title and no identity behind it.
+// null only when there's no usable event context at all (falls back to the
+// plain normalizePpvDisplayName cleanup, see getChannelDisplayName). When
+// context exists but provider extraction found nothing usable, the line is
+// composed from the CANONICAL event identity alone ("Fulham - Chelsea |
+// 20:15") — the event is already resolved at this point, so a generic
+// "PPV Event" placeholder would be discarding information the app
+// verifiably has (see the redesign task: "PPV Event" must be a true last
+// resort, reachable only when event identity cannot be determined).
 function buildContextualPpvDisplayName(rawName: string, context?: PpvDisplayNameContext): string | null {
   if (!context || (!context.homeTeam && !context.eventTitle)) return null
   const parts = buildEventStreamDisplayParts(rawName, context, null)
-  if (!parts.provider) return null
-  return formatEventStreamDisplayLine(parts)
+  const line = formatEventStreamDisplayLine(parts)
+  return line.length > 0 ? line : null
 }
 
 // Picks the identity a stream row should actually show, per priority:

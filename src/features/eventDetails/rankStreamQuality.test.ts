@@ -19,6 +19,7 @@ function makeGroup(key: string, labels: string[]): MatchGroup {
     isExactMatch: true,
     confidence: 'confirmed',
     label: key,
+    matchSource: 'ninety',
     sourceOptions: labels.map((label) => makeSourceOption(label)),
   }
 }

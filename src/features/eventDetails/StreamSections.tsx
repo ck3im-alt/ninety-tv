@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useFocusScrollIntoView } from '../../core/platform'
 import { StreamRow } from './StreamRow'
-import type { EventStreamOption } from './buildEventStreamOptions'
+import { groupOptionsByCountry } from './buildEventStreamOptions'
+import type { CountryGroupSection, PartitionedStreamOptions, RankedEventStreamOption } from './buildEventStreamOptions'
+import { flagSrc } from '../../data/countryCodes'
 import type { EventStreamDisplayParts } from './ppvDisplayName'
 import type { Channel, ChannelSource } from '../../data/channel'
 
@@ -12,49 +14,96 @@ interface SharedRowProps {
   onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
 }
 
-function streamCountLabel(count: number): string {
-  if (count === 1) return 'stream'
-  return `${count} streams`
-}
-
-// The personalized recommendation list — the screen's main event. The #1
-// row gets forceFocus (see StreamRow's own comment): once matches are
-// ready, this is the initial focus target for the whole screen, not Back.
-export function StreamRecommendations({ options, ...shared }: { options: EventStreamOption[] } & SharedRowProps) {
-  if (options.length === 0) return null
+// Subtle section header above a contiguous run of same-country rows: flag +
+// uppercase name, then a thin rule that STARTS after the name and continues
+// across the remaining width on the same line — not a border drawn under
+// the whole header. The flat 'other' bucket (every non-preferred country,
+// unsplit) gets a plain muted label instead of a flag.
+function CountrySectionHeader({ section }: { section: CountryGroupSection }) {
+  if (section.kind === 'other') {
+    return (
+      <div className="stream-country-header stream-country-header-other">
+        <span className="stream-country-header-name">Other countries</span>
+        <span className="stream-country-header-rule" />
+      </div>
+    )
+  }
+  const flag = section.countryCode ? flagSrc(section.countryCode) : null
   return (
-    <section className="stream-section">
-      <div className="stream-section-header">
-        <h2 className="stream-section-title">
-          <span className="stream-section-star" aria-hidden="true">
-            ☆
-          </span>
-          Top {streamCountLabel(options.length)} for you
-        </h2>
-        <span className="stream-section-subtitle">Ranked by quality and your preferred countries</span>
-      </div>
-      <div className="stream-row-list">
-        {options.map((option, index) => (
-          <StreamRow key={option.key} focusKey={option.key} option={option} variant="top" primary={index === 0} forceFocus={index === 0} {...shared} />
-        ))}
-      </div>
-    </section>
+    <div className="stream-country-header">
+      {flag && <img className="stream-country-header-flag" src={flag} alt="" />}
+      <span className="stream-country-header-name">{section.countryName ?? section.countryCode}</span>
+      <span className="stream-country-header-rule" />
+    </div>
   )
 }
 
-// Remaining trusted (confirmed/likely) matches beyond the top 3 — still
-// fully playable, just lighter rows with no rank badge.
-export function StreamList({ options, ...shared }: { options: EventStreamOption[] } & SharedRowProps) {
-  if (options.length === 0) return null
+// The whole stream area once matches are ready: every trusted group,
+// grouped into subtle per-country sections, as one flowing list — no filter
+// pills, no "Recommended" vs "All" view switch, no ranking-explanation copy
+// (task section 24). The single best stream across the whole event is
+// called out via `topPickKey` (StreamRow's `primary` prop) rather than a
+// separate section — row order and country grouping already communicate
+// rank.
+export function StreamList({
+  partitioned,
+  favoriteCountries,
+  topPickKey,
+  ...shared
+}: {
+  partitioned: PartitionedStreamOptions
+  // The user's own ORDERED preferred-country list — index 0 is primary
+  // (see data/preferences.ts) — threaded through purely to decide country
+  // section headers; ranking itself already baked this in upstream (see
+  // EventDetailsScreen.tsx's rankEventStreamOptions call).
+  favoriteCountries: readonly string[]
+  topPickKey?: string
+} & SharedRowProps) {
+  const options = partitioned.trusted
+  const candidates = partitioned.candidates
+
+  // Country is ALWAYS a section header, never per-row metadata — including
+  // when a section holds just one stream. groupOptionsByCountry already
+  // returns one section per distinguishable bucket (primary/preferred
+  // countries individually, everything else as one shared "other" bucket),
+  // so this always has at least one section whenever there's at least one
+  // trusted option.
+  const sections = groupOptionsByCountry(options, favoriteCountries)
+
+  function renderRow(option: RankedEventStreamOption, isFirstOverall: boolean) {
+    return (
+      <StreamRow
+        key={option.key}
+        focusKey={option.key}
+        option={option}
+        variant="default"
+        primary={option.key === topPickKey}
+        onArrowUp={isFirstOverall ? () => void setFocus('event-details-back') : undefined}
+        {...shared}
+      />
+    )
+  }
+
   return (
-    <section className="stream-section">
-      <h2 className="stream-section-title-secondary">All other streams</h2>
-      <div className="stream-row-list stream-row-list-compact">
-        {options.map((option) => (
-          <StreamRow key={option.key} focusKey={option.key} option={option} variant="other" {...shared} />
-        ))}
-      </div>
-    </section>
+    <>
+      {sections.map((section, sectionIndex) => (
+        <div key={`${section.kind}-${section.countryCode ?? 'other'}-${sectionIndex}`} className="stream-country-section">
+          <CountrySectionHeader section={section} />
+          <div className="stream-row-list">
+            {section.options.map((option, rowIndex) => renderRow(option, sectionIndex === 0 && rowIndex === 0))}
+          </div>
+        </div>
+      ))}
+
+      {candidates.length > 0 && (
+        <CandidateStreamList
+          options={candidates}
+          defaultOpen={options.length === 0}
+          onFirstRowUp={options.length === 0 ? () => void setFocus('event-details-back') : undefined}
+          {...shared}
+        />
+      )}
+    </>
   )
 }
 
@@ -65,8 +114,9 @@ export function StreamList({ options, ...shared }: { options: EventStreamOption[
 export function CandidateStreamList({
   options,
   defaultOpen,
+  onFirstRowUp,
   ...shared
-}: { options: EventStreamOption[]; defaultOpen: boolean } & SharedRowProps) {
+}: { options: RankedEventStreamOption[]; defaultOpen: boolean; onFirstRowUp?: () => void } & SharedRowProps) {
   const [open, setOpen] = useState(defaultOpen)
   const { ref: toggleRef, focused: toggleFocused } = useFocusable({
     onEnterPress: () => {
@@ -85,21 +135,23 @@ export function CandidateStreamList({
 
   if (options.length === 0) return null
   return (
-    <section className="stream-section stream-section-candidates">
-      <h2 className="stream-section-title-secondary">Channels that might show it</h2>
+    <section className="stream-section-candidates">
       {!open && (
-        <button
-          ref={toggleRef}
-          className={`stream-section-toggle ${toggleFocused ? 'focused' : ''}`}
-          onClick={() => setOpen(true)}
-        >
-          Show {options.length} channel{options.length === 1 ? '' : 's'} that might also have it
+        <button ref={toggleRef} className={`stream-section-toggle ${toggleFocused ? 'focused' : ''}`} onClick={() => setOpen(true)}>
+          {options.length} more channel{options.length === 1 ? '' : 's'} that might have it
         </button>
       )}
       {open && (
         <div className="stream-row-list stream-row-list-compact">
-          {options.map((option) => (
-            <StreamRow key={option.key} focusKey={option.key} option={option} variant="candidate" {...shared} />
+          {options.map((option, index) => (
+            <StreamRow
+              key={option.key}
+              focusKey={option.key}
+              option={option}
+              variant="candidate"
+              onArrowUp={index === 0 ? onFirstRowUp : undefined}
+              {...shared}
+            />
           ))}
         </div>
       )}

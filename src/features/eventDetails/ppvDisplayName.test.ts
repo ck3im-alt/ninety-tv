@@ -28,6 +28,7 @@ function group(overrides: Partial<MatchGroup> = {}): MatchGroup {
     isExactMatch: false,
     confidence: 'likely',
     label: 'Raw Playlist Name',
+    matchSource: 'ppvName',
     sourceOptions: [sourceOption('Raw Playlist Name')],
     ...overrides,
   }
@@ -296,5 +297,48 @@ describe('buildEventStreamDisplayParts + formatEventStreamDisplayLine', () => {
       const parts = buildEventStreamDisplayParts('DAZN PPV 2', { homeTeam: 'A', awayTeam: 'B' }, quality)
       expect(formatEventStreamDisplayLine(parts).endsWith(`| ${quality}`)).toBe(true)
     }
+  })
+
+  // Task section 16, verbatim regression: a raw PPV entry with no '|'
+  // delimiters at all -- the whole identity (teams, kickoff, provider, slot)
+  // packed into ONE segment, with stray backslash/colon glue left over from
+  // however the source panel formatted it ("\:Viaplay").
+  it('the exact regression string: "Fulham vs Chelsea @ Aug 24 8:15 PM \\:Viaplay NO 03"', () => {
+    const raw = 'Fulham vs Chelsea @ Aug 24 8:15 PM \\:Viaplay NO 03'
+    const context = { homeTeam: 'Fulham', awayTeam: 'Chelsea' }
+    const parts = buildEventStreamDisplayParts(raw, context, null)
+    expect(parts.provider).toBe('Viaplay')
+    expect(parts.eventTitle).toBe('Fulham - Chelsea')
+    expect(parts.startTime).toBe('20:15')
+    expect(formatEventStreamDisplayLine(parts)).toBe('Viaplay | Fulham - Chelsea | 20:15')
+  })
+
+  // Marketing-token survival: a fancy-Unicode "VIP" decoration glued onto a
+  // bare trailing "PPV" must not swallow the real provider name along with
+  // it -- VIP folds and drops as a marketing token, the bare "PPV" slot
+  // marker is then stripped on its own (task section 16).
+  it('marketing-token survival: fancy-Unicode VIP decoration on a bare PPV suffix still yields the plain provider', () => {
+    expect(extractProviderIdentity('Viaplay PPV ⱽᴵᴾ')).toBe('Viaplay')
+  })
+
+  // Bare EVENT safety: only a bare "PPV" is ever stripped with no number --
+  // real channel branding containing "Event" (e.g. Sky Sports Main Event)
+  // must survive completely untouched.
+  it('bare EVENT safety: real branding containing the word "Event" is never mistaken for a slot marker', () => {
+    expect(extractProviderIdentity('Sky Sports Main Event')).toBe('Sky Sports Main Event')
+  })
+
+  // Canonical event fallback: when the raw name has genuinely nothing usable
+  // as a provider (getChannelDisplayName falls back through
+  // buildContextualPpvDisplayName), the line still composes from the
+  // CANONICAL event identity alone -- never the generic "PPV Event"
+  // placeholder when the event is already known.
+  it('canonical event fallback: composes from event identity alone when no provider survives, never the generic placeholder', () => {
+    const raw = 'LIVE | Mon 17 Aug 20:55 CEST (NO)'
+    const g: MatchGroup = group({ name: raw, sourceOptions: [sourceOption(raw, 'NO| PPV')] })
+    const context = { homeTeam: 'Fulham', awayTeam: 'Chelsea', dateTimeUtc: '2026-08-24T19:15:00.000Z' }
+    const line = getChannelDisplayName(g, context)
+    expect(line).not.toBe('PPV Event')
+    expect(line).toMatch(/^Fulham - Chelsea( \| \d{2}:\d{2})?$/)
   })
 })

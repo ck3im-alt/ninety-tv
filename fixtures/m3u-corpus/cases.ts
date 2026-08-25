@@ -25,6 +25,23 @@ export const M3U_CORPUS: M3uCorpusCase[] = [
   { market: 'GB', playlistName: 'UK | SKY SPORTS MAIN EVENT UHD', expectedLogicalChannelId: 'gb_sky_sports_main_event', note: 'leading 2-letter code, recognized' },
   { market: 'GB', playlistName: 'UK: Sky Sports Premier League FHD', expectedLogicalChannelId: 'gb_sky_sports_premier_league', note: 'leading code with colon separator' },
   { market: 'GB', playlistName: 'TNT SPORTS 1 UK HD', expectedLogicalChannelId: 'uk_tnt_sports_1', note: 'TRAILING country code, before quality tag' },
+  // Regression corpus (2026-08-24): a real FotMob-attributed broadcaster
+  // ("Premier Sports 1 UK" in FotMob's own GB tvlistings) reported as
+  // playlist identity NONE despite uk_premier_sports_1 already existing as a
+  // fully-working backend channel — root cause traced to matchTrailingCountry
+  // never absorbing a wrapping paren (see countryCodes.ts's fix + tests).
+  { market: 'GB', playlistName: 'Premier Sports 1 (GB)', expectedLogicalChannelId: 'uk_premier_sports_1', note: 'TRAILING country code wrapped in parens — the exact regression' },
+  { market: 'GB', playlistName: 'Premier Sports 1 UK', expectedLogicalChannelId: 'uk_premier_sports_1', note: 'trailing code, no quality tag' },
+  { market: 'GB', playlistName: 'UK: Premier Sports 1', expectedLogicalChannelId: 'uk_premier_sports_1', note: 'leading code with colon separator' },
+  { market: 'GB', playlistName: 'Premier Sports 1 HD UK', expectedLogicalChannelId: 'uk_premier_sports_1', note: 'trailing code AFTER the quality tag' },
+  // NOTE: this snapshot predates the live catalog's ie_premier_sports_1
+  // (same bare name "Premier Sports 1", different country) — against the
+  // CURRENT live catalog a country-less name like this is genuinely
+  // ambiguous, not a safe CONFIRMED; see m3uCorpus.test.ts Part 7 for an
+  // accurate, up-to-date 3-way GB/IE/PH local catalog covering that
+  // honestly. Left CONFIRMED here only because this snapshot (unlike live)
+  // has no IE/PH collision to disambiguate against.
+  { market: 'GB', playlistName: 'PREMIER SPORTS 1 FHD', expectedLogicalChannelId: 'uk_premier_sports_1', note: 'no country marker at all, quality tag only (snapshot has no IE/PH collision — see note above)' },
 
   // ---- Norway ----
   { market: 'NO', playlistName: 'NO | TV2 SPORT PREMIUM FHD', expectedLogicalChannelId: 'no_tv2_sport_premium', note: 'leading code, no space in TV2 brand token' },

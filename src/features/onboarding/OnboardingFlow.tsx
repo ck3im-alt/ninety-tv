@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ROOT_FOCUS_KEY, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { PlaylistSetupScreen } from '../setup/PlaylistSetupScreen'
 import { OnboardingSportsScreen } from './OnboardingSportsScreen'
 import { OnboardingCountriesScreen } from './OnboardingCountriesScreen'
 import { OnboardingDoneScreen } from './OnboardingDoneScreen'
 import { parseCategory } from '../channels/parseCategory'
-import { DEFAULT_PREFERENCES, markOnboardingComplete, savePreferences } from '../../data/preferences'
+import { DEFAULT_PREFERENCES, markOnboardingComplete, savePreferences, withCountryToggled } from '../../data/preferences'
 import type { SportKey } from '../../data/sports/types'
 import type { Channel } from '../../data/channel'
 import type { PlaylistSourceRecord } from '../../data/session'
@@ -27,16 +27,10 @@ export function OnboardingFlow({ onDone }: Props) {
   const [source, setSource] = useState<PlaylistSourceRecord | null>(null)
   const [selectedSports, setSelectedSports] = useState<Set<SportKey>>(new Set(DEFAULT_PREFERENCES.sports))
   const [selectedLeagues, setSelectedLeagues] = useState<Set<string>>(new Set(DEFAULT_PREFERENCES.footballLeagueIds))
-  const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set())
-
-  const allCountryNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const channel of channels) {
-      const { countryName } = parseCategory(channel.groupTitle || '')
-      if (countryName) names.add(countryName)
-    }
-    return [...names]
-  }, [channels])
+  // ORDERED, capped at MAX_PREFERRED_COUNTRIES — selection order is
+  // priority order and the first pick is the user's primary country (see
+  // SportPreferences.favoriteCountries / withCountryToggled).
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
 
   // Each step declares a forceFocus target of its own, but the spatial-nav
   // library only focuses it in response to an explicit setFocus call —
@@ -67,22 +61,22 @@ export function OnboardingFlow({ onDone }: Props) {
   }
 
   function toggleCountry(name: string) {
-    setSelectedCountries((prev) => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
-    })
+    setSelectedCountries((prev) => withCountryToggled(prev, name))
   }
 
-  function finish(sports: Set<SportKey>, leagues: Set<string>, countries: Set<string>) {
+  function finish(sports: Set<SportKey>, leagues: Set<string>, countries: string[]) {
     savePreferences({
       sports: [...sports],
       footballLeagueIds: sports.has('football') ? [...leagues] : [],
       // Empty selection means "no country filtering" (everything visible)
       // — same meaning as never having run onboarding at all — rather
       // than an unusable "nothing visible" default.
-      favoriteCountries: [...countries],
+      favoriteCountries: countries,
+      // Stream-type preference is deliberately NOT an onboarding question
+      // (task section 7: no mandatory technical IPTV concepts during
+      // onboarding) — everyone starts on 'auto' and can change it any time
+      // in Settings.
+      streamType: 'auto',
     })
     markOnboardingComplete()
     onDone(channels, source)
@@ -98,6 +92,8 @@ export function OnboardingFlow({ onDone }: Props) {
           // Pre-select the playlist's biggest countries by channel count —
           // gives the Countries step a sensible non-empty starting point
           // instead of forcing the user to build the selection from zero.
+          // Biggest first, so the largest market starts out as the primary
+          // country (the user can still reorder by deselect/reselect).
           const counts = new Map<string, number>()
           for (const channel of loaded) {
             const { countryName } = parseCategory(channel.groupTitle || '')
@@ -107,7 +103,7 @@ export function OnboardingFlow({ onDone }: Props) {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 3)
             .map(([name]) => name)
-          setSelectedCountries(new Set(top3))
+          setSelectedCountries(top3)
           setStep(2)
         }}
       />
@@ -122,7 +118,7 @@ export function OnboardingFlow({ onDone }: Props) {
         onToggleSport={toggleSport}
         onToggleLeague={toggleLeague}
         onBack={() => setStep(1)}
-        onSkip={() => finish(new Set(DEFAULT_PREFERENCES.sports), new Set(DEFAULT_PREFERENCES.footballLeagueIds), new Set())}
+        onSkip={() => finish(new Set(DEFAULT_PREFERENCES.sports), new Set(DEFAULT_PREFERENCES.footballLeagueIds), [])}
         onContinue={() => setStep(3)}
       />
     )
@@ -134,8 +130,7 @@ export function OnboardingFlow({ onDone }: Props) {
         channels={channels}
         selectedCountries={selectedCountries}
         onToggleCountry={toggleCountry}
-        onSelectAll={() => setSelectedCountries(new Set(allCountryNames))}
-        onDeselectAll={() => setSelectedCountries(new Set())}
+        onDeselectAll={() => setSelectedCountries([])}
         onBack={() => setStep(2)}
         onContinue={() => setStep(4)}
       />
@@ -145,7 +140,7 @@ export function OnboardingFlow({ onDone }: Props) {
   return (
     <OnboardingDoneScreen
       sportsCount={selectedSports.size}
-      countriesCount={selectedCountries.size}
+      countriesCount={selectedCountries.length}
       onBack={() => setStep(3)}
       onFinish={() => finish(selectedSports, selectedLeagues, selectedCountries)}
     />

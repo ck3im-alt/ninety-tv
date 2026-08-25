@@ -323,3 +323,20 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* "N/5" selection counter next to a section title — communicates the
+   MAX_PREFERRED_COUNTRIES cap passively, so a toggle that no-ops at the
+   limit is understandable without a modal/toast. Shared by the onboarding
+   Countries step and Settings' countries grid. */
+.picker-section-counter {
+  margin-left: var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  font-weight: var(--weight-regular);
+}
+
+/* First-selected country's badge — replaces its "N channels" sublabel. */
+.pick-card-primary {
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}

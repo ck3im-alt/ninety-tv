@@ -90,4 +90,20 @@ describe('matchTrailingCountry', () => {
   it('returns null honestly when nothing recognized trails the text', () => {
     expect(matchTrailingCountry('ESPN 2')).toBeNull()
   })
+
+  it('recognizes a trailing country wrapped in parens', () => {
+    // Regression: "Premier Sports 1 (GB)" previously fell all the way
+    // through to identity classification NONE because the trailing matcher
+    // had no way to absorb the closing paren — the leading matcher already
+    // handled the equivalent wrapped-prefix case.
+    expect(matchTrailingCountry('Premier Sports 1 (GB)')).toMatchObject({ code: 'GB', countryName: 'United Kingdom', rest: 'Premier Sports 1' })
+  })
+
+  it('recognizes a trailing country wrapped in brackets', () => {
+    expect(matchTrailingCountry('Sky Sports 1 [UK]')).toMatchObject({ code: 'UK', rest: 'Sky Sports 1' })
+  })
+
+  it('recognizes a trailing 3-letter colloquial code wrapped in parens', () => {
+    expect(matchTrailingCountry('TELEFE (ARG)')).toMatchObject({ code: 'ARG', countryName: 'Argentina', rest: 'TELEFE' })
+  })
 })

@@ -59,17 +59,28 @@ export interface SportEvent {
   backgroundUrl?: string
   isLive: boolean
   // True when isLive is a timing guess (no real live signal exists for
-  // this sport on the free API — see liveHeuristic.ts), false/undefined
-  // when it's a real live score from livescore.php (football only).
-  // Never render a score/clock next to a heuristic-live event — there
-  // isn't one, only a start-time guess.
+  // this sport/provider — see liveHeuristic.ts), false/undefined when
+  // it's a real status from ninety-api's live-score poller (football) or
+  // an actual live feed (any future sport that gets one). Never render a
+  // score/clock next to a heuristic-live event — there isn't one, only a
+  // start-time guess.
   isLiveHeuristic?: boolean
+  // Football's canonical lifecycle state from ninety-api (see
+  // eventStatus.ts there) — 'scheduled' | 'live' | 'halftime' | 'complete'
+  // | 'cancelled' | 'postponed' | 'abandoned'. Undefined for sports with
+  // no real status feed (F1), which only ever have isLive/isLiveHeuristic.
+  // isLive is derived from this (true for 'live'/'halftime') rather than
+  // being a separate source of truth — see mapNinetyEvent.
+  status?: string
   // Per-side scores (not a combined "2–1" string) so the UI can place
   // each next to its own team's row. Real football live data only.
   homeScore?: string
   awayScore?: string
   // Match clock/period — "67'", "2nd Set", "HT". Real football live data
   // only; heuristic-live events never get one (see isLiveHeuristic).
+  // footballdata.io has no minute/clock field at all (confirmed live,
+  // 2026-08-24) — the only value this is ever actually set to today is
+  // 'HT' for status === 'halftime'.
   liveClock?: string
   // Real linear TV channels ninety-api's own EPG resolver has already
   // matched to this event (see ninetyApiClient.ts) — carried on the event

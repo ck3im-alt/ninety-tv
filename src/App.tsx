@@ -489,26 +489,15 @@ function App() {
 
   return (
     <>
-      {screen !== 'player' && screen !== 'onboarding' && (
+      {screen !== 'player' && screen !== 'onboarding' && screen !== 'event-details' && (
         <TopNav
-          // Tied to actual navigation origin, not just the current screen —
-          // Event Details opened from Home vs. from Competitions must show
-          // the tab the user actually came from as active, not always
-          // "Channels" (event-details doesn't belong to any tab on its
-          // own). Settings gets no tab highlighted; the avatar's own focus
-          // style already marks it.
+          // Event Details no longer renders TopNav at all (it has its own
+          // simplified back-only header — see EventDetailsScreen.tsx), so
+          // this no longer needs to account for that screen's navigation
+          // origin. Settings gets no tab highlighted; the avatar's own
+          // focus style already marks it.
           activeItem={
-            screen === 'home'
-              ? 'Home'
-              : screen === 'competitions'
-                ? 'Competitions'
-                : screen === 'event-details'
-                  ? eventDetailsReturnScreen === 'competitions'
-                    ? 'Competitions'
-                    : 'Home'
-                  : screen === 'settings'
-                    ? 'Settings'
-                    : 'Channels'
+            screen === 'home' ? 'Home' : screen === 'competitions' ? 'Competitions' : screen === 'settings' ? 'Settings' : 'Channels'
           }
           onSelectHome={() => setScreen('home')}
           onSelectChannels={

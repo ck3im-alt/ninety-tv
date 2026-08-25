@@ -22,3 +22,6 @@
   overflow: hidden;
   background: var(--surface-elevated);
 }
+
+/* (.picker-section-counter / .pick-card-primary live in
+   onboardingShared.css — Settings' countries grid uses them too.) */

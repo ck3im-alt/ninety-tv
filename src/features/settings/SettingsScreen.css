@@ -63,3 +63,9 @@
   font-size: var(--font-body);
   margin: 0;
 }
+
+/* Three wider cards (Auto / TV Channels / Event Streams) — the default
+   8-column card width is too narrow for these labels + descriptions. */
+.settings-streamtype-grid {
+  grid-template-columns: repeat(4, 1fr);
+}

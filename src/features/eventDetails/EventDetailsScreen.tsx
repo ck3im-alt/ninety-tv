@@ -4,9 +4,9 @@ import { useBackHandler, useFocusScrollIntoView } from '../../core/platform'
 import { matchChannelsForEvent } from '../../data/sports/channelMatch'
 import type { ChannelMatch, BroadcastStationInfo } from '../../data/sports/channelMatch'
 import { buildEventStreamOptions, rankEventStreamOptions, partitionStreamOptions } from './buildEventStreamOptions'
-import type { EventStreamOption } from './buildEventStreamOptions'
+import type { PartitionedStreamOptions, RankedEventStreamOption } from './buildEventStreamOptions'
 import { FootballEventHeader, GenericEventHeader } from './EventHeader'
-import { StreamRecommendations, StreamList, CandidateStreamList } from './StreamSections'
+import { StreamList } from './StreamSections'
 import { loadPreferences } from '../../data/preferences'
 import type { SportEvent } from '../../data/sports/types'
 import type { EventStreamDisplayParts } from './ppvDisplayName'
@@ -89,8 +89,14 @@ export function EventDetailsScreen({
 
   const isTeamFixture = Boolean(event.homeTeam && event.awayTeam)
 
+  // A cheap synchronous localStorage read, not worth memoizing on its own —
+  // used both by ranking below and by StreamFilterArea's country-section
+  // headers (see StreamSections.tsx), so it's read once per render here
+  // rather than each consumer re-reading it separately.
+  const { favoriteCountries } = loadPreferences()
+
   // Deliberately keyed on `state`/event identity only, NOT favoriteChannels
-  // — favorite status still feeds the Top-3 tie-break (buildEventStreamOptions),
+  // — favorite status still feeds the ranking score (buildEventStreamOptions),
   // but re-deriving this on every favorite toggle would reshuffle the whole
   // list while the user is mid-navigation. StreamRow itself reads
   // favoriteChannels live for the star's fill state, so toggling still
@@ -98,7 +104,7 @@ export function EventDetailsScreen({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const partitioned = useMemo(() => {
     if (state.status !== 'ready') return null
-    const { favoriteCountries } = loadPreferences()
+    const { streamType } = loadPreferences()
     const options = buildEventStreamOptions(state.matches, favoriteChannels, {
       homeTeam: event.homeTeam,
       awayTeam: event.awayTeam,
@@ -108,10 +114,15 @@ export function EventDetailsScreen({
       eventTitle: event.title,
       dateTimeUtc: event.dateTimeUtc,
     })
-    return partitionStreamOptions(rankEventStreamOptions(options, favoriteCountries))
+    return partitionStreamOptions(rankEventStreamOptions(options, { favoriteCountries, streamType }))
   }, [state, event.homeTeam, event.awayTeam, event.title, event.dateTimeUtc])
 
-  const topPickFocusKey = partitioned && partitioned.top.length > 0 ? partitioned.top[0].key : undefined
+  const topPickFocusKey =
+    partitioned && partitioned.recommended.length > 0
+      ? partitioned.recommended[0].key
+      : partitioned && partitioned.trusted.length > 0
+        ? partitioned.trusted[0].key
+        : undefined
 
   // This screen is lazy-loaded (see App.tsx's SCREEN_FOCUS_KEYS) — the root
   // container is targeted by its own key rather than ROOT_FOCUS_KEY so
@@ -150,9 +161,12 @@ export function EventDetailsScreen({
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="event-details">
-        <button ref={backRef} className={`event-details-back ${backFocused ? 'focused' : ''}`} onClick={onBack}>
-          ← Back
-        </button>
+        <div className="event-details-topbar">
+          <button ref={backRef} className={`event-details-back ${backFocused ? 'focused' : ''}`} onClick={onBack}>
+            ‹ Back
+          </button>
+          <span className="event-details-logo">NINETY</span>
+        </div>
 
         {isTeamFixture ? <FootballEventHeader event={event} /> : <GenericEventHeader event={event} />}
 
@@ -160,8 +174,10 @@ export function EventDetailsScreen({
           {state.status === 'loading' && <StreamAreaLoading />}
           {state.status === 'not-found' && <NoMatchState apiStations={state.apiStations} onBrowseChannels={onBrowseChannels} />}
           {state.status === 'ready' && partitioned && (
-            <StreamAreaReady
+            <StreamList
               partitioned={partitioned}
+              favoriteCountries={favoriteCountries}
+              topPickKey={topPickFocusKey}
               favoriteChannels={favoriteChannels}
               onToggleFavoriteChannel={onToggleFavoriteChannel}
               onWatch={onWatch}
@@ -169,38 +185,11 @@ export function EventDetailsScreen({
           )}
         </section>
 
-        <p className="event-details-footer">Stream availability depends on your connected playlist and region.</p>
-
         {import.meta.env.DEV && state.status === 'ready' && (state.apiStations.length > 0 || partitioned) && (
           <DevBroadcastDebug apiStations={state.apiStations} partitioned={partitioned} />
         )}
       </main>
     </FocusContext.Provider>
-  )
-}
-
-function StreamAreaReady({
-  partitioned,
-  favoriteChannels,
-  onToggleFavoriteChannel,
-  onWatch,
-}: {
-  partitioned: ReturnType<typeof partitionStreamOptions>
-  favoriteChannels: ReadonlySet<string>
-  onToggleFavoriteChannel: (channelId: string) => void
-  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
-}) {
-  const shared = { favoriteChannels, onToggleFavoriteChannel, onWatch }
-  return (
-    <>
-      <StreamRecommendations options={partitioned.top} {...shared} />
-      <StreamList options={partitioned.rest} {...shared} />
-      <CandidateStreamList
-        options={partitioned.candidates}
-        defaultOpen={partitioned.top.length === 0 && partitioned.rest.length === 0}
-        {...shared}
-      />
-    </>
   )
 }
 
@@ -256,6 +245,17 @@ function BrowseManuallyButton({ onClick }: { onClick: () => void }) {
   )
 }
 
+// Readable labels for ChannelMatch.source, so the debug list below can show
+// "was this a real resolved broadcaster, or a guess against a one-off PPV
+// playlist entry" directly — added after a real case where every visible
+// row was PPV and it wasn't obvious without a live API call to check.
+const MATCH_SOURCE_LABELS: Record<ChannelMatch['source'], string> = {
+  ninety: 'ninety broadcast',
+  broadcasterMap: 'broadcaster map',
+  ppvName: 'PPV playlist entry',
+  epg: 'EPG guess',
+}
+
 // Dev-only diagnostic (see the redesign task: production must never show
 // this) — kept available for development rather than deleted outright,
 // same DEV-gating precedent as App.tsx's admin panel entry point.
@@ -280,22 +280,35 @@ function DevBroadcastDebug({
   partitioned,
 }: {
   apiStations: BroadcastStationInfo[]
-  partitioned: ReturnType<typeof partitionStreamOptions> | null
+  partitioned: PartitionedStreamOptions | null
 }) {
   const { favoriteCountries } = loadPreferences()
   const favoriteCountrySet = new Set(favoriteCountries)
 
-  function renderOption(option: EventStreamOption, tier: string) {
+  function renderOption(option: RankedEventStreamOption, tier: string) {
     const preferredMarket = option.countryName != null && favoriteCountrySet.has(option.countryName)
+    // The raw provider names behind this group — the canonicalized display
+    // name deliberately hides them (task section 16: keep the raw M3U
+    // titles reachable for diagnostics without exposing them in normal
+    // rows).
+    const rawNames = [...new Set(option.sourceOptions.flatMap((s) => [s.source.originalName ?? '', s.channel.name]))].filter(Boolean)
     return (
       <li key={option.key}>
         [{tier}] {option.displayName}
+        {' · score '}
+        {option.rankingScore}
+        {' · '}
+        {option.sourceType.toUpperCase()}
         {option.countryName && ` · ${option.countryName}${preferredMarket ? ' (preferred)' : ''}`}
         {' · '}
         {option.matchConfidence}
+        {' · '}
+        {MATCH_SOURCE_LABELS[option.matchSource]}
         {' · quality '}
         {option.bestQualityTier}
         {option.isFavorite && ' · ★ favorite'}
+        {' · raw: '}
+        {rawNames.join(' / ')}
       </li>
     )
   }
@@ -317,10 +330,9 @@ function DevBroadcastDebug({
       </ul>
       {partitioned && (
         <>
-          <h2 className="event-details-debug-title">Debug: final ranked streams</h2>
+          <h2 className="event-details-debug-title">Debug: final ranked stream groups</h2>
           <ul className="event-details-debug-list">
-            {partitioned.top.map((o) => renderOption(o, 'top'))}
-            {partitioned.rest.map((o) => renderOption(o, 'rest'))}
+            {partitioned.trusted.map((o) => renderOption(o, o.recommended ? 'recommended' : 'all'))}
             {partitioned.candidates.map((o) => renderOption(o, 'candidate'))}
           </ul>
         </>

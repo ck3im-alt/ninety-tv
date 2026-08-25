@@ -3,6 +3,7 @@ import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spat
 import type { Channel } from '../../data/channel'
 import { parseCategory } from '../channels/parseCategory'
 import { flagSrc } from '../../data/countryCodes'
+import { MAX_PREFERRED_COUNTRIES } from '../../data/preferences'
 import { OnboardingTopBar } from './OnboardingStepper'
 import { SelectableCard } from './OnboardingSportsScreen'
 import { ArrowRightIcon, BackArrowIcon } from './sportIcons'
@@ -17,9 +18,11 @@ interface CountryOption {
 
 interface Props {
   channels: Channel[]
-  selectedCountries: Set<string>
+  // ORDERED, capped at MAX_PREFERRED_COUNTRIES by the owning flow (see
+  // preferences.ts's withCountryToggled) — the first entry is the primary
+  // country, shown with its own badge below.
+  selectedCountries: readonly string[]
   onToggleCountry: (name: string) => void
-  onSelectAll: () => void
   onDeselectAll: () => void
   onBack: () => void
   onContinue: () => void
@@ -62,7 +65,6 @@ export function OnboardingCountriesScreen({
   channels,
   selectedCountries,
   onToggleCountry,
-  onSelectAll,
   onDeselectAll,
   onBack,
   onContinue,
@@ -87,7 +89,6 @@ export function OnboardingCountriesScreen({
 
   const BACK_FOCUS_KEY = 'countries-back'
   const CONTINUE_FOCUS_KEY = 'countries-continue'
-  const SELECT_ALL_FOCUS_KEY = 'countries-select-all'
   const DESELECT_ALL_FOCUS_KEY = 'countries-deselect-all'
   const firstCountryFocusKey = countries[0] ? `country-${countries[0].name}` : undefined
   const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: BACK_FOCUS_KEY, onEnterPress: onBack })
@@ -99,7 +100,7 @@ export function OnboardingCountriesScreen({
   // scroll gap below). norigin's directional search needs >=20% geometric
   // overlap between two elements to consider them adjacent (same rule
   // documented on the Continue-button hitbox further down); this row's
-  // buttons are narrow and right-aligned, so Down from here almost never
+  // button is narrow and right-aligned, so Down from here almost never
   // lands in the grid's actual first column -- landing initial focus HERE
   // instead of on a grid card made the entire country grid unreachable by
   // remote, not just slow to reach. Sports screen never had this bug
@@ -108,21 +109,10 @@ export function OnboardingCountriesScreen({
   //
   // Down explicitly targets the first country card for the same geometric-
   // overlap reason — this is also the fix for the reverse direction (Down
-  // FROM these buttons), which previously depended on the same unreliable
-  // geometry as the forceFocus bug above and was still "can still be
-  // problematic" even after the initial-focus fix. First row's onArrowUp
-  // (below, on the grid itself) targets these back.
-  const { ref: selectAllRef, focused: selectAllFocused } = useFocusable({
-    focusKey: SELECT_ALL_FOCUS_KEY,
-    onEnterPress: onSelectAll,
-    onArrowPress: (direction) => {
-      if (direction === 'down' && firstCountryFocusKey) {
-        void setFocus(firstCountryFocusKey)
-        return false
-      }
-      return true
-    },
-  })
+  // FROM this button), which previously depended on the same unreliable
+  // geometry as the forceFocus bug above. First row's onArrowUp (below, on
+  // the grid itself) targets it back. ("Select all" is gone — it can't
+  // mean anything under the MAX_PREFERRED_COUNTRIES cap.)
   const { ref: deselectAllRef, focused: deselectAllFocused } = useFocusable({
     focusKey: DESELECT_ALL_FOCUS_KEY,
     onEnterPress: onDeselectAll,
@@ -144,9 +134,6 @@ export function OnboardingCountriesScreen({
   useEffect(() => {
     if (continueFocused) continueRef.current?.scrollIntoView({ block: 'nearest' })
   }, [continueFocused, continueRef])
-  useEffect(() => {
-    if (selectAllFocused) selectAllRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [selectAllFocused, selectAllRef])
   useEffect(() => {
     if (deselectAllFocused) deselectAllRef.current?.scrollIntoView({ block: 'nearest' })
   }, [deselectAllFocused, deselectAllRef])
@@ -172,7 +159,8 @@ export function OnboardingCountriesScreen({
             <span className="accent">favorite</span> countries
           </h1>
           <p className="onboarding-description">
-            Select the countries you want to follow. We'll show you more relevant channels and events.
+            Pick up to {MAX_PREFERRED_COUNTRIES} countries to follow — your first pick becomes your primary country and
+            its streams rank highest.
           </p>
 
           <ul className="onboarding-features">
@@ -208,7 +196,12 @@ export function OnboardingCountriesScreen({
 
         <div className="onboarding-picker">
           <div className="picker-section-header">
-            <h2 className="picker-section-title">Popular countries</h2>
+            <h2 className="picker-section-title">
+              Popular countries
+              <span className="picker-section-counter">
+                {selectedCountries.length}/{MAX_PREFERRED_COUNTRIES}
+              </span>
+            </h2>
             <div className="picker-section-actions">
               <button
                 ref={deselectAllRef}
@@ -216,13 +209,6 @@ export function OnboardingCountriesScreen({
                 onClick={onDeselectAll}
               >
                 Deselect all
-              </button>
-              <button
-                ref={selectAllRef}
-                className={`picker-section-action primary ${selectAllFocused ? 'focused' : ''}`}
-                onClick={onSelectAll}
-              >
-                Select all
               </button>
             </div>
           </div>
@@ -234,24 +220,29 @@ export function OnboardingCountriesScreen({
             </p>
           ) : (
             <div className="countries-grid">
-              {countries.map((country, index) => (
-                <SelectableCard
-                  key={country.name}
-                  focusKey={`country-${country.name}`}
-                  selected={selectedCountries.has(country.name)}
-                  onToggle={() => onToggleCountry(country.name)}
-                  forceFocus={index === 0}
-                  onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
-                  onArrowUp={index < GRID_COLUMNS ? () => void setFocus(DESELECT_ALL_FOCUS_KEY) : undefined}
-                  onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
-                >
-                  <div className="pick-card-icon round">
-                    {country.code && flagSrc(country.code) && <img src={flagSrc(country.code)!} alt="" />}
-                  </div>
-                  <span className="pick-card-label">{country.name}</span>
-                  <span className="pick-card-sublabel">{country.count} channels</span>
-                </SelectableCard>
-              ))}
+              {countries.map((country, index) => {
+                const isPrimary = selectedCountries[0] === country.name
+                return (
+                  <SelectableCard
+                    key={country.name}
+                    focusKey={`country-${country.name}`}
+                    selected={selectedCountries.includes(country.name)}
+                    onToggle={() => onToggleCountry(country.name)}
+                    forceFocus={index === 0}
+                    onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
+                    onArrowUp={index < GRID_COLUMNS ? () => void setFocus(DESELECT_ALL_FOCUS_KEY) : undefined}
+                    onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
+                  >
+                    <div className="pick-card-icon round">
+                      {country.code && flagSrc(country.code) && <img src={flagSrc(country.code)!} alt="" />}
+                    </div>
+                    <span className="pick-card-label">{country.name}</span>
+                    <span className="pick-card-sublabel">
+                      {isPrimary ? <span className="pick-card-primary">Primary</span> : `${country.count} channels`}
+                    </span>
+                  </SelectableCard>
+                )
+              })}
             </div>
           )}
 

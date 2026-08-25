@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useBackHandler, useFocusScrollIntoView } from '../../core/platform'
-import { loadPreferences, savePreferences } from '../../data/preferences'
+import { MAX_PREFERRED_COUNTRIES, loadPreferences, savePreferences, withCountryToggled } from '../../data/preferences'
+import type { StreamTypePreference } from '../../data/preferences'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
 import type { SportKey } from '../../data/sports/types'
 import { parseCategory } from '../channels/parseCategory'
@@ -27,6 +28,16 @@ interface PopularSport {
 const POPULAR_SPORTS: PopularSport[] = [
   { id: 'football', label: 'Football', icon: FootballIcon },
   { id: 'f1', label: 'Formula 1', icon: FormulaOneIcon },
+]
+
+// Consumer wording only — "Event Streams", never the IPTV-internal "PPV"
+// (see the stream-groups task, sections 7/9). A ranking preference, not a
+// filter: the non-preferred type still appears whenever it's better or the
+// only way to watch.
+const STREAM_TYPE_CHOICES: Array<{ id: StreamTypePreference; label: string; description: string }> = [
+  { id: 'auto', label: 'Auto', description: 'Best stream wins' },
+  { id: 'tv', label: 'TV Channels', description: 'Prefer regular channels' },
+  { id: 'event', label: 'Event Streams', description: 'Prefer per-match feeds' },
 ]
 
 interface Props {
@@ -86,10 +97,14 @@ export function SettingsScreen({ channels, source, onBack, onReconnectPlaylist }
   }
 
   function toggleCountry(name: string) {
-    const countries = new Set(prefs.favoriteCountries)
-    if (countries.has(name)) countries.delete(name)
-    else countries.add(name)
-    persist({ ...prefs, favoriteCountries: [...countries] })
+    // Shared cap/primary-promotion rule with onboarding — see
+    // preferences.ts's withCountryToggled. At the cap the toggle is a
+    // no-op; the "N/5" counter in the section title communicates why.
+    persist({ ...prefs, favoriteCountries: withCountryToggled(prefs.favoriteCountries, name) })
+  }
+
+  function selectStreamType(streamType: StreamTypePreference) {
+    persist({ ...prefs, streamType })
   }
 
   const footballSelected = prefs.sports.includes('football')
@@ -126,9 +141,11 @@ export function SettingsScreen({ channels, source, onBack, onReconnectPlaylist }
   const sportsFirstKey = 'settings-sport-football'
   const leaguesFirstKey = footballLeagues[0] ? `settings-league-${footballLeagues[0].id}` : undefined
   const countriesFirstKey = countryOptions[0] ? `settings-country-${countryOptions[0].name}` : undefined
-  const afterSportsKey = leaguesVisible ? leaguesFirstKey : countriesVisible ? countriesFirstKey : undefined
-  const afterLeaguesKey = countriesVisible ? countriesFirstKey : undefined
+  const streamTypeFirstKey = 'settings-streamtype-auto'
+  const afterSportsKey = leaguesVisible ? leaguesFirstKey : countriesVisible ? countriesFirstKey : streamTypeFirstKey
+  const afterLeaguesKey = countriesVisible ? countriesFirstKey : streamTypeFirstKey
   const beforeCountriesKey = leaguesVisible ? leaguesFirstKey : sportsFirstKey
+  const beforeStreamTypeKey = countriesVisible ? countriesFirstKey : beforeCountriesKey
 
   const leaguesLastRowStart = footballLeagues.length > 0 ? (Math.ceil(footballLeagues.length / GRID_COLUMNS) - 1) * GRID_COLUMNS : 0
   const countriesLastRowStart = countryOptions.length > 0 ? (Math.ceil(countryOptions.length / GRID_COLUMNS) - 1) * GRID_COLUMNS : 0
@@ -196,30 +213,64 @@ export function SettingsScreen({ channels, source, onBack, onReconnectPlaylist }
 
           {countriesVisible && (
             <section className="settings-section">
-              <h2 className="picker-section-title">FAVORITE COUNTRIES</h2>
+              <h2 className="picker-section-title">
+                FAVORITE COUNTRIES
+                <span className="picker-section-counter">
+                  {prefs.favoriteCountries.length}/{MAX_PREFERRED_COUNTRIES}
+                </span>
+              </h2>
               <p className="settings-section-hint">
-                Only used to personalize which channels/matches show first — everything stays browsable regardless.
+                Up to {MAX_PREFERRED_COUNTRIES}. Your first pick is your primary country and ranks highest — everything
+                stays browsable regardless.
               </p>
               <div className="settings-grid settings-countries-grid">
-                {countryOptions.map((country, index) => (
-                  <SelectableCard
-                    key={country.name}
-                    focusKey={`settings-country-${country.name}`}
-                    selected={prefs.favoriteCountries.includes(country.name)}
-                    onToggle={() => toggleCountry(country.name)}
-                    onArrowUp={index < GRID_COLUMNS ? () => void setFocus(beforeCountriesKey ?? sportsFirstKey) : undefined}
-                    onArrowDown={index >= countriesLastRowStart ? () => void setFocus(RECONNECT_FOCUS_KEY) : undefined}
-                  >
-                    <div className="pick-card-icon round">
-                      {country.code && flagSrc(country.code) && <img src={flagSrc(country.code)!} alt="" />}
-                    </div>
-                    <span className="pick-card-label">{country.name}</span>
-                    <span className="pick-card-sublabel">{country.count} channels</span>
-                  </SelectableCard>
-                ))}
+                {countryOptions.map((country, index) => {
+                  const isPrimary = prefs.favoriteCountries[0] === country.name
+                  return (
+                    <SelectableCard
+                      key={country.name}
+                      focusKey={`settings-country-${country.name}`}
+                      selected={prefs.favoriteCountries.includes(country.name)}
+                      onToggle={() => toggleCountry(country.name)}
+                      onArrowUp={index < GRID_COLUMNS ? () => void setFocus(beforeCountriesKey ?? sportsFirstKey) : undefined}
+                      onArrowDown={index >= countriesLastRowStart ? () => void setFocus(streamTypeFirstKey) : undefined}
+                    >
+                      <div className="pick-card-icon round">
+                        {country.code && flagSrc(country.code) && <img src={flagSrc(country.code)!} alt="" />}
+                      </div>
+                      <span className="pick-card-label">{country.name}</span>
+                      <span className="pick-card-sublabel">
+                        {isPrimary ? <span className="pick-card-primary">Primary</span> : `${country.count} channels`}
+                      </span>
+                    </SelectableCard>
+                  )
+                })}
               </div>
             </section>
           )}
+
+          <section className="settings-section">
+            <h2 className="picker-section-title">STREAM PREFERENCE</h2>
+            <p className="settings-section-hint">
+              When a match is on both regular TV channels and event-specific streams, which should rank first? Auto
+              simply picks the best stream. This never hides anything.
+            </p>
+            <div className="settings-grid settings-streamtype-grid">
+              {STREAM_TYPE_CHOICES.map((choice) => (
+                <SelectableCard
+                  key={choice.id}
+                  focusKey={`settings-streamtype-${choice.id}`}
+                  selected={prefs.streamType === choice.id}
+                  onToggle={() => selectStreamType(choice.id)}
+                  onArrowUp={() => void setFocus(beforeStreamTypeKey ?? sportsFirstKey)}
+                  onArrowDown={() => void setFocus(RECONNECT_FOCUS_KEY)}
+                >
+                  <span className="pick-card-label">{choice.label}</span>
+                  <span className="pick-card-sublabel">{choice.description}</span>
+                </SelectableCard>
+              ))}
+            </div>
+          </section>
 
           <section className="settings-section settings-playlist">
             <h2 className="picker-section-title">PLAYLIST</h2>

@@ -1,18 +1,35 @@
-/* Full-width, TV-viewing-distance layout for the redesigned Event Details
-   screen — replaces the old 900px-max-width "fixture stats + cards" page.
-   See the Event Details redesign task for the full rationale. */
+/* Full 1920×1080 TV-scale layout for the redesigned Event Details screen —
+   a simplified back-only header, one large centered match header with a
+   deliberate background wash, and a flowing country-grouped stream list.
+   See the Event Details visual-redesign task for the full rationale.
+
+   Sizes throughout this file are calibrated directly against the supplied
+   reference screenshot (measured/compared at a real 1920×1080 render), not
+   derived purely from the token scale — the token scale's spacing/typography
+   rungs are reused wherever one lines up, but several values here
+   (team-badge/logo/backdrop dimensions, the 108px page margin) are bespoke
+   pixel numbers where the existing scale doesn't reach far enough. Colors
+   still come entirely from tokens.css. */
+
 .event-details {
   width: 100%;
-  min-height: calc(1080px - 84px);
+  min-height: 100vh;
   box-sizing: border-box;
-  padding: var(--space-6) var(--space-24) var(--space-12);
+  padding: 28px 110px 64px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+}
+
+/* ---------- Simplified top bar (back + wordmark only — TopNav is hidden
+   entirely on this screen, see App.tsx) ---------- */
+
+.event-details-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .event-details-back {
-  align-self: flex-start;
   font: inherit;
   background: none;
   border: none;
@@ -26,203 +43,320 @@
   color: var(--accent);
 }
 
+.event-details-logo {
+  font-size: 15px;
+  font-weight: var(--weight-regular);
+  letter-spacing: 8px;
+  color: var(--text-muted);
+}
+
 /* ---------- Event header (football + generic) ---------- */
 
+/* `position: relative` alone does NOT establish a stacking context (that
+   needs an explicit z-index) — without one, .event-header-backdrop below
+   (position: absolute, a descendant of this element) escapes to paint
+   against the nearest ANCESTOR that does establish a stacking context,
+   which for this tree is effectively the document root. Positioned
+   elements paint after non-positioned in-flow content within whatever
+   stacking context they belong to, REGARDLESS of DOM order — so the
+   backdrop was rendering on top of the later .stream-area sibling instead
+   of staying visually contained behind this header, clipping/obscuring the
+   first country section and its top-pick row. `z-index: 0` here forces
+   .event-header to own a real stacking context, so everything absolutely
+   positioned inside it (the backdrop) is guaranteed to paint within this
+   box's own layer, never above later siblings — this is a containment
+   fix, not a spacing one. */
 .event-header {
+  position: relative;
+  z-index: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-2) 0 var(--space-6);
+  gap: var(--space-3);
+  padding: 56px 0 4px;
+  overflow: visible;
+}
+
+/* Extremely subtle atmospheric wash behind the header — a very soft radial
+   glow behind the matchup, a faint top-to-transparent falloff, a gentle
+   vignette at the outer edges, and two thin arc strokes. Each layer alone
+   is close to imperceptible; together they read as "dark navy atmosphere"
+   rather than a flat fill or a visible illustration. Deliberately lives on
+   THIS element (not on .event-header, which is only as wide as the page's
+   own padded content column) and spans the full fixed 1920px canvas via
+   plain negative-left/width offsets — this app's canvas is already pinned
+   to an exact 1920px width (see index.css's #root), so there's no need
+   for a viewport-relative centering trick; -110px/1920px reaches the exact
+   same true screen edges as .event-details's own 110px horizontal padding.
+   Purely visual and inert (pointer-events: none, position: absolute so it
+   never affects .event-header's own layout height).
+
+   height: 100% (not a fixed pixel value) is load-bearing, not cosmetic: a
+   real Chromium raster/compositing bug was found here where this
+   element's rendered box, whenever it geometrically overlapped the first
+   stream row below (which it did once the header got tightened across
+   several passes — a fixed height stops matching the header's actual
+   content height as spacing changes), visually painted a near-solid dark
+   block over that row — hidden text/logo, only a sliver of the border
+   visible — even though hit-testing (elementFromPoint) and stacking order
+   (.event-header owns a real stacking context via z-index: 0, see its own
+   comment) were both provably correct the whole time; confirmed by
+   bisection (hiding the element fixed the row; a plain solid
+   color/no-gradient background still broke it; only shrinking this box
+   enough to stop overlapping the row fixed it). 100% resolves against
+   .event-header's own flex-computed height, so this can never again
+   physically reach past the header into the stream list, for any event
+   state (LIVE/FINISHED/UPCOMING have different heights) or any future
+   spacing change — a structural guarantee, not a tuned magic number. */
+.event-header-backdrop {
+  position: absolute;
+  top: 0;
+  left: -110px;
+  width: 1920px;
+  height: 100%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 720px 260px at 50% 42%, color-mix(in srgb, var(--surface-elevated) 60%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 35%, transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 45% 100% at 0% 0%, transparent 60%, var(--bg-primary) 100%),
+    radial-gradient(ellipse 45% 100% at 100% 0%, transparent 60%, var(--bg-primary) 100%);
+}
+
+/* Champions League curated photo — the URL itself is set inline from TSX
+   (needs import.meta.env.BASE_URL, same asset-path convention as
+   leagues.ts's own staticBackground/flagSrc), this just sizes/positions
+   the two background layers the inline style declares (the fade gradient,
+   then the photo). Overrides the base .event-header-backdrop's gradient
+   background — same specificity, later in source order wins. */
+.event-header-backdrop-cl {
+  background-size:
+    100% 100%,
+    cover;
+  background-position:
+    0 0,
+    top center;
+  background-repeat: no-repeat, no-repeat;
+}
+
+/* Just the arc strokes — no CSS background of its own (see
+   HeaderBackdrop's own comment for why that combination, on the parent
+   div above, is a real rendering bug rather than a style choice). */
+.event-header-backdrop-arcs {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.event-header-backdrop-arc {
+  fill: none;
+  stroke-width: 1;
+}
+
+.event-header-backdrop-arc-1 {
+  stroke: var(--border);
+  opacity: 0.3;
+}
+
+.event-header-backdrop-arc-2 {
+  stroke: var(--divider);
+  opacity: 0.22;
 }
 
 .event-header-competition {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  margin-bottom: 8px;
 }
 
 .event-header-competition-badge {
   width: 26px;
   height: 26px;
   object-fit: contain;
+  opacity: 0.92;
 }
 
 .event-header-competition-name {
-  color: var(--text-primary);
-  font-size: var(--font-body);
-  font-weight: var(--weight-medium);
-}
-
-.event-header-competition-round {
   color: var(--text-secondary);
-  font-weight: var(--weight-regular);
+  font-size: 21px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.01em;
 }
 
-.event-header-matchup {
+/* One shared grid for every alignment-sensitive row (competition/matchweek,
+   the team matchup, the divider, stadium/kickoff) — the center column is a
+   single track shared across all rows, so whatever sits in it (a "•", the
+   score "—", a "|") lands on the exact same vertical axis by construction,
+   never by eyeballed margins. Side columns are equal `1fr` tracks, so the
+   center track is always mathematically centered regardless of how long
+   either side's content is. Each logical row below emits either exactly 3
+   cells (left/center/right) or exactly 1 full-span cell — never a partial
+   1-or-2-cell row — so grid auto-placement always starts a fresh row at
+   the right point without needing explicit row wrappers. */
+.event-header-grid {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: var(--space-10);
+  row-gap: 8px;
+  column-gap: 24px;
   width: 100%;
-  max-width: 1600px;
+  max-width: 1700px;
 }
 
-.event-header-team-block {
+.event-header-cell {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
   min-width: 0;
 }
 
-.event-header-team-block-left {
-  align-items: flex-end;
+.event-header-cell-left {
+  justify-content: flex-end;
 }
 
-.event-header-team-block-right {
-  align-items: flex-start;
+.event-header-cell-center {
+  justify-content: center;
+  min-width: 44px;
+}
+
+.event-header-cell-right {
+  justify-content: flex-start;
+}
+
+.event-header-row-full {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+}
+
+/* "•" renders low/small (near-baseline) at this weight in Inter — nudged
+   up so it reads as a proper centered separator dot rather than a stray
+   period; "|" is unaffected by the shift in practice at this size. */
+.event-header-axis-glyph {
+  color: var(--text-muted);
+  font-size: 26px;
+  position: relative;
+  top: -6px;
 }
 
 .event-header-team {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: 22px;
   min-width: 0;
 }
 
-.event-header-form {
-  display: flex;
-  gap: 6px;
-}
-
-.event-header-form-pip {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: var(--weight-medium);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-.event-header-form-pip.form-w {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.event-header-form-pip.form-l {
-  color: var(--live-red);
-  border-color: var(--live-red);
-}
-
-.event-header-team-left {
-  justify-content: flex-end;
-}
-
-.event-header-team-right {
-  justify-content: flex-start;
+.event-header-team-reverse {
   flex-direction: row-reverse;
 }
 
+/* Real crest artwork varies a lot in how much transparent canvas surrounds
+   the mark itself — a fixed bounding box alone can make two badges read as
+   different sizes even at identical width/height. drop-shadow (rather than
+   a background box, which the reference never uses) adds just enough
+   presence to read as "integrated with the matchup" instead of "an icon
+   floating beside text". */
 .event-header-team-badge {
   width: 60px;
   height: 60px;
   object-fit: contain;
   flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 
 .event-header-team-name {
-  font-size: var(--font-display-lg);
+  font-size: 46px;
   font-weight: var(--weight-light);
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 420px;
 }
 
-.event-header-team-score {
-  font-size: var(--font-display-lg);
+.event-header-score {
+  font-size: 62px;
   font-weight: var(--weight-medium);
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.event-header-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 180px;
-}
-
-.event-header-vs {
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
-  letter-spacing: 0.05em;
-}
-
-.event-header-day {
-  color: var(--accent);
-  font-size: var(--font-body);
-  font-weight: var(--weight-medium);
-}
-
-.event-header-time {
   color: var(--text-primary);
-  font-size: var(--font-display-xl);
-  font-weight: var(--weight-light);
-  line-height: 1;
-}
-
-.event-header-venue {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
-  margin-top: var(--space-2);
-}
-
-.event-header-venue-icon {
-  color: var(--text-secondary);
   flex-shrink: 0;
+  margin-left: 18px;
 }
 
-.event-header-live {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
+.event-header-team-reverse .event-header-score {
+  margin-left: 0;
+  margin-right: 18px;
 }
 
-.event-header-live-badge {
+/* Deliberately NOT styled as "a hyphen" — reduced weight/opacity/tracking
+   so it reads as a quiet structural rule the eye passes over on its way
+   between the two scores, never competing with them. Still the one fixed
+   anchor an upcoming fixture's matchup is built around, so it stays fully
+   opaque enough to always be legible on its own. */
+.event-header-score-dash {
+  font-size: 38px;
+  font-weight: 200;
+  color: var(--text-muted);
+  opacity: 0.6;
+  letter-spacing: -0.02em;
+}
+
+/* The one line beneath the matchup that carries LIVE/FINISHED status —
+   never rendered inside the team-matchup row itself, and never shown at
+   all for a scheduled/upcoming fixture (see EventHeader.tsx's
+   MatchStatusLine — kickoff time already lives in the stadium/kickoff row
+   below, so a "Today"/"Tomorrow" line here would be redundant). LIVE
+   reuses Home screen's own established live-red treatment (see
+   HomeScreen.css's hero-live-dot) — this is Ninety's existing "live"
+   styling; accent green is reserved for the top-pick stream and focus
+   states instead. */
+.event-header-status-line {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: var(--live-red);
-  color: var(--text-primary);
-  font-size: 11px;
+  gap: var(--space-2);
+  font-size: 19px;
   font-weight: var(--weight-medium);
-  letter-spacing: 0.05em;
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+  margin-top: 6px;
+}
+
+.event-header-status-live {
+  color: var(--live-red);
 }
 
 .event-header-live-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--text-primary);
+  background: var(--live-red);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--live-red) 70%, transparent);
 }
 
-.event-header-live-clock {
-  color: var(--text-primary);
-  font-size: var(--font-section);
-  font-weight: var(--weight-medium);
+.event-header-status-finished {
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+
+.event-header-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 19px;
+  white-space: nowrap;
+}
+
+.event-header-meta-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.event-header-meta-icon path,
+.event-header-meta-icon circle {
+  stroke-width: 1.8px;
 }
 
 .event-header-generic-title {
@@ -233,126 +367,184 @@
   margin: 0;
 }
 
+.event-header-generic {
+  gap: var(--space-3);
+}
+
 /* ---------- Stream area ---------- */
 
 .stream-area {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  border-top: 1px solid var(--divider);
-  padding-top: var(--space-6);
+  gap: var(--space-6);
   flex: 1;
-}
-
-.stream-section-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.stream-section-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-section);
-  font-weight: var(--weight-medium);
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.stream-section-star {
-  color: var(--accent);
-  font-size: 20px;
-  line-height: 1;
-}
-
-.stream-section-subtitle {
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
-}
-
-.stream-section-title-secondary {
-  font-size: var(--font-body);
-  font-weight: var(--weight-medium);
-  color: var(--text-secondary);
-  margin: 0 0 var(--space-3);
+  margin-top: 3px;
 }
 
 .stream-row-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-4);
 }
 
 .stream-row-list-compact {
-  gap: 6px;
+  gap: var(--space-3);
+}
+
+/* ---------- Country group sections ---------- */
+/* Deliberately just a text line + a rule that starts after the name and
+   continues to the right on the same line — never a card/background, and
+   never a border drawn underneath the whole header. */
+
+.stream-country-section + .stream-country-section {
+  margin-top: 28px;
+}
+
+.stream-country-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: var(--space-4);
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: var(--weight-regular);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stream-country-header-flag {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stream-country-header-name {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.stream-country-header-other .stream-country-header-name {
+  color: var(--text-muted);
+}
+
+.stream-country-header-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--divider);
+  opacity: 0.55;
+  margin-left: 6px;
 }
 
 /* ---------- Stream row ---------- */
+/* One bordered/backgrounded card (this element, not a child) — the play
+   button and the favorite column both live inside it as transparent
+   children, so a top-pick's accent border/tint wraps the favorite star
+   too instead of stopping before an orphaned floating icon. */
 
+/* Normal rows sit only one small, deliberate step above the page
+   background (surface-primary vs. bg-primary) and lean on that surface
+   contrast — not a border — to read as "elevated". The border exists
+   mainly as a focus/selection surface; at rest it's blended most of the
+   way into the row's own background via color-mix rather than drawn as a
+   crisp line, so a long list doesn't read as a stack of outlined boxes. */
 .stream-row {
   display: flex;
   align-items: stretch;
-  gap: var(--space-2);
+  height: 68px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--border) 55%, var(--surface-primary));
+  background: var(--surface-primary);
+  box-sizing: border-box;
+  /* Deliberately no background-color in this list — a row's top-pick
+     status never changes after mount (it's derived once from ranking, not
+     toggled), so there's nothing to legitimately animate there, and
+     transitioning background-color while the actual value comes from a
+     multi-layer `background` shorthand ending in color-mix() triggered a
+     real Chromium paint glitch (the row would render as a near-solid dark
+     block, content hidden, on initial mount) — a real bug this fixes, not
+     a style preference. border-color/box-shadow genuinely do change on
+     focus and transition correctly. */
+  transition:
+    border-color 160ms var(--motion-ease),
+    box-shadow 160ms var(--motion-ease);
 }
 
-.stream-row-main {
+.stream-row-candidate {
+  height: 52px;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.8;
+}
+
+/* The single best stream across the whole event — Ninety's own accent
+   green from tokens, never a color lifted from a reference screenshot. A
+   thin border, a faint center tint, and a slightly stronger illumination
+   right at the two edges (never a flat fill) plus a very soft outer glow
+   — reads as a premium "this is the one" selection state at TV viewing
+   distance without turning the row into a green rectangle. */
+.stream-row.top-pick {
+  border-color: var(--accent);
+  background: var(--accent-dark);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 16%, transparent) 0%,
+      transparent 12%,
+      transparent 88%,
+      color-mix(in srgb, var(--accent) 16%, transparent) 100%
+    ),
+    color-mix(in srgb, var(--accent) 7%, var(--surface-primary) 93%);
+  box-shadow: 0 0 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.stream-row.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.stream-row.top-pick.focused {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.stream-row-play {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  height: 64px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-primary);
+  gap: 14px;
+  padding: 0 20px;
+  background: none;
+  border: none;
   color: var(--text-primary);
   font: inherit;
-  font-size: var(--font-body);
+  font-size: 19px;
+  font-weight: var(--weight-regular);
   cursor: pointer;
   box-sizing: border-box;
   min-width: 0;
   text-align: left;
 }
 
-.stream-row-other .stream-row-main,
-.stream-row-candidate .stream-row-main {
-  height: 48px;
-  background: transparent;
-}
-
-.stream-row-candidate .stream-row-main {
-  opacity: 0.85;
-}
-
-.stream-row.top-pick .stream-row-main {
-  border-color: var(--accent);
-  background: var(--accent-dark);
-}
-
-.stream-row.focused .stream-row-main {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
 .stream-row-logo-img {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
   flex-shrink: 0;
+  margin-right: 4px;
   border-radius: var(--radius-sm);
 }
 
 .stream-row-logo-fallback {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  margin-right: 4px;
   border-radius: var(--radius-sm);
   background: var(--surface-elevated);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: var(--weight-medium);
   display: flex;
   align-items: center;
@@ -360,76 +552,144 @@
   flex-shrink: 0;
 }
 
+/* Right-side metadata occupies FIXED-width columns (type / quality) with
+   only the stream name flexing — a long list scans as an aligned table,
+   and a row can never get wider/messier because some metadata is missing
+   or a label happens to be a longer word. Country is never per-row
+   metadata — it's the section header above, see StreamSections.tsx. */
 .stream-row-name {
   flex: 1 1 220px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
 }
 
-.stream-row-country {
-  flex: 0 0 130px;
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stream-row-qualities {
-  flex: 0 0 auto;
-  display: flex;
+/* Metadata, not buttons/status pills — deliberately quieter than the
+   stream name and Watch now (information hierarchy: name -> Watch now ->
+   EVENT/TV -> quality, never four equally-loud elements). TV stays fully
+   neutral; EVENT gets the most restrained possible touch of Ninety's own
+   accent (never the old warning-orange, which read as a status/error
+   color here). Fixed widths so the badge/quality/Watch columns all line
+   up vertically across every row regardless of label length. */
+.stream-row-badge {
+  flex-shrink: 0;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.stream-row-quality {
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
+  justify-content: center;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
-.stream-row-quality.selected {
-  background: var(--accent-dark);
-  color: var(--accent);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-}
-
-.stream-row-quality.unknown {
+.stream-row-type {
+  flex-basis: 64px;
   color: var(--text-muted);
-  font-style: italic;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
+.stream-row-type.event {
+  color: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Quieter than the type badge — no border at all, just a soft tint, per
+   "avoid overly strong rectangular borders... use a quieter surface than
+   the EVENT badge". */
+.stream-row-quality-col {
+  flex-basis: 92px;
+  gap: 4px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-elevated) 65%, transparent);
+  padding: 0 var(--space-2);
+}
+
+.stream-row-quality-col.unknown {
+  color: var(--text-disabled);
+  background: transparent;
+}
+
+.stream-row-quality-value {
+  min-width: 40px;
+  text-align: center;
+}
+
+/* Value + optional ‹ › cycle cues in one fixed-width badge — the cues are
+   always laid out (visibility toggles, not display) so the value never
+   shifts when focus arrives or the selection reaches an end stop. */
+.stream-row-quality-cue {
+  color: var(--text-muted);
+  visibility: hidden;
+}
+
+.stream-row-quality-cue.active {
+  visibility: visible;
+  color: var(--accent);
+}
+
+/* The clearest action on the row — quiet enough at rest to stay secondary
+   to the stream name, brighter the instant it's the one selected. */
 .stream-row-watch {
   flex: 0 0 auto;
   margin-left: auto;
-  padding-left: var(--space-4);
-  color: var(--accent);
-  font-size: var(--font-meta);
-  font-weight: var(--weight-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent-soft);
+  font-size: 18px;
+  font-weight: var(--weight-regular);
   white-space: nowrap;
+  padding-left: var(--space-3);
+  transition: color 160ms var(--motion-ease);
+}
+
+.top-pick .stream-row-watch {
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.stream-row-watch-icon {
+  flex-shrink: 0;
+  position: relative;
+  top: 0.5px;
+}
+
+/* A distinct favorite column, separated from the play button by a thin
+   inner divider — part of the same card, not a floating box outside it.
+   The divider is barely there at rest (this is metadata, not two separate
+   controls glued together); the star itself stays quiet until it's
+   favorited or focused, so it never competes with Watch now for
+   attention. */
+.stream-row-favorite-col {
+  flex-shrink: 0;
+  width: 60px;
+  display: flex;
+  align-items: stretch;
+  border-left: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.stream-row-candidate .stream-row-favorite-col {
+  border-left-color: transparent;
 }
 
 .stream-row-favorite {
-  flex-shrink: 0;
-  width: 44px;
-  height: 64px;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  border: none;
+  color: var(--text-disabled);
   font-size: 20px;
   cursor: pointer;
-}
-
-.stream-row-other .stream-row-favorite,
-.stream-row-candidate .stream-row-favorite {
-  height: 48px;
+  transition:
+    color 160ms var(--motion-ease),
+    background-color 160ms var(--motion-ease);
 }
 
 .stream-row-favorite.active {
@@ -437,25 +697,31 @@
 }
 
 .stream-row-favorite.focused {
-  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--surface-focus) 70%, transparent);
+}
+
+/* ---------- Collapsed "might also have it" candidates ---------- */
+/* A small, unobtrusive text link, not another card or a big button — the
+   trusted list above is the whole point of the screen. */
+
+.stream-section-candidates {
+  margin-top: var(--space-2);
 }
 
 .stream-section-toggle {
   align-self: flex-start;
-  height: 44px;
-  padding: 0 var(--space-4);
   font: inherit;
-  font-size: var(--font-meta);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
+  font-size: var(--font-body);
+  background: none;
+  border: none;
+  color: var(--text-muted);
   cursor: pointer;
+  padding: var(--space-2) 0;
 }
 
 .stream-section-toggle.focused {
-  border-color: var(--border-focus);
-  color: var(--text-primary);
+  color: var(--accent);
 }
 
 /* ---------- Loading / empty states ---------- */
@@ -473,7 +739,7 @@
 }
 
 .stream-row-skeleton {
-  height: 64px;
+  height: 68px;
   border-radius: var(--radius-md);
   background: var(--surface-secondary);
   opacity: 0.5;
@@ -493,7 +759,7 @@
 
 .stream-area-station-list {
   margin: 0;
-  padding-left: var(--space-5);
+  padding-left: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -523,14 +789,7 @@
   background: var(--surface-focus);
 }
 
-/* ---------- Footer / dev debug ---------- */
-
-.event-details-footer {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: var(--font-meta);
-  margin: var(--space-6) 0 0;
-}
+/* ---------- Dev debug ---------- */
 
 .event-details-debug {
   margin-top: var(--space-6);
@@ -547,7 +806,7 @@
 
 .event-details-debug-list {
   margin: 0;
-  padding-left: var(--space-5);
+  padding-left: var(--space-4);
   color: var(--text-secondary);
   font-size: var(--font-meta);
   display: flex;

@@ -159,8 +159,18 @@ export function matchLeadingCountry(text: string): LeadingCountryMatch | null {
 // country — "...NETWORK US" must have a separating space; a hypothetical
 // "...NETWORKUS" would not match. Full-name form tried first, same
 // longest-match-first reasoning as the leading matcher.
-const TRAILING_NAME_PATTERNS = NAME_ENTRIES.map((name) => ({ name, re: new RegExp(`${SEPARATOR}${name}\\b$`) }))
-const TRAILING_CODE_PATTERNS = CODE_ENTRIES.map((code) => ({ code, re: new RegExp(`${SEPARATOR}${code}\\b$`) }))
+// Trailing `(?:${SEPARATOR})?` after the boundary absorbs a closing
+// bracket/paren that wrapped the code ("Premier Sports 1 (GB)") — the
+// leading matcher already handles the equivalent wrapped-prefix case via its
+// own leading optional separator (see the comment above NAME_PATTERNS); this
+// is the same absorption, mirrored onto the tail end, which was previously
+// missing entirely. Real-world regression: a playlist entry named exactly
+// "Premier Sports 1 (GB)" fell all the way through to identity classification
+// NONE, because with the country marker unstripped it became an unaccounted
+// extra word ("GB") that the channel-identity resolver's name-matching
+// requires to be empty.
+const TRAILING_NAME_PATTERNS = NAME_ENTRIES.map((name) => ({ name, re: new RegExp(`${SEPARATOR}${name}\\b(?:${SEPARATOR})?$`) }))
+const TRAILING_CODE_PATTERNS = CODE_ENTRIES.map((code) => ({ code, re: new RegExp(`${SEPARATOR}${code}\\b(?:${SEPARATOR})?$`) }))
 
 export function matchTrailingCountry(text: string): LeadingCountryMatch | null {
   const cleaned = stripDecorativeEdges(text)
