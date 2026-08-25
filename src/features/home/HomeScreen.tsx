@@ -202,7 +202,11 @@ function CardBody({ event }: { event: SportEvent }) {
   )
 }
 
-function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: (event: SportEvent) => void }) {
+// Exported for reuse by Multiview's EventPicker.tsx — the same card
+// rendering, not a reimplementation, since the picker shows the exact same
+// live/upcoming event data (useHomeFeed's own feed) in the exact same
+// shape.
+export function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: (event: SportEvent) => void }) {
   const { ref, focused } = useFocusable({ onEnterPress: () => onSelect(event) })
   // The spatial-nav library moves focus but never scrolls — .scroll-row
   // scrolls its own horizontal overflow, so the newly focused card has to
@@ -232,7 +236,8 @@ function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: (event:
   )
 }
 
-function ComingUpCard({ event, onSelect }: { event: SportEvent; onSelect: (event: SportEvent) => void }) {
+// Exported for reuse by Multiview's EventPicker.tsx — see LiveNowCard above.
+export function ComingUpCard({ event, onSelect }: { event: SportEvent; onSelect: (event: SportEvent) => void }) {
   const { ref, focused } = useFocusable({ onEnterPress: () => onSelect(event) })
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' })

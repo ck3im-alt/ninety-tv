@@ -19,6 +19,13 @@ interface Props {
   // selected?.name behavior untouched. See Part V/W of the redesign task.
   initialDisplayParts?: EventStreamDisplayParts
   onBack: () => void
+  // "Add to Multiview" — undefined on any path that shouldn't offer it
+  // (there currently is none, but kept optional so a future restricted
+  // entry point could omit it without a dead/always-registered toolbar
+  // button — same precedent as onOpenAdmin in TopNav). Receives the exact
+  // (channel, source) currently playing; App.tsx already knows the
+  // originating SportEvent (if any) itself, see watchChannel/playingEvent.
+  onAddToMultiview?: (channel: Channel, source: ChannelSource) => void
 }
 
 const OVERLAY_FOCUS_KEY = 'player-overlay'
@@ -169,7 +176,7 @@ function SubtitlesPopup({
   )
 }
 
-export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDisplayParts, onBack }: Props) {
+export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDisplayParts, onBack, onAddToMultiview }: Props) {
   const [selected] = useState<Channel | null>(channels[0] ?? null)
   const { videoRef, state: session, controller } = usePlayerSession(
     selected?.sources.map((s) => s.url) ?? [],
@@ -422,6 +429,16 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
                   />
                 )}
               </div>
+
+              {onAddToMultiview && (
+                <ToolbarButton
+                  icon="▦"
+                  label="Multiview"
+                  onSelect={() => {
+                    if (selected && activeSource) onAddToMultiview(selected, activeSource)
+                  }}
+                />
+              )}
 
               <div className="toolbar-item">
                 <ToolbarButton

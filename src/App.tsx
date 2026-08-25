@@ -37,6 +37,10 @@ import type { Channel } from './data/channel'
 import type { PlaylistSourceRecord } from './data/session'
 import type { SportEvent } from './data/sports/types'
 import type { EventStreamDisplayParts } from './features/eventDetails/ppvDisplayName'
+import { createMultiviewSession } from './features/multiview/multiviewSession'
+import type { MultiviewSession, PaneAssignment } from './features/multiview/multiviewSession'
+import { MultiviewDebugOverlay } from './features/multiview/MultiviewDebugOverlay'
+import type { ChannelSource } from './data/channel'
 
 // Lazy-loaded: screens that are rare (first-run-only onboarding, dev-admin
 // already tree-shaken separately) or off the primary Home->Channels->Watch
@@ -63,6 +67,10 @@ const CompetitionsScreen = lazy(() =>
   import('./features/competitions/CompetitionsScreen').then((m) => ({ default: m.CompetitionsScreen })),
 )
 const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen').then((m) => ({ default: m.SettingsScreen })))
+// Heavy (up to 4 concurrent Player instances) and rare relative to the
+// primary Home->Channels->Watch path — same lazy-loading rationale as
+// EventDetailsScreen/CompetitionsScreen above.
+const MultiviewScreen = lazy(() => import('./features/multiview/MultiviewScreen').then((m) => ({ default: m.MultiviewScreen })))
 
 markPerf('app:module-load')
 
@@ -80,6 +88,7 @@ type Screen =
   | 'channels-favorites'
   | 'channels-recent'
   | 'player'
+  | 'multiview'
   | 'event-details'
   | 'competitions'
   | 'settings'
@@ -104,6 +113,7 @@ const SCREEN_FOCUS_KEYS: Partial<Record<Screen, string>> = {
   'event-details': 'event-details-screen',
   competitions: 'competitions-screen',
   settings: 'settings-screen',
+  multiview: 'multiview-screen',
 }
 
 // The connected playlist's channels/source/generationId, updated together as
@@ -250,6 +260,16 @@ function App() {
   const [settingsReturnScreen, setSettingsReturnScreen] = useState<Screen>('home')
   const [playingChannel, setPlayingChannel] = useState<Channel | null>(null)
   const [playingSourceLabel, setPlayingSourceLabel] = useState<string | undefined>(undefined)
+  // The SportEvent behind the currently-playing channel, when known — set
+  // alongside playingChannel by watchChannel below. Only ever non-null when
+  // the watch came from Event Details (selectedEvent is already the right
+  // event at that exact call site, since it's set right before navigating
+  // there and doesn't change while the player is up) — every other watch
+  // path (Home hero/Home favorite channels/Browse/Favorites/Recent) leaves
+  // it null. Used by "Add to Multiview" (ChannelPlayerScreen) so a fresh
+  // Multiview pane gets real event metadata/ranked candidates instead of
+  // just a bare channel.
+  const [playingEvent, setPlayingEvent] = useState<SportEvent | null>(null)
   // Contextual event-stream display identity (provider/event title/start
   // time/quality) carried from Event Details' StreamRow through to the
   // player overlay — see Part V of the redesign task. Undefined for every
@@ -261,6 +281,17 @@ function App() {
   // (the cascade browser, favorites, or recently-watched) the user watched
   // from. Non-persisted, same as the rest of this in-memory nav state.
   const [playerReturnScreen, setPlayerReturnScreen] = useState<Screen>('browse-cascade')
+  // Multiview session — pane assignments/focus/audio/maximize state only
+  // (see multiviewSession.ts's own header on why no player instances live
+  // here). null when Multiview has never been entered this session; kept
+  // around (not reset to null) after Back so re-entering isn't currently
+  // wired up to preserve it either way — "Add to Multiview" always starts a
+  // fresh 1-pane session, see startMultiview below.
+  const [multiviewSession, setMultiviewSession] = useState<MultiviewSession | null>(null)
+  // Same return-screen pattern as playerReturnScreen — Back from the main
+  // Multiview screen returns here, per the feature spec's own navigation
+  // requirement.
+  const [multiviewReturnScreen, setMultiviewReturnScreen] = useState<Screen>('browse-cascade')
   // Most-recently-watched channel id first, capped and de-duplicated.
   const [recentlyWatched, setRecentlyWatched] = useState<string[]>(() => loadRecentlyWatched())
 
@@ -494,13 +525,35 @@ function App() {
     setPlayingChannel(channel)
     setPlayingSourceLabel(source.label)
     setPlayingDisplayParts(displayParts)
+    // See playingEvent's own comment above — selectedEvent is only the
+    // right event when this watch actually came from Event Details.
+    setPlayingEvent(fromScreen === 'event-details' ? selectedEvent : null)
     setPlayerReturnScreen(fromScreen)
     setScreen('player')
   }
 
+  // "Add to Multiview" (ChannelPlayerScreen's toolbar). Uses the CHANNEL the
+  // player screen reports as actually playing (which may have drifted from
+  // playingChannel via in-player failover) for the channel-only fallback
+  // path; playingEvent never changes mid-session once set, so it's safe to
+  // read directly here and is preferred whenever available so the new pane
+  // gets a real ranked candidate list rather than just one channel's own
+  // sources. The originating ChannelSource itself isn't threaded through:
+  // Multiview picks pane 1's initial quality via its own pane-count-aware
+  // ranking (selectMultiviewSource) rather than carrying over whatever tier
+  // solo playback happened to be on — a single-stream pick (often the
+  // highest tier) is exactly what Multiview-aware ranking exists to
+  // reconsider once more than one pane is active.
+  function startMultiview(channel: Channel, _source: ChannelSource) {
+    const assignment: PaneAssignment = playingEvent ? { kind: 'event', event: playingEvent } : { kind: 'channel', channel }
+    setMultiviewSession(createMultiviewSession(assignment))
+    setMultiviewReturnScreen(playerReturnScreen)
+    setScreen('multiview')
+  }
+
   return (
     <>
-      {screen !== 'player' && screen !== 'onboarding' && screen !== 'event-details' && (
+      {screen !== 'player' && screen !== 'onboarding' && screen !== 'multiview' && screen !== 'event-details' && (
         <TopNav
           // Event Details no longer renders TopNav at all (it has its own
           // simplified back-only header — see EventDetailsScreen.tsx), so
@@ -708,8 +761,28 @@ function App() {
             // already running.
             homeFeedState.refresh()
           }}
+          onAddToMultiview={startMultiview}
         />
       )}
+
+      {screen === 'multiview' && multiviewSession && (
+        <MultiviewScreen
+          session={multiviewSession}
+          onSessionChange={(updater) => setMultiviewSession((prev) => (prev ? updater(prev) : prev))}
+          channels={playlist.channels}
+          xtreamCreds={xtreamCreds}
+          identityIndex={identityIndex}
+          favoriteChannels={favoriteChannels}
+          favoriteChannelsList={favoriteChannelsList}
+          recentChannelsList={recentChannelsList}
+          homeFeed={homeFeedState.feed}
+          onBack={() => setScreen(multiviewReturnScreen)}
+        />
+      )}
+      {/* TEMPORARY — see MultiviewDebugOverlay's own header. Only rendered
+          while Multiview is on screen; remove once the real-Tizen-device
+          verification pass this was added for is complete. */}
+      {screen === 'multiview' && <MultiviewDebugOverlay />}
 
       {filterOpen && (
         <FilterPopup
