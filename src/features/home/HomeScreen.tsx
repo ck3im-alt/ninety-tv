@@ -5,7 +5,7 @@ import type { SportEvent } from '../../data/sports/types'
 import { useFavoriteChannelsNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { FavoriteChannelNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { Channel, ChannelSource } from '../../data/channel'
-import type { XtreamCredentials } from '../../data/xtream/types'
+import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
 import { ArrowRightIcon, FootballIcon, FormulaOneIcon } from '../onboarding/sportIcons'
 import './HomeScreen.css'
 
@@ -309,7 +309,7 @@ export function HomeScreen({
   onSelectEvent,
   onWatchChannel,
   feedState,
-  xtreamCreds,
+  xtream,
   favoriteChannels,
 }: {
   onSelectEvent: (event: SportEvent) => void
@@ -319,12 +319,12 @@ export function HomeScreen({
   // and remounting on Back — see the useHomeFeed call site in App.tsx for
   // why that used to force a multi-second refetch on every Back-to-Home.
   feedState: HomeFeedState
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   favoriteChannels: Channel[]
 }) {
   const { ref, focusKey } = useFocusable({ focusKey: 'home-screen', trackChildren: true })
   const { feed } = feedState
-  const favoriteChannelsNowPlaying = useFavoriteChannelsNowPlaying(favoriteChannels, xtreamCreds)
+  const favoriteChannelsNowPlaying = useFavoriteChannelsNowPlaying(favoriteChannels, xtream)
 
   return (
     <FocusContext.Provider value={focusKey}>

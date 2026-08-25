@@ -12,7 +12,7 @@ import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import type { SportEvent } from './types'
 import type { SportPreferences } from '../preferences'
 import type { Channel } from '../channel'
-import type { XtreamCredentials } from '../xtream/types'
+import type { XtreamCredentialResolver } from '../playlists/xtreamResolver'
 import type { ChannelIdentityIndex } from './channelIdentityIndex'
 
 export interface HomeFeed {
@@ -57,7 +57,7 @@ export type HomeFeedState =
 
 // The raw result of Effect 1's network fetch — everything needed to derive
 // the final feed EXCEPT the channel-matching step, which depends on
-// channels/xtreamCreds/identityIndex and must not itself trigger a refetch
+// channels/xtream/identityIndex and must not itself trigger a refetch
 // when those change (identityIndex in particular changes up to twice per
 // session as the Channel Identity Resolver rebuilds — see
 // useChannelIdentityIndex.ts).
@@ -72,7 +72,7 @@ type FetchState =
 export function useHomeFeed(
   preferences: SportPreferences,
   channels: Channel[],
-  xtreamCreds: XtreamCredentials | null,
+  xtream: XtreamCredentialResolver,
   identityIndex: ChannelIdentityIndex | null,
 ): HomeFeedState {
   // Stable key so Effect 1 only refires when the actual selection changes,
@@ -218,7 +218,7 @@ export function useHomeFeed(
   }
 
   // Effect 1 — fetch-only, on the user's actual selection changing.
-  // Deps: [prefsKey] ONLY. Deliberately excludes channels/xtreamCreds/
+  // Deps: [prefsKey] ONLY. Deliberately excludes channels/xtream/
   // identityIndex: this effect's only job is acquiring event data from
   // ninety-api/TheSportsDB, which has nothing to do with the user's local
   // playlist — refetching fixtures because the identity index finished
@@ -331,7 +331,7 @@ export function useHomeFeed(
 
   const [state, setState] = useState<HomeFeedState>({ status: 'loading', feed: EMPTY_FEED, eventsById: EMPTY_EVENTS_BY_ID, refresh: silentRefresh })
 
-  // Effect 2 — local derivation. Deps: [fetchState, channels, xtreamCreds,
+  // Effect 2 — local derivation. Deps: [fetchState, channels, xtream,
   // identityIndex]. Re-runs whenever the identity index (or the playlist
   // itself) changes WITHOUT any network call — this is the actual fix.
   // Channel-matching here never sets allowNetworkFallback, so this is
@@ -363,7 +363,7 @@ export function useHomeFeed(
           liveNowCandidates.map(async (ev): Promise<SportEvent | null> => {
             if (ev.sportKey !== 'football') return ev
             try {
-              const { matches } = await matchChannelsForEvent(ev, channels, xtreamCreds, identityIndex)
+              const { matches } = await matchChannelsForEvent(ev, channels, xtream, identityIndex)
               return matches.length > 0 ? ev : null
             } catch {
               return null
@@ -401,7 +401,7 @@ export function useHomeFeed(
     return () => {
       cancelled = true
     }
-  }, [fetchState, channels, xtreamCreds, identityIndex, silentRefresh])
+  }, [fetchState, channels, xtream, identityIndex, silentRefresh])
 
   return state
 }

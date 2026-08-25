@@ -5,7 +5,8 @@ import { useBackHandler, useFocusScrollIntoView, pickFallbackAfterRemoval } from
 import { createHtmlVideoPlayer } from '../../core/player'
 import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
-import type { XtreamCredentials, XtreamEpgListing } from '../../data/xtream/types'
+import { firstXtreamSource, type XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
+import type { XtreamEpgListing } from '../../data/xtream/types'
 import { Breadcrumb } from './Breadcrumb'
 import { VirtualChannelList } from './VirtualChannelList'
 import { useDebouncedValue } from './useDebouncedValue'
@@ -28,7 +29,7 @@ interface Props {
   country: string
   category: string // mergedLabel — may be "" (the country's general/unlabeled category)
   channels: Channel[] // already filtered to this country+category by the caller
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   favoriteChannels: Set<string>
   onToggleFavoriteChannel: (channelId: string) => void
   onWatch: (channel: Channel, source: ChannelSource) => void
@@ -49,22 +50,23 @@ function formatTime(datetime: string): string {
 
 type EpgState = { status: 'idle' | 'loading' | 'unavailable' | 'error'; listings: XtreamEpgListing[] }
 
-export function EpgSection({ source, xtreamCreds }: { source: ChannelSource | undefined; xtreamCreds: XtreamCredentials | null }) {
+// Takes the CHANNEL rather than one pre-picked source: which stream can
+// answer an EPG query is now a per-source question (only sources belonging
+// to an Xtream playlist can), so picking sources[0] up front would silently
+// lose EPG for a channel whose Xtream stream happens to sit behind a plain
+// M3U playlist's after cross-playlist merging.
+export function EpgSection({ channel, xtream }: { channel: Channel | undefined; xtream: XtreamCredentialResolver }) {
   const [state, setState] = useState<EpgState>({ status: 'idle', listings: [] })
 
   useEffect(() => {
-    if (!source || !xtreamCreds) {
-      setState({ status: 'unavailable', listings: [] })
-      return
-    }
-    const streamId = extractStreamId(source.url)
-    if (streamId === null) {
+    const target = channel ? firstXtreamSource(channel, xtream, extractStreamId) : null
+    if (!target) {
       setState({ status: 'unavailable', listings: [] })
       return
     }
     let cancelled = false
     setState({ status: 'loading', listings: [] })
-    getShortEpg(xtreamCreds, streamId, 4)
+    getShortEpg(target.creds, target.streamId, 4)
       .then((listings) => {
         if (!cancelled) setState({ status: listings.length ? 'idle' : 'unavailable', listings })
       })
@@ -74,7 +76,7 @@ export function EpgSection({ source, xtreamCreds }: { source: ChannelSource | un
     return () => {
       cancelled = true
     }
-  }, [source, xtreamCreds])
+  }, [channel, xtream])
 
   if (state.status === 'unavailable') {
     return <p className="info-note">EPG isn't available for this source (either a plain M3U playlist, or the panel has no schedule data for this channel).</p>
@@ -176,13 +178,13 @@ export function PreviewPlayer({ source }: { source: ChannelSource | undefined })
 
 export function InfoPanel({
   channel,
-  xtreamCreds,
+  xtream,
   favorited,
   onToggleFavorite,
   onWatch,
 }: {
   channel: Channel | null
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   favorited: boolean
   onToggleFavorite: () => void
   onWatch: (channel: Channel, source: ChannelSource) => void
@@ -223,7 +225,7 @@ export function InfoPanel({
 
   const debouncedEpgChannel = useDebouncedValue(channel, PREVIEW_EPG_DEBOUNCE_MS)
   const isEpgPending = channel?.id !== debouncedEpgChannel?.id
-  const epgSource = isEpgPending ? undefined : debouncedEpgChannel?.sources[0]
+  const epgChannel = isEpgPending ? undefined : (debouncedEpgChannel ?? undefined)
 
   if (!channel) return <aside className="info-panel empty">Select a channel</aside>
 
@@ -235,7 +237,7 @@ export function InfoPanel({
 
       <h2 className="info-name">{channel.name}</h2>
 
-      {!isEpgPending && <EpgSection source={epgSource} xtreamCreds={xtreamCreds} />}
+      {!isEpgPending && <EpgSection channel={epgChannel} xtream={xtream} />}
 
       <div className="info-actions">
         <button ref={watchRef} className={`watch-btn ${watchFocused ? 'focused' : ''}`} onClick={() => onWatch(channel, activeSource)}>
@@ -255,7 +257,7 @@ export function CategoryChannelsScreen({
   country,
   category,
   channels,
-  xtreamCreds,
+  xtream,
   favoriteChannels,
   onToggleFavoriteChannel,
   onWatch,
@@ -346,7 +348,7 @@ export function CategoryChannelsScreen({
           </div>
           <InfoPanel
             channel={selected}
-            xtreamCreds={xtreamCreds}
+            xtream={xtream}
             favorited={selected ? favoriteChannels.has(selected.id) : false}
             onToggleFavorite={() => selected && onToggleFavoriteChannel(selected.id)}
             onWatch={onWatch}

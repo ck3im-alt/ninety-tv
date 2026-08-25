@@ -1,262 +1,93 @@
-/* Step-specific to Add your playlist — shared onboarding layout/card
-   rules come from features/onboarding/onboardingShared.css. */
+/* Step-specific to Connect your playlist — shared page skeleton, footer
+   buttons and card vocabulary come from
+   features/onboarding/onboardingShared.css.
 
-.onboarding-info.with-divider {
-  border-right: 1px solid var(--divider);
-  padding-right: var(--space-8);
-}
+   Layout: one wide highlighted QR card across the top, then the two manual
+   methods side by side beneath it. No left information column, no divider,
+   no feature list — see onboardingShared.css's header. */
 
-.setup-feature-icon {
-  width: 20px;
-  height: 20px;
+/* ---- QR card ---- */
+
+.setup-qr-card {
+  position: relative;
+  overflow: hidden;
   flex-shrink: 0;
-  color: var(--accent);
-  margin-top: 2px;
-  display: flex;
-}
-
-.setup-feature-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.setup-form-label {
-  font-size: var(--font-body);
-  font-weight: var(--weight-medium);
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.setup-url-card {
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-primary);
-  padding: var(--space-3) var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  cursor: text;
-}
-
-.setup-url-card.focused {
-  border-color: var(--border-focus);
-}
-
-.setup-url-card-tag {
-  color: var(--accent);
-  font-size: 12px;
-  letter-spacing: 0.5px;
-}
-
-.setup-url-input {
-  font: inherit;
-  font-size: var(--font-body);
-  color: var(--text-primary);
-  background: transparent;
-  border: none;
-  outline: none;
-  padding: 0;
-}
-
-.setup-url-input::placeholder {
-  color: var(--text-muted);
-}
-
-.setup-divider {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  color: var(--text-muted);
-  font-size: var(--font-meta);
+  gap: var(--space-10);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-lg);
+  border: 1px solid #24323d;
+  /* One restrained accent-tinted wash from the left, not a glow: this is
+     the recommended path, so it should read as the brightest surface on the
+     page without competing with the focus ring. */
+  background: linear-gradient(100deg, #0f1c1a 0%, var(--surface-elevated) 42%, var(--surface-primary) 100%);
 }
 
-.setup-divider span:not(.setup-divider-label) {
-  flex: 1;
-  height: 1px;
-  background: var(--divider);
-}
-
-.setup-code-card {
-  border: 1px solid var(--border);
+.setup-qr-code {
+  flex-shrink: 0;
+  width: 220px;
+  height: 220px;
   border-radius: var(--radius-md);
-  background: var(--surface-primary);
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  cursor: pointer;
-}
-
-.setup-code-card.focused {
-  border-color: var(--border-focus);
-}
-
-.setup-code-title {
-  color: var(--text-primary);
-  font-size: var(--font-body);
-  font-weight: var(--weight-medium);
-  margin: 0;
-}
-
-.setup-code-desc {
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
-  margin: 0;
-}
-
-.setup-code-toggle {
-  margin-top: var(--space-2);
-  height: 52px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  color: var(--text-primary);
 }
 
-.setup-code-toggle svg {
-  width: 14px;
-  height: 14px;
-}
-
-.setup-code-fields {
-  margin-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-/* Spatial-nav focus lands on the WRAPPER (see PlaylistSetupScreen.tsx's
-   useSpatialTextInput bridge — pressing Enter on the wrapper hands off to
-   the real <input> so Tizen's keyboard appears), not the <input> itself, so
-   the focused ring is drawn there. The input's own CSS :focus state (real
-   DOM focus, which the wrapper's Enter handler triggers) gets the same
-   treatment for keyboard/mouse dev use. */
-.setup-code-input-wrap {
+.setup-qr-code svg {
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
 }
 
-.setup-code-input-wrap.focused {
-  border-color: var(--border-focus);
-}
-
-.setup-code-input {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  height: 48px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-elevated);
-  border: none;
-  color: var(--text-primary);
-  padding: 0 var(--space-3);
-}
-
-.setup-code-input:focus {
-  outline: none;
-}
-
-.setup-info-box {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-}
-
-.setup-info-box svg {
-  width: 18px;
-  height: 18px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.setup-info-title {
-  color: var(--text-primary);
+/* Shown in the QR's own slot while generating (or when generation failed) so
+   the card never collapses and reflows the page underneath it. */
+.setup-qr-placeholder {
+  color: #5d6b76;
   font-size: var(--font-meta);
-  font-weight: var(--weight-medium);
   margin: 0;
 }
 
-.setup-info-desc {
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
+.setup-qr-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 720px;
+}
+
+.setup-qr-badge {
+  align-self: flex-start;
+  padding: 4px var(--space-3);
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.setup-qr-title {
+  font-size: 30px;
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
   margin: var(--space-1) 0 0;
 }
 
-.setup-row {
-  display: flex;
-  gap: var(--space-3);
-}
-
-.file-btn {
-  font: inherit;
-  height: 52px;
-  padding: 0 var(--space-6);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.file-btn.focused {
-  border-color: var(--border-focus);
-  background: var(--surface-focus);
-}
-
-.setup-status {
-  font-size: var(--font-meta);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.setup-status.error {
-  color: var(--live-red);
-}
-
-.setup-qr-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.setup-qr-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-primary);
-  padding: var(--space-4);
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.setup-qr-card svg {
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-}
-
-.setup-qr-caption {
+.setup-qr-desc {
   color: var(--text-secondary);
   font-size: var(--font-body);
   margin: 0;
 }
 
-.setup-qr-card-error {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: var(--space-3);
+.setup-qr-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
 }
 
 .setup-qr-retry {
   font: inherit;
-  height: 44px;
+  height: 48px;
   padding: 0 var(--space-6);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
@@ -268,4 +99,189 @@
 .setup-qr-retry.focused {
   border-color: var(--border-focus);
   background: var(--surface-focus);
+}
+
+/* ---- Phone illustration ---- */
+
+/* Pure CSS, no asset. Anchored to the card's right edge and cropped by its
+   overflow, so it reads as a hint rather than a hero image. */
+.setup-phone {
+  position: absolute;
+  right: var(--space-12);
+  bottom: -46px;
+  pointer-events: none;
+}
+
+.setup-phone-body {
+  position: relative;
+  width: 132px;
+  height: 244px;
+  border-radius: 22px;
+  border: 2px solid #2c3b47;
+  background: linear-gradient(180deg, #0d1822 0%, #070f17 100%);
+  padding: 14px 12px;
+  box-sizing: border-box;
+  transform: rotate(-8deg);
+}
+
+.setup-phone-notch {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 42px;
+  height: 5px;
+  border-radius: 3px;
+  background: #2c3b47;
+}
+
+.setup-phone-screen {
+  margin-top: 12px;
+  height: 100%;
+  border-radius: 12px;
+  background: #0a1420;
+  padding: 14px 10px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.setup-phone-line {
+  height: 7px;
+  border-radius: 4px;
+  background: #1d2b36;
+  width: 70%;
+}
+
+.setup-phone-line.wide {
+  width: 100%;
+  background: var(--accent-dark);
+}
+
+.setup-phone-line.short {
+  width: 45%;
+}
+
+/* ---- Manual connection panels ---- */
+
+/* Equal-height panels (stretch, not start): the two methods are peers, and
+   a ragged bottom edge would read as one of them being unfinished. The left
+   panel's file action uses margin-top:auto to sit on the shared baseline. */
+.setup-manual-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  align-items: stretch;
+}
+
+.setup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
+  transition: border-color var(--motion-duration) var(--motion-ease);
+}
+
+/* Which manual method Continue will actually use — see ConnectMode in
+   PlaylistSetupScreen.tsx. A quiet tinted border, not the focus green:
+   focus and "armed method" are two different things and must stay
+   distinguishable from across a room. */
+.setup-panel.active {
+  border-color: #33513a;
+  background: var(--surface-elevated);
+}
+
+.setup-panel-title {
+  font-size: var(--font-section);
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.setup-panel-hint {
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.setup-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Spatial-nav focus lands on the WRAPPER (see PlaylistSetupScreen.tsx's
+   useSpatialTextInput bridge — pressing Enter on the wrapper hands off to
+   the real <input> so Tizen's keyboard appears), not the <input> itself, so
+   the focus ring is drawn here. */
+.setup-field {
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--surface-secondary);
+  cursor: text;
+}
+
+.setup-field.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
+
+.setup-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--font-body);
+  height: 60px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.setup-input::placeholder {
+  color: var(--text-muted);
+}
+
+.setup-file-button {
+  font: inherit;
+  align-self: flex-start;
+  margin-top: auto;
+  height: 48px;
+  padding: 0 var(--space-5, 20px);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  cursor: pointer;
+}
+
+.setup-file-button.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+  color: var(--text-primary);
+}
+
+/* ---- Status ---- */
+
+.setup-status {
+  font-size: var(--font-meta);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.setup-status.error {
+  color: var(--live-red);
+}
+
+.setup-notice {
+  margin-top: var(--space-3);
+  color: var(--warning);
 }

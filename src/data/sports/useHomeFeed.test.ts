@@ -20,6 +20,7 @@
 // resolves to [] and TheSportsDB (F1) is never actually invoked.
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { NO_XTREAM_CREDENTIALS } from '../playlists/xtreamResolver'
 import { useHomeFeed } from './useHomeFeed'
 import type { NinetyEvent } from './ninetyApiClient'
 import type { LeagueDef } from './leagues'
@@ -27,10 +28,10 @@ import type { SportPreferences } from '../preferences'
 import type { Channel } from '../channel'
 
 // Stable references passed to every renderHook call below — Effect 2
-// (channels/xtreamCreds/identityIndex in its own deps array) re-runs
-// whenever these change identity, same as App.tsx's real playlist.channels
-// state; a fresh [] literal on every render (as opposed to this one shared
-// constant) would make Effect 2 re-fire every render forever.
+// (channels/xtream/identityIndex in its own deps array) re-runs whenever
+// these change identity, same as the combined library.channels array App.tsx
+// passes in; a fresh [] literal on every render (as opposed to this one
+// shared constant) would make Effect 2 re-fire every render forever.
 const STABLE_CHANNELS: Channel[] = []
 
 const { getAllEventsMock, loadFootballCompetitionsMock, matchChannelsForEventMock } = vi.hoisted(() => ({
@@ -135,7 +136,7 @@ afterEach(() => {
 // below that isn't specifically about the loading state itself.
 async function renderReady(initialEvents: NinetyEvent[]) {
   getAllEventsMock.mockResolvedValueOnce(initialEvents)
-  const { result } = renderHook(() => useHomeFeed(PREFERENCES, STABLE_CHANNELS, null, null))
+  const { result } = renderHook(() => useHomeFeed(PREFERENCES, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null))
   await flush()
   expect(result.current.status).toBe('ready')
   return result
@@ -145,7 +146,7 @@ describe('useHomeFeed initial load', () => {
   it('starts in loading status before the first fetch resolves, then reaches ready', async () => {
     let resolveFetch: (events: NinetyEvent[]) => void = () => {}
     getAllEventsMock.mockReturnValueOnce(new Promise((resolve) => { resolveFetch = resolve }))
-    const { result } = renderHook(() => useHomeFeed(PREFERENCES, STABLE_CHANNELS, null, null))
+    const { result } = renderHook(() => useHomeFeed(PREFERENCES, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null))
     expect(result.current.status).toBe('loading')
 
     await act(async () => {
@@ -161,7 +162,7 @@ describe('useHomeFeed background refresh (stale-while-revalidate)', () => {
     getAllEventsMock.mockResolvedValueOnce([ninetyEvent({ status: 'live', home_score: 0, away_score: 0 })])
     const statuses: string[] = []
     const { result } = renderHook(() => {
-      const state = useHomeFeed(PREFERENCES, STABLE_CHANNELS, null, null)
+      const state = useHomeFeed(PREFERENCES, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null)
       statuses.push(state.status)
       return state
     })

@@ -15,6 +15,7 @@ import { resolveChannelIdentities } from './channelIdentityResolver'
 import { projectChannelIdentity } from './channelIdentityProjection'
 import type { SportEvent } from './types'
 import type { Channel } from '../channel'
+import { NO_XTREAM_CREDENTIALS, type XtreamCredentialResolver } from '../playlists/xtreamResolver'
 import type { XtreamCredentials } from '../xtream/types'
 import type { NinetyLogicalChannel } from './ninetyApiClient'
 
@@ -26,6 +27,17 @@ beforeEach(() => {
 })
 
 const CREDS: XtreamCredentials = { server: 'https://panel.example', username: 'u', password: 'p' }
+const PLAYLIST_A = 'pl-a'
+
+// Stand-in for what App builds from the real playlist library: credentials
+// are resolved PER SOURCE, from the playlist that source belongs to. A
+// source with no (or an unknown) playlistId resolves to null and is skipped
+// — which is exactly the behaviour that keeps one panel's numeric stream id
+// from ever being sent to a different panel.
+const XTREAM_A: XtreamCredentialResolver = {
+  forSource: (source) => (source?.playlistId === PLAYLIST_A ? CREDS : null),
+  hasAny: true,
+}
 
 function unmatchedEvent(): SportEvent {
   return {
@@ -48,20 +60,20 @@ function ppvChannel(): Channel {
     id: 'ch-1',
     name: 'PPV Sports Channel',
     groupTitle: 'PPV',
-    sources: [{ label: 'Default', url: 'http://example.com/live/u/p/123.ts' }],
+    sources: [{ label: 'Default', url: 'http://example.com/live/u/p/123.ts', playlistId: PLAYLIST_A }],
   }
 }
 
 describe('matchChannelsForEvent network fallback gating', () => {
   it('does not hit the EPG network fallback by default (home/live-row usage)', async () => {
-    const result = await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS, null)
+    const result = await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], XTREAM_A, null)
     expect(result.matches).toEqual([])
     expect(getShortEpgMock).not.toHaveBeenCalled()
   })
 
   it('only hits the EPG network fallback when explicitly allowed (Event Details usage)', async () => {
     getShortEpgMock.mockResolvedValue([])
-    await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], CREDS, null, { allowNetworkFallback: true })
+    await matchChannelsForEvent(unmatchedEvent(), [ppvChannel()], XTREAM_A, null, { allowNetworkFallback: true })
     expect(getShortEpgMock).toHaveBeenCalled()
   })
 
@@ -76,13 +88,13 @@ describe('matchChannelsForEvent network fallback gating', () => {
       id: `sport-${i}`,
       name: `Sport Channel ${i}`,
       groupTitle: 'Sport',
-      sources: [{ label: 'Default', url: `http://example.com/live/u/p/${i + 1}.ts` }],
+      sources: [{ label: 'Default', url: `http://example.com/live/u/p/${i + 1}.ts`, playlistId: PLAYLIST_A }],
     }))
     const widenedOnlyChannel: Channel = {
       id: 'ppv-only',
       name: 'PPV Widened Channel',
       groupTitle: 'PPV',
-      sources: [{ label: 'Default', url: 'http://example.com/live/u/p/999.ts' }],
+      sources: [{ label: 'Default', url: 'http://example.com/live/u/p/999.ts', playlistId: PLAYLIST_A }],
     }
 
     const normalStageEnd = { t: 0 }
@@ -97,11 +109,76 @@ describe('matchChannelsForEvent network fallback gating', () => {
       return []
     })
 
-    await matchChannelsForEvent(unmatchedEvent(), [...normalChannels, widenedOnlyChannel], CREDS, null, {
+    await matchChannelsForEvent(unmatchedEvent(), [...normalChannels, widenedOnlyChannel], XTREAM_A, null, {
       allowNetworkFallback: true,
     })
 
     expect(widenedStageStart).toBeGreaterThanOrEqual(normalStageEnd.t)
+  })
+})
+
+describe('matchChannelsForEvent with TWO Xtream playlists connected', () => {
+  // The failure this guards against is silent, not loud: Xtream stream ids
+  // are numeric and panel-local, so stream 123 exists on both panels.
+  // Sending playlist B's stream id to playlist A's panel returns A's
+  // programme for a completely unrelated channel — a wrong answer, not an
+  // error.
+  const CREDS_B: XtreamCredentials = { server: 'https://panel-b.example', username: 'ub', password: 'pb' }
+  const PLAYLIST_B = 'pl-b'
+  const XTREAM_BOTH: XtreamCredentialResolver = {
+    forSource: (source) =>
+      source?.playlistId === PLAYLIST_A ? CREDS : source?.playlistId === PLAYLIST_B ? CREDS_B : null,
+    hasAny: true,
+  }
+
+  function channelOn(playlistId: string, id: string): Channel {
+    return {
+      id,
+      name: `PPV Sports ${id}`,
+      groupTitle: 'PPV',
+      // Same numeric stream id on both panels, deliberately — that
+      // collision is the whole point. 555 rather than 123 only because
+      // epgGate.ts's cache is module-global and lives across tests in this
+      // file, so reusing an id an earlier test already probed would serve
+      // this one from cache and prove nothing.
+      sources: [{ label: 'Default', url: 'http://example.com/live/u/p/555.ts', playlistId }],
+    }
+  }
+
+  it('asks each panel only about its OWN streams', async () => {
+    getShortEpgMock.mockResolvedValue([])
+
+    await matchChannelsForEvent(unmatchedEvent(), [channelOn(PLAYLIST_A, 'a'), channelOn(PLAYLIST_B, 'b')], XTREAM_BOTH, null, {
+      allowNetworkFallback: true,
+    })
+
+    const pairs = getShortEpgMock.mock.calls.map(([creds, streamId]) => `${(creds as XtreamCredentials).server}#${streamId}`)
+    expect(pairs).toContain('https://panel.example#555')
+    expect(pairs).toContain('https://panel-b.example#555')
+    // Every call used one panel's own credentials; nothing was crossed.
+    for (const [creds] of getShortEpgMock.mock.calls) {
+      expect([CREDS.username, CREDS_B.username]).toContain((creds as XtreamCredentials).username)
+    }
+    expect(
+      getShortEpgMock.mock.calls.filter(([creds]) => {
+        const c = creds as XtreamCredentials
+        return (c.server === CREDS.server) !== (c.username === CREDS.username)
+      }),
+    ).toEqual([])
+  })
+
+  it('skips a channel whose playlist is not an Xtream one instead of borrowing another playlist’s credentials', async () => {
+    getShortEpgMock.mockResolvedValue([])
+    const m3uOnly: Channel = {
+      id: 'm3u',
+      name: 'PPV Sports M3U',
+      groupTitle: 'PPV',
+      sources: [{ label: 'Default', url: 'http://example.com/live/u/p/777.ts', playlistId: 'pl-m3u' }],
+    }
+
+    await matchChannelsForEvent(unmatchedEvent(), [m3uOnly], XTREAM_BOTH, null, { allowNetworkFallback: true })
+
+    expect(getShortEpgMock).not.toHaveBeenCalled()
   })
 })
 
@@ -313,7 +390,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     const index = buildIndex(catalog, playlist)
     const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches).toHaveLength(1)
     expect(result.matches[0]).toMatchObject({ channel: playlist[0], source: 'ninety', label: 'TNT Sports 1', isExactMatch: true, identityClassification: 'CONFIRMED' })
@@ -326,7 +403,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     expect(index.getResolution('gb_sky_sports_main_event')?.classification).toBe('STRONG') // sanity-check the fixture itself
     const event = eventWithBroadcasts([{ logicalChannelId: 'gb_sky_sports_main_event', name: 'Sky Sports Main Event', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches).toHaveLength(1)
     expect(result.matches[0]).toMatchObject({ channel: playlist[0], source: 'ninety', identityClassification: 'STRONG', isExactMatch: false })
@@ -349,7 +426,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     expect(index.getResolution('gb_tnt_sports_1')?.classification).toBe('NONE') // sanity-check the fixture
     const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches).toEqual([])
     expect(result.apiHasData).toBe(true)
@@ -365,7 +442,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     expect(index.getResolution('gb_tnt_sports_2')?.classification).toBe('AMBIGUOUS') // sanity-check the fixture
     const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_2', name: 'TNT Sports 2', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches).toEqual([])
     // Diagnostic info is retained (Part 10), not thrown away.
@@ -381,7 +458,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     const index = buildIndex(catalog, playlist)
     const event = eventWithBroadcasts([{ logicalChannelId: 'gb_bbc_one', name: 'BBC One', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches.map((m) => m.channel.id).sort()).toEqual(['p1', 'p2'])
     expect(result.matches.every((m) => m.source === 'ninety' && m.identityClassification === 'CONFIRMED')).toBe(true)
@@ -405,7 +482,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
       { logicalChannelId: 'gb_sky_sports_1_dup', name: 'Sky Sports Extra Feed', country: null, confidence: 1, classification: 'CONFIRMED' },
     ])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches).toHaveLength(1)
     expect(result.matches[0]).toMatchObject({ channel: playlist[0], identityClassification: 'CONFIRMED' })
@@ -417,7 +494,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     const index = buildIndex(catalog, playlist)
     const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches).toEqual([])
     expect(result.apiHasData).toBe(true)
@@ -433,7 +510,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
       { logicalChannelId: 'unknown_logical_channel', name: 'Some Other Station', country: 'FR', confidence: 1, classification: 'CONFIRMED' },
     ])
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.apiStations.map((s) => s.name)).toEqual(['TNT Sports 1', 'Some Other Station'])
     expect(result.apiStations.map((s) => s.country)).toEqual(['GB', 'FR'])
@@ -450,7 +527,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
       { homeTeam: 'Home', awayTeam: 'Away' },
     )
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches.map((m) => ({ id: m.channel.id, source: m.source })).sort((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: 'p1', source: 'ninety' },
@@ -469,7 +546,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
       leagueId: 'f1-generic',
     })
 
-    const result = await matchChannelsForEvent(event, playlist, null, index)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
 
     expect(result.matches.map((m) => ({ id: m.channel.id, source: m.source })).sort((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: 'p1', source: 'ninety' },
@@ -486,7 +563,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
       awayTeam: 'Away',
     })
 
-    const result = await matchChannelsForEvent(event, playlist, CREDS, index, { allowNetworkFallback: true })
+    const result = await matchChannelsForEvent(event, playlist, XTREAM_A, index, { allowNetworkFallback: true })
 
     expect(result.matches).toHaveLength(1)
     expect(result.matches[0].source).toBe('ninety')
@@ -497,7 +574,7 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
     const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
 
-    const result = await matchChannelsForEvent(event, playlist, null, null)
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, null)
 
     expect(result.matches).toEqual([])
     expect(result.apiHasData).toBe(true)

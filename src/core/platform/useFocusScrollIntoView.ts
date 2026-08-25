@@ -12,17 +12,25 @@ import { useEffect, type RefObject } from 'react'
 // the whole scroll container on every focus move, fighting a user who's
 // deliberately scrolled to look at something; 'nearest' only moves the
 // minimum needed to bring the target back into view.
+// `layoutKey` (optional) covers the case a focus-change-only effect cannot:
+// the focused element STAYS focused but the page around it changes height,
+// so it silently ends up outside the scroll viewport with no key press to
+// bring it back. Pass whatever state drives that reflow (an expanded/
+// collapsed flag, a list length) and the scroll is redone on that
+// transition too. Onboarding's More-leagues expander is the motivating
+// case — see OnboardingSportsScreen.
 export function useFocusScrollIntoView<E extends HTMLElement>(
   ref: RefObject<E>,
   focused: boolean,
   options: ScrollIntoViewOptions = { block: 'nearest' },
+  layoutKey?: unknown,
 ): void {
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView(options)
     // Deliberately omits `options`/`ref` from deps — callers pass a fresh
     // options object literal every render, and re-running this effect for
-    // that (rather than only for a real focused change) would be a no-op at
-    // best and a fight with in-flight smooth scrolling at worst.
+    // that (rather than only for a real focused/layout change) would be a
+    // no-op at best and a fight with in-flight smooth scrolling at worst.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focused])
+  }, [focused, layoutKey])
 }

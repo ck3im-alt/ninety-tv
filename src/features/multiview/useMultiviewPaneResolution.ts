@@ -15,13 +15,13 @@ import type { MultiviewSourceCandidate } from './multiviewCandidates'
 import type { MultiviewPane } from './multiviewSession'
 import type { SerialQueue } from '../../core/async/serialQueue'
 import type { Channel } from '../../data/channel'
-import type { XtreamCredentials } from '../../data/xtream/types'
+import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
 import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
 
 export function useMultiviewPaneResolution(
   pane: MultiviewPane,
   channels: Channel[],
-  xtreamCreds: XtreamCredentials | null,
+  xtream: XtreamCredentialResolver,
   identityIndex: ChannelIdentityIndex | null,
   favoriteChannels: ReadonlySet<string>,
   rankingPreferences: StreamRankingPreferences,
@@ -45,7 +45,7 @@ export function useMultiviewPaneResolution(
     async function resolve() {
       // Free/local stages only, first — safe to run for every pane
       // concurrently, same precedent as useHomeFeed's liveNow matching.
-      let { matches } = await matchChannelsForEvent(event, channels, xtreamCreds, identityIndex, { allowNetworkFallback: false })
+      let { matches } = await matchChannelsForEvent(event, channels, xtream, identityIndex, { allowNetworkFallback: false })
       if (matches.length === 0) {
         // Nothing free found anything — only NOW does this pane need the
         // Xtream EPG network stage, and only one such probe runs at a time
@@ -53,7 +53,7 @@ export function useMultiviewPaneResolution(
         // queue instance).
         try {
           const result = await networkFallbackQueue.run(() =>
-            matchChannelsForEvent(event, channels, xtreamCreds, identityIndex, { allowNetworkFallback: true }),
+            matchChannelsForEvent(event, channels, xtream, identityIndex, { allowNetworkFallback: true }),
           )
           matches = result.matches
         } catch {

@@ -55,11 +55,13 @@ export function AdminPanel({ channels, onClose }: Props) {
   function resetOnboarding() {
     clearAllAppStorage()
     // A full reload is the simplest reliable way back to a true "first
-    // launch" state. App.tsx always opens on Home for real users (Steg
-    // "Home always opens first"), so a plain reload alone would land back
-    // on Home, not onboarding — defeating the point of this button. The
-    // one-shot flag makes App.tsx's initial-screen state open straight to
-    // onboarding this one time instead.
+    // launch" state. Since the 2026-08-25 restructure App.tsx already opens
+    // onboarding when hasCompletedOnboarding() is false (see
+    // core/appScreens.ts's resolveInitialScreen), which clearAllAppStorage
+    // above has just made true — so the one-shot flag is now belt and
+    // braces rather than the only thing making this button work. Kept
+    // because it also makes the intent explicit and survives any future
+    // change to the default-screen rule.
     sessionStorage.setItem(DEBUG_FORCE_SCREEN_KEY, 'onboarding')
     window.location.reload()
   }

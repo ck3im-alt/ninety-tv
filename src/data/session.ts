@@ -1,8 +1,22 @@
-// Persisted "reconnect" state — the connected playlist and the Channels
-// filter selection. Lets the app skip straight back to Home/Channels on
-// reload instead of re-running setup/onboarding every time. Same
+// Persisted "reconnect" state — the LEGACY single-playlist record, plus the
+// Channels filter selection, favorites and recently-watched. Same
 // localStorage-is-enough reasoning as preferences.ts: single-device data,
 // nothing that needs to sync or survive a reinstall.
+//
+// SINCE MULTI-PLAYLIST (see data/playlists/): the connected playlist is no
+// longer stored here. data/playlists/playlistLibraryStore.ts owns the
+// library index and core/storage/idbPlaylistChannelStore.ts owns one channel
+// record per playlist. What remains of the old single-playlist
+// representation in this file — loadPlaylistSource/saveSource,
+// PLAYLIST_CHANNELS_SCHEMA_VERSION, removeLegacyPlaylistChannelsCache — is
+// kept for exactly one reason: the one-time migration in
+// data/playlists/playlistMigration.ts has to be able to READ what previous
+// versions of Ninety wrote. Nothing writes a new single-playlist record
+// anymore.
+//
+// PlaylistSourceRecord itself is NOT legacy: it's still the canonical
+// "how do we reconnect this" type, now held per playlist by
+// PlaylistDefinition.
 //
 // The playlist is split across two keys rather than one:
 //   - "source" (how to reconnect: Xtream creds, an M3U URL, or — for a
@@ -18,12 +32,12 @@
 // (tiny, essentially free) source record. For Xtream and M3U-URL sources
 // that source record is enough to automatically refetch and rebuild the
 // channel cache without asking the user to type anything again — see
-// hydratePlaylistState()'s 'recovering' case and src/data/playlistRecovery.ts,
-// which App.tsx drives on startup. A
+// hydratePlaylistLibrary()'s `needsRecovery` and src/data/playlistRecovery.ts,
+// which data/playlists/usePlaylistLibrary.ts drives on startup. A
 // file-upload source can't be auto-reacquired (we never keep the file's
 // contents around after the initial parse), so that case is reported
-// separately ('unrecoverable-file-source') and the UI asks the user to
-// re-add the file instead of pretending it can recover on its own.
+// separately (`unrecoverableFiles`) and the UI asks the user to re-add the
+// file instead of pretending it can recover on its own.
 //
 // The source and channel-cache records carry their own, independent
 // PLAYLIST_SOURCE_SCHEMA_VERSION / PLAYLIST_CHANNELS_SCHEMA_VERSION so a
@@ -46,14 +60,14 @@
 // panel / M3U host, not through our backend).
 
 import { readStored, writeStored } from '../core/storage/localStore'
-import { idbReadChannels, idbWriteChannels, idbClearChannels } from '../core/storage/idbChannelStore'
-import type { Channel } from './channel'
-import type { XtreamCredentials } from './xtream/types'
+import { idbClearChannels } from '../core/storage/idbChannelStore'
+import { clearAllPlaylistChannels } from '../core/storage/idbPlaylistChannelStore'
+import { clearPlaylistLibrary } from './playlists/playlistLibraryStore'
 
 const PLAYLIST_SOURCE_KEY = 'ninety.playlist.source'
 // The old (pre-IndexedDB) localStorage key for the full merged Channel[]
-// cache. Never read again — hydratePlaylistState() below reads exclusively
-// from IndexedDB now — but the constant is kept so
+// cache. Never read again — the playlist library reads exclusively from
+// IndexedDB now — but the constant is kept so
 // removeLegacyPlaylistChannelsCache() can explicitly delete any leftover
 // copy once the new architecture proves itself, rather than letting an
 // obsolete multi-MB JSON string sit in localStorage forever consuming
@@ -66,12 +80,11 @@ const FILTERS_KEY = 'ninety.channelFilters'
 // Independent of PLAYLIST_CHANNELS_SCHEMA_VERSION on purpose — see header.
 const PLAYLIST_SOURCE_SCHEMA_VERSION = 1
 
-// Bump when Channel's shape or the merge/normalization logic changes in a
-// way that makes previously-cached channels stale or invalid. Bumped to 2
-// when Channel gained epgChannelIds/rawNames (Channel Identity Resolver v2
-// Phase 1) — old cached entries lack those fields, so they're treated as
-// invalid and rebuilt via hydratePlaylistState()'s recovery path rather than
-// silently served without the new identity data.
+// The version previous (single-playlist) builds stamped their cached
+// Channel[] with. Read only by the one-time migration, which treats any
+// other value as "stale, refetch instead of carrying over". The
+// multi-playlist store has its own, independent
+// PLAYLIST_CHANNELS_RECORD_VERSION.
 export const PLAYLIST_CHANNELS_SCHEMA_VERSION = 2
 
 // How to reconnect a playlist without the user retyping anything, for the
@@ -93,7 +106,7 @@ export interface M3uUrlSourceRecord {
 }
 
 // No file contents here, ever — only enough to explain to the user what
-// needs reconnecting. See hydratePlaylistState()'s 'unrecoverable-file-source'
+// needs reconnecting. See hydratePlaylistLibrary()'s `unrecoverableFiles`
 // outcome: this source type is never auto-refetched.
 export interface FileSourceRecord {
   type: 'file'
@@ -107,9 +120,11 @@ interface StoredPlaylistSource {
   source: PlaylistSourceRecord
 }
 
-// The small, cheap half of playlist state — reconnect source only. Read/
-// written synchronously via localStorage, same as before; this never grew
-// large enough to need IndexedDB.
+// The legacy single-playlist source record. loadPlaylistSource is what the
+// one-time migration reads to carry a pre-existing install's playlist into
+// the library; saveSource no longer runs in production at all (nothing
+// writes a new single-playlist record) and is kept as its round-trip pair,
+// which is also what session.test.ts writes fixtures with.
 export function loadPlaylistSource(): PlaylistSourceRecord | null {
   const stored = readStored<StoredPlaylistSource | null>(PLAYLIST_SOURCE_KEY, null)
   return stored && stored.version === PLAYLIST_SOURCE_SCHEMA_VERSION ? stored.source : null
@@ -134,78 +149,18 @@ export function removeLegacyPlaylistChannelsCache(): void {
   }
 }
 
-// The four outcomes hydrating playlist state can land on:
-//   - ready: a valid IndexedDB channel cache exists — use it as-is, along
-//     with its generationId (see data/playlistGeneration.ts) and whatever
-//     source record was recorded alongside it.
-//   - recovering: the (large) channel cache is missing or stale-versioned,
-//     but the (small, essentially-never-fails) Xtream/M3U-URL source record
-//     survived — auto-recoverable via recoverChannelsFromSource.
-//   - unrecoverable-file-source: the only source on record is a file
-//     upload and there's no valid cache — nothing to auto-refetch from,
-//     the UI must ask the user to re-add the file.
-//   - no-source: nothing usable was ever persisted (or it's all been
-//     cleared) — normal first-run / post-reset state.
-export type PlaylistHydrationResult =
-  | { kind: 'ready'; channels: Channel[]; generationId: string; source: PlaylistSourceRecord | null }
-  | { kind: 'recovering'; source: XtreamSourceRecord | M3uUrlSourceRecord }
-  | { kind: 'unrecoverable-file-source'; source: FileSourceRecord }
-  | { kind: 'no-source' }
-
-// Async — reads the (small) source record synchronously from localStorage
-// and the (large) channel cache from IndexedDB, never blocking the main
-// thread on a multi-MB JSON.parse the way the old synchronous
-// loadPlaylistState() did. Called once from App.tsx's bootstrap effect,
-// post-mount, never at module load — Home can paint and accept input before
-// this resolves.
-export async function hydratePlaylistState(): Promise<PlaylistHydrationResult> {
-  const source = loadPlaylistSource()
-  const cached = await idbReadChannels()
-  const cacheValid = cached != null && cached.version === PLAYLIST_CHANNELS_SCHEMA_VERSION
-
-  if (cacheValid) {
-    return { kind: 'ready', channels: cached.channels, generationId: cached.generationId, source }
-  }
-  if (!source) {
-    return { kind: 'no-source' }
-  }
-  if (source.type === 'file') {
-    return { kind: 'unrecoverable-file-source', source }
-  }
-  return { kind: 'recovering', source }
-}
-
-// Backward/simple-compatible helper for call sites that only care about
-// "do we have a usable, connected-EPG-capable Xtream session right now" —
-// EPG (get_short_epg) only exists on the Xtream JSON API, so a plain M3U
-// or file source never has one.
-export function xtreamCredsFromSource(source: PlaylistSourceRecord | null): XtreamCredentials | null {
-  if (!source || source.type !== 'xtream') return null
-  return { server: source.server, username: source.username, password: source.password }
-}
-
-// Writes the (large, quota-risky) channel cache to IndexedDB — structured
-// clone, no JSON.stringify pass over the whole array. Called from exactly
-// one place (App.tsx's playlist-persistence effect) so a fresh
-// connect/recovery performs exactly one large write, never two — see that
-// effect's own comments for why the write must not also happen inline in
-// the recovery path.
-export function savePlaylistChannels(channels: Channel[], generationId: string): Promise<boolean> {
-  return idbWriteChannels({ version: PLAYLIST_CHANNELS_SCHEMA_VERSION, generationId, channels })
-}
-
-// Clears the connected playlist (source + cached channel list) — not
-// onboarding, preferences, or the Channels filter selection. Needed because
-// the merge (country-prefix stripping, quality-tag collapsing — see
-// mergeChannels.ts) runs once at connect time and is cached; a
-// normalization fix landing later (e.g. recognizing a new country-code
-// prefix) has no effect on an already-cached playlist until it's re-fetched
-// and re-merged. The full "Reset onboarding & preferences" admin action
-// already covers this as a side effect of wiping everything, but that's a
-// bigger hammer than this specific, common need.
+// Clears every connected playlist — the library index, every playlist's
+// cached channels, the legacy single-playlist record, and the one-time
+// migration marker. Leaves onboarding, preferences, and the Channels filter
+// selection alone. Needed because the merge (country-prefix stripping,
+// quality-tag collapsing — see mergeChannels.ts) runs once at connect time
+// and is cached; a normalization fix landing later (e.g. recognizing a new
+// country-code prefix) has no effect on an already-cached playlist until
+// it's re-fetched and re-merged. Settings' own per-playlist Resync is the
+// user-facing version of this; the dev AdminPanel keeps the blunt one.
 //
 // IndexedDB is cleared FIRST, and only removes the localStorage source/
-// legacy keys once that's confirmed complete — a failed IndexedDB delete
+// library/legacy keys once that's confirmed complete — a failed IndexedDB delete
 // must not partially destroy playlist state (i.e. never end up with the
 // source record gone but the large channel cache still sitting in
 // IndexedDB with nothing pointing away from it). Returns whether the clear
@@ -214,7 +169,8 @@ export function savePlaylistChannels(channels: Channel[], generationId: string):
 // silently reappear on the next hydration.
 export async function clearPlaylist(): Promise<boolean> {
   const channelsCleared = await idbClearChannels()
-  if (!channelsCleared) return false
+  const libraryChannelsCleared = await clearAllPlaylistChannels()
+  if (!channelsCleared || !libraryChannelsCleared) return false
   let sourceOk = true
   try {
     localStorage.removeItem(PLAYLIST_SOURCE_KEY)
@@ -222,6 +178,11 @@ export async function clearPlaylist(): Promise<boolean> {
     sourceOk = false
   }
   removeLegacyPlaylistChannelsCache()
+  // Clearing the migration marker alongside the library is only correct
+  // HERE: this action deliberately restores the "nothing connected" state,
+  // and the legacy source record it just removed means a re-run of the
+  // migration would find nothing to resurrect.
+  if (!clearPlaylistLibrary()) sourceOk = false
   return sourceOk
 }
 

@@ -32,7 +32,7 @@ import {
 import type { ChannelIdentityIndex } from './channelIdentityIndex'
 import type { IdentityClassification } from './channelIdentityResolver'
 import type { Channel } from '../channel'
-import type { XtreamCredentials } from '../xtream/types'
+import { firstXtreamSource, type XtreamCredentialResolver } from '../playlists/xtreamResolver'
 import type { SportEvent } from './types'
 
 // How far a candidate fixture/EPG listing's time may drift from the
@@ -246,9 +246,9 @@ function matchViaPpvChannelName(event: SportEvent, channels: Channel[]): Channel
 // least look sport-related are worth checking at all.
 const MAX_EPG_CANDIDATE_CHANNELS = 40
 
-async function matchViaEpg(event: SportEvent, channels: Channel[], xtreamCreds: XtreamCredentials | null, signal?: AbortSignal): Promise<ChannelMatch[]> {
-  if (!xtreamCreds) {
-    console.log('[channelMatch] EPG fallback skipped: no Xtream credentials (plain M3U playlist)')
+async function matchViaEpg(event: SportEvent, channels: Channel[], xtream: XtreamCredentialResolver, signal?: AbortSignal): Promise<ChannelMatch[]> {
+  if (!xtream.hasAny) {
+    console.log('[channelMatch] EPG fallback skipped: no Xtream playlist connected (plain M3U/file playlists have no EPG API)')
     return []
   }
   if (!event.homeTeam || !event.awayTeam || !event.dateTimeUtc) return []
@@ -267,11 +267,14 @@ async function matchViaEpg(event: SportEvent, channels: Channel[], xtreamCreds: 
   const results = await Promise.allSettled(
     candidates.map(async (channel) => {
       if (signal?.aborted) return null
-      const source = channel.sources[0]
-      const streamId = source ? extractStreamId(source.url) : null
-      if (streamId === null) return null
+      // Per-source credentials: the same numeric stream id exists on every
+      // Xtream panel, so asking playlist A's panel about playlist B's stream
+      // id doesn't fail — it silently returns A's schedule for an unrelated
+      // channel. See data/playlists/xtreamResolver.
+      const target = firstXtreamSource(channel, xtream, extractStreamId)
+      if (!target) return null
 
-      const listings = await getShortEpgLimited(xtreamCreds, streamId, 4, signal)
+      const listings = await getShortEpgLimited(target.creds, target.streamId, 4, signal)
       const hit = listings.find((listing) => {
         const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
         if (!withinWindow) return false
@@ -315,8 +318,8 @@ function significantWordSet(text: string): Set<string> {
 // deliberately weaker signal than the other two stages — it exists to
 // surface a plausible guess when nothing better is available, not to be
 // as trustworthy as a real broadcaster mapping.
-async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtreamCreds: XtreamCredentials | null, signal?: AbortSignal): Promise<ChannelMatch[]> {
-  if (!xtreamCreds) return []
+async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtream: XtreamCredentialResolver, signal?: AbortSignal): Promise<ChannelMatch[]> {
+  if (!xtream.hasAny) return []
   if (!event.homeTeam || !event.awayTeam || !event.dateTimeUtc) return []
 
   const kickoff = new Date(event.dateTimeUtc).getTime()
@@ -327,11 +330,14 @@ async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtreamC
   const results = await Promise.allSettled(
     candidates.map(async (channel) => {
       if (signal?.aborted) return null
-      const source = channel.sources[0]
-      const streamId = source ? extractStreamId(source.url) : null
-      if (streamId === null) return null
+      // Per-source credentials: the same numeric stream id exists on every
+      // Xtream panel, so asking playlist A's panel about playlist B's stream
+      // id doesn't fail — it silently returns A's schedule for an unrelated
+      // channel. See data/playlists/xtreamResolver.
+      const target = firstXtreamSource(channel, xtream, extractStreamId)
+      if (!target) return null
 
-      const listings = await getShortEpgLimited(xtreamCreds, streamId, 4, signal)
+      const listings = await getShortEpgLimited(target.creds, target.streamId, 4, signal)
       const hit = listings.find((listing) => {
         const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
         if (!withinWindow) return false
@@ -410,7 +416,10 @@ export interface MatchChannelsOptions {
 export async function matchChannelsForEvent(
   event: SportEvent,
   channels: Channel[],
-  xtreamCreds: XtreamCredentials | null,
+  // Resolves each candidate STREAM to the Xtream account that actually
+  // serves it. With more than one connected playlist there is no single
+  // app-wide credential to use here — see data/playlists/xtreamResolver.
+  xtream: XtreamCredentialResolver,
   // Precomputed once per (catalog version, playlist) pair by
   // useChannelIdentityIndex.ts and reused across every event — never build
   // one of these per call. null means no channel catalog was available
@@ -428,9 +437,9 @@ export async function matchChannelsForEvent(
   const freeMatches = dedupeByChannel([...ninetyMatches, ...broadcasterMapMatches, ...ppvNameMatches])
   if (freeMatches.length > 0 || !allowNetworkFallback) return { matches: freeMatches, apiHasData, apiStations }
 
-  const epgMatches = await matchViaEpg(event, channels, xtreamCreds, signal)
+  const epgMatches = await matchViaEpg(event, channels, xtream, signal)
   if (epgMatches.length > 0) return { matches: epgMatches, apiHasData, apiStations }
 
-  const widenedMatches = await matchViaEpgAllPpv(event, channels, xtreamCreds, signal)
+  const widenedMatches = await matchViaEpgAllPpv(event, channels, xtream, signal)
   return { matches: widenedMatches, apiHasData, apiStations }
 }

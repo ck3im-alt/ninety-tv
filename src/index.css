@@ -65,8 +65,8 @@ code {
   color: var(--text-primary);
 }
 
-/* Plain-language notice shown when the connected playlist's large channel
-   cache failed to save (or auto-reconnect failed) — see App.tsx. Never
+/* Plain-language notice shown when a playlist's large channel cache failed
+   to save (or auto-reconnect failed) — see App.tsx. Never
    describes storage/quota internals; just says the session still works
    and reconnecting may be needed later. */
 .playlist-persistence-toast {

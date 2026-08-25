@@ -1,7 +1,15 @@
+/* Three-step progress indicator, top-right of every onboarding step.
+   Connector lines were dropped with the two-column layout: at three steps
+   with real labels the row is already wide, and the numbered pills read
+   more clearly without rules running between them. */
+
 .onboarding-stepper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-8);
 }
 
 .stepper-item {
@@ -11,8 +19,8 @@
 }
 
 .stepper-circle {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: 1.5px solid var(--border);
   color: var(--text-muted);
@@ -24,15 +32,23 @@
   box-sizing: border-box;
 }
 
-.stepper-circle.done,
+/* Active: green outline + green numeral, the one thing in the top bar
+   carrying accent. Completed: a filled check, subdued rather than a second
+   competing highlight. */
 .stepper-circle.active {
   border-color: var(--accent);
   color: var(--accent);
 }
 
+.stepper-circle.done {
+  border-color: var(--accent-dark);
+  background: var(--accent-dark);
+  color: var(--accent);
+}
+
 .stepper-circle.done svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
 }
 
 .stepper-label {
@@ -46,25 +62,6 @@
 }
 
 .stepper-label.active {
-  color: var(--text-primary);
+  color: var(--accent);
   font-weight: var(--weight-medium);
-}
-
-.stepper-line {
-  width: 56px;
-  height: 1px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-
-.stepper-line.done {
-  background: var(--accent);
-}
-
-.onboarding-topbar {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-8);
 }

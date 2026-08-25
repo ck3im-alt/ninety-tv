@@ -77,6 +77,23 @@ export function withCountryToggled(selected: readonly string[], name: string): s
   return [...selected, name]
 }
 
+// Promotes an ALREADY-SELECTED country to primary (index 0), preserving the
+// relative order of everything else.
+//
+// Onboarding can reasonably leave "first selected wins" as the only way to
+// set a primary — you're choosing the list for the first time there. In
+// Settings that rule is hostile: changing which of your five countries ranks
+// highest would mean deselecting and reselecting several of them in the
+// right order, and getting the order wrong silently changes stream ranking.
+//
+// A no-op for a country that isn't selected (nothing to promote) and for one
+// that is already primary — so a caller can wire it to a button that's
+// always mounted without special-casing either.
+export function withPrimaryCountry(selected: readonly string[], name: string): string[] {
+  if (!selected.includes(name)) return [...selected]
+  return [name, ...selected.filter((c) => c !== name)]
+}
+
 // One-time migration: preferences saved before 2026-08-20 stored football
 // league selections as TheSportsDB ids (the only id space that existed
 // then, back when ninety-tv hardcoded its own competition catalog). Now

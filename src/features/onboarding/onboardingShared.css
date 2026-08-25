@@ -1,26 +1,56 @@
-/* Shared across all onboarding steps (Sports & Leagues, Countries,
-   You're all set) — layout skeleton, left info panel, and the generic
-   selectable-card grid look. Step-specific grids/sections live in each
-   step's own stylesheet. */
+/* Shared skeleton + vocabulary for the three first-run onboarding steps
+   (Playlist, Sports & leagues, Countries) and, for the card/section rules
+   only, Settings — which edits the same preference data and deliberately
+   looks like onboarding.
+
+   LAYOUT: full-width vertical TV page. The old two-column skeleton (a fixed
+   560px left information column beside the picker, with a vertical divider
+   and a per-step marketing feature list) was removed in the 2026-08-25
+   onboarding restructure — headline and description now sit above the
+   content and every step uses the whole 1920px canvas:
+
+       NINETY                                      1 2 3 stepper
+       Page headline
+       One short explanatory sentence
+       [ full-width content area                                ]
+       secondary actions                            primary action
+
+   Fixed 1920x1080, dark-only, remote-driven — see src/index.css. */
 
 .onboarding-screen {
   width: 1920px;
   height: 1080px;
   box-sizing: border-box;
   padding: var(--space-12) var(--space-24);
-  display: grid;
-  grid-template-columns: 560px 1fr;
-  grid-template-rows: auto 1fr;
-  gap: 0 var(--space-24);
-  /* stretch (not start): the right panel needs the full row height to
-     center content in when a step has less to show than others. */
-  align-items: stretch;
-}
-
-.onboarding-info {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+}
+
+/* Standalone playlist reconnect (App.tsx's `setup` screen) renders BENEATH
+   TopNav rather than replacing it, so the page has one nav bar less height
+   to work with than a full-screen onboarding step does. */
+.onboarding-screen.standalone {
+  height: calc(1080px - var(--topnav-height));
+  padding-top: var(--space-8);
+}
+
+/* One nav bar's worth of height less to work with — tighten the chrome
+   rather than pushing the same content into a scroll. */
+.onboarding-screen.standalone .onboarding-topbar,
+.onboarding-screen.standalone .onboarding-heading {
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-screen.standalone .onboarding-headline {
+  font-size: 44px;
+}
+
+.onboarding-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-10);
 }
 
 .onboarding-logo {
@@ -30,11 +60,17 @@
   color: var(--text-primary);
 }
 
+.onboarding-heading {
+  flex-shrink: 0;
+  margin-bottom: var(--space-8);
+}
+
 .onboarding-headline {
   font-size: var(--font-display-lg);
   font-weight: var(--weight-light);
-  line-height: 1.15;
-  margin: var(--space-8) 0 0;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  margin: 0;
 }
 
 .onboarding-headline .accent {
@@ -45,95 +81,123 @@
   color: var(--text-secondary);
   font-size: var(--font-body);
   line-height: 1.5;
-  max-width: 420px;
-  margin: 0;
+  /* Wide layout, but a full 1728px measure would be unreadable from a
+     sofa — one short sentence should never wrap more than once. */
+  max-width: 900px;
+  margin: var(--space-3) 0 0;
 }
 
-.onboarding-features {
-  list-style: none;
-  margin: var(--space-4) 0 0;
-  padding: 0;
+/* ---- Dense variant (onboarding step 2) ----
+
+   Step 2 has the most to fit inside the same 1080px as every other step:
+   the sports row, a full row of recommended leagues, the "Browse all
+   leagues" control, an entire master/detail browser panel AND the footer.
+   Rather than let the browser push the footer off screen, this variant
+   tightens the shared chrome's vertical rhythm — smaller headline, smaller
+   margins between the fixed blocks — which buys the panel ~90px without
+   touching type sizes that matter for sofa readability. */
+
+.onboarding-screen.dense .onboarding-topbar,
+.onboarding-screen.dense .onboarding-heading {
+  margin-bottom: var(--space-4);
+}
+
+.onboarding-screen.dense .onboarding-headline {
+  font-size: 40px;
+}
+
+.onboarding-screen.dense .onboarding-body {
+  gap: var(--space-4);
+}
+
+.onboarding-screen.dense .onboarding-section {
+  gap: var(--space-3);
+}
+
+.onboarding-screen.dense .onboarding-footer {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+}
+
+/* The one scroll owner on every step. Only expanded "see all" content is
+   ever tall enough to actually scroll; each step's default state fits. */
+.onboarding-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
 }
 
-.onboarding-features li {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
+/* Centres the content in whatever height is left over, without the
+   scroll-clipping that `justify-content: center` causes: these spacers are
+   flex-shrinkable to nothing, so the moment the content is taller than the
+   box they collapse and it scrolls from the top as normal. Matters because
+   the three steps have very different content heights (step 1 fills the
+   page; steps 2 and 3 use about half of it) and top-aligning all of them
+   left a dead band above the footer on two screens out of three. */
+.onboarding-body::before,
+.onboarding-body::after {
+  content: '';
+  flex: 1 1 0;
+  min-height: 0;
 }
 
-.onboarding-features svg {
-  width: 20px;
-  height: 20px;
+/* Real content never shrinks — only the spacers above do. */
+.onboarding-body > * {
   flex-shrink: 0;
-  color: var(--accent);
-  margin-top: 2px;
 }
 
-.feature-title {
-  color: var(--text-primary);
-  font-size: var(--font-body);
-  font-weight: var(--weight-medium);
-  margin: 0;
+/* ---- Panel mode (step 2's open league browser) ----
+
+   THE RULE THAT KEEPS THE PAGE ONE SCREEN TALL. Opening the browser used to
+   append ~19 headings and 42 cards to this scroll container, taking its
+   content from about one screen to several. Now the last child is a panel
+   that takes exactly the height left over and manages its own insides, so
+   this container's content height still equals its box height and the page
+   never scrolls at all.
+
+   The centring spacers are switched off first: they and the panel would
+   otherwise all be flex-growers competing for the same free space, and the
+   panel would get a third of it. */
+.onboarding-body.browsing::before,
+.onboarding-body.browsing::after {
+  flex: 0 0 0;
 }
 
-.feature-desc {
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
-  margin: var(--space-1) 0 0;
-  line-height: 1.4;
+/* Overrides the flex-shrink: 0 above — this is the ONE child that is meant
+   to be sized by what is left rather than by its contents. The min-height
+   is a floor for an unusually short viewport: better a slightly clipped
+   panel than one collapsed to nothing. */
+.onboarding-body.browsing > .league-browser {
+  flex: 1 1 0;
+  min-height: 240px;
 }
 
-.onboarding-footer-actions {
-  margin-top: auto;
+.onboarding-footer {
+  flex-shrink: 0;
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.onboarding-footer-group {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.skip-button,
-.back-button {
-  font: inherit;
-  height: 56px;
-  padding: 0 var(--space-6);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  font-size: var(--font-body);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
+/* ---- Section headers inside the content area ---- */
 
-.skip-button.focused,
-.back-button.focused {
-  border-color: var(--border-focus);
-  background: var(--surface-focus);
-}
-
-.back-button svg {
-  width: 16px;
-  height: 16px;
-}
-
-.onboarding-picker {
+.onboarding-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  height: 100%;
-  box-sizing: border-box;
-  /* The football league grid grew from 8 to 51 entries (2026-08-20's
-     50-competition expansion) -- at 6 columns that's ~9 rows, well past
-     the fixed 1080px TV canvas. Without this the bottom of the grid (and
-     the Continue button) would be unreachable by remote. Left/Back and the
-     info panel live in the sibling 560px column (see .onboarding-screen's
-     grid-template-columns), so scrolling this column alone doesn't affect
-     them. */
-  overflow-y: auto;
 }
 
 .picker-section-title {
@@ -141,7 +205,28 @@
   font-size: var(--font-meta);
   font-weight: var(--weight-medium);
   letter-spacing: 1px;
+  text-transform: uppercase;
   margin: 0;
+}
+
+.picker-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* "N/5" selection counter next to a section title — communicates the
+   MAX_PREFERRED_COUNTRIES cap passively, so a toggle that no-ops at the
+   limit is understandable without a modal/toast. Shared by the onboarding
+   Countries step and Settings' countries grid. */
+.picker-section-counter {
+  margin-left: var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 /* Shown while the football competition catalog (GET /v1/competitions) is
@@ -152,27 +237,7 @@
   margin: 0;
 }
 
-.picker-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.picker-section-header .picker-section-title {
-  /* Countries step: a real heading with Select/Deselect-all actions
-     alongside it, not the small muted caps label the Sports step uses. */
-  color: var(--text-primary);
-  font-size: var(--font-section);
-  font-weight: var(--weight-regular);
-  letter-spacing: normal;
-}
-
-.picker-section-actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
+/* Small bordered action used inside Settings' section headers. */
 .picker-section-action {
   font: inherit;
   height: 40px;
@@ -190,15 +255,7 @@
   background: var(--surface-focus);
 }
 
-.picker-section-action.primary {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.picker-section-action.primary.focused {
-  background: var(--accent);
-  color: #061006;
-}
+/* ---- Selectable card (sports, leagues, countries — and Settings) ---- */
 
 .pick-card {
   position: relative;
@@ -217,8 +274,13 @@
   transition: border-color var(--motion-duration) var(--motion-ease), background var(--motion-duration) var(--motion-ease);
 }
 
+/* Selected reads as a quiet, tinted state; only the checkbox is actually
+   green. Filling every selected card with accent would leave a wall of
+   green on a screen where eight cards are picked by default, and would
+   stop focus from being the loudest thing on screen. */
 .pick-card.selected {
-  border-color: var(--border-focus);
+  border-color: #33513a;
+  background: var(--surface-elevated);
 }
 
 .pick-card.focused {
@@ -266,36 +328,116 @@
   object-fit: contain;
 }
 
+/* Country flags — round, on a surface so a flag with white in it still
+   reads as a disc. (Lives here rather than in the Countries step's own
+   stylesheet because Settings' countries grid uses the same markup and
+   only imports this file.) */
+.pick-card-icon.round {
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-elevated);
+}
+
 .pick-card-icon.round img {
   border-radius: 999px;
+  object-fit: cover;
 }
 
 .pick-card-label {
   color: var(--text-primary);
   font-size: var(--font-meta);
   text-align: center;
+  line-height: 1.25;
 }
 
 .pick-card-sublabel {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 14px;
   text-align: center;
   margin-top: calc(var(--space-1) * -1);
 }
 
-.continue-button-hitbox {
-  /* Full-width focus target so norigin's Down-navigation reaches it from
-     every column of the grid above — see the comment at its usage site.
-     The button inside keeps its own align-self/margin-top, so screens that
-     use .continue-button directly (no wrapper) are unaffected. */
+/* First-selected country's badge — replaces its "N channels" sublabel. */
+.pick-card-primary {
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+/* ---- Full-width "See all / Show less" expander ---- */
+
+/* Full-width on purpose: norigin's directional search only treats two
+   elements as adjacent when they overlap by >=20%, so a narrow, aligned
+   button would be unreachable with Down from most columns of the grid
+   above it. Spanning the row makes it reachable from every column, and
+   makes it the single, predictable stop between the grid and the footer. */
+.onboarding-expander {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  height: 56px;
+  flex-shrink: 0;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  cursor: pointer;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.onboarding-screen.dense .onboarding-expander {
+  height: 48px;
+}
+
+.onboarding-expander.focused {
+  border-style: solid;
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+  color: var(--text-primary);
+}
+
+.onboarding-expander svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Footer buttons ---- */
+
+/* .back-button is also used by Settings (which imports this file for the
+   shared onboarding look) — keep the selector name. */
+.skip-button,
+.back-button {
+  font: inherit;
+  height: 56px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.skip-button.focused,
+.back-button.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+}
+
+.back-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .continue-button {
   font: inherit;
-  align-self: flex-end;
-  margin-top: var(--space-6);
   height: 64px;
   padding: 0 var(--space-8);
   border: none;
@@ -316,27 +458,11 @@
 }
 
 .continue-button.focused {
-  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--border-focus);
+  box-shadow: 0 0 0 3px var(--bg-primary), 0 0 0 5px var(--border-focus);
 }
 
 .continue-button:disabled {
-  opacity: 0.5;
+  background: var(--surface-elevated);
+  color: var(--text-disabled);
   cursor: not-allowed;
-}
-
-/* "N/5" selection counter next to a section title — communicates the
-   MAX_PREFERRED_COUNTRIES cap passively, so a toggle that no-ops at the
-   limit is understandable without a modal/toast. Shared by the onboarding
-   Countries step and Settings' countries grid. */
-.picker-section-counter {
-  margin-left: var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
-  font-weight: var(--weight-regular);
-}
-
-/* First-selected country's badge — replaces its "N channels" sublabel. */
-.pick-card-primary {
-  color: var(--accent);
-  font-weight: var(--weight-medium);
 }

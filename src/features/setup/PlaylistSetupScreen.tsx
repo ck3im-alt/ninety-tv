@@ -1,67 +1,76 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { parseM3u } from '../../data/m3u/parseM3u'
-import { parseXtreamPlaylistUrl } from '../../data/xtream/xtreamClient'
-import { recoverChannelsFromSource } from '../../data/playlistRecovery'
-import { mergeChannelSources } from '../channels/mergeChannels'
+import { buildXtreamUrl, loadChannelsForSource, loadChannelsFromFile, sourceFromUrl } from '../../data/playlists/connectPlaylist'
 import { useFocusScrollIntoView, useSpatialTextInput } from '../../core/platform'
 import { OnboardingTopBar } from '../onboarding/OnboardingStepper'
-import { ArrowRightIcon } from '../onboarding/sportIcons'
+import {
+  ONBOARDING_PRIMARY_FOCUS_KEY,
+  ONBOARDING_SECONDARY_FOCUS_KEY,
+  OnboardingFooter,
+} from '../onboarding/OnboardingActions'
 import { QrCode } from './QrCode'
 import { usePairingSession, ackPairing } from './usePairingSession'
 import type { Channel } from '../../data/channel'
-import type { M3uUrlSourceRecord, PlaylistSourceRecord, XtreamSourceRecord } from '../../data/session'
+import type { PlaylistSourceRecord } from '../../data/session'
 import '../onboarding/onboardingShared.css'
 import './PlaylistSetupScreen.css'
 
 const ROOT_FOCUS_KEY = 'setup-screen'
 const URL_FOCUS_KEY = 'setup-url'
-const STREAM_CODE_TOGGLE_FOCUS_KEY = 'setup-stream-code-toggle'
+const FILE_FOCUS_KEY = 'setup-file'
+const SERVER_FOCUS_KEY = 'setup-server'
+const PASSWORD_FOCUS_KEY = 'setup-password'
+const QR_RETRY_FOCUS_KEY = 'setup-qr-retry'
 
 type LoadState = { status: 'idle' | 'loading' | 'error'; message?: string }
+
+// Which manual method Continue will actually use. Explicit state rather
+// than "whichever field happens to be non-empty": with an M3U URL typed AND
+// provider credentials filled in, an implicit rule has to silently pick one,
+// and the user has no way to tell which. The active method is simply the
+// last one the user touched — pressing Enter on a field (which is also what
+// opens Tizen's keyboard) or typing in it selects that method — and the
+// panel border shows which one is armed.
+type ConnectMode = 'url' | 'xtream'
 
 interface Props {
   // Always the concrete source the user just connected — Xtream creds, the
   // M3U URL, or (file uploads) just enough metadata to explain a reconnect
-  // is needed later. Callers persist this via session.ts's savePlaylist so
-  // a future reload can auto-recover Xtream/M3U-URL sources even if the
+  // is needed later. Callers persist this via session.ts's saveSource so a
+  // future reload can auto-recover Xtream/M3U-URL sources even if the
   // (large) channel cache fails to write — see playlistRecovery.ts.
   onLoaded: (channels: Channel[], source: PlaylistSourceRecord) => void
-  // Set when this screen is embedded as onboarding's first step (see
-  // OnboardingFlow) — shows the shared stepper instead of just the plain
-  // logo, and there's no Back target since it's the very first step.
-  stepperCurrent?: number
+  // 'onboarding': step 1 of the first-run wizard — shows the three-step
+  // stepper and a "Skip setup" action, and replaces the whole screen (no
+  // TopNav above it).
+  // 'standalone' (default): App.tsx's `setup` screen, reached from Settings
+  // or from a failed auto-reconnect. Renders BELOW TopNav, has no stepper,
+  // and deliberately offers no Skip — there is nothing to skip to, and a
+  // user reconnecting a playlist must never be dropped back into the
+  // first-run wizard.
+  variant?: 'onboarding' | 'standalone'
+  // Onboarding only: continue without connecting anything.
+  onSkip?: () => void
   // Shown when this screen is being used to reconnect a playlist that
   // couldn't be auto-recovered (a file-upload source with no valid cache)
   // rather than as a first-time connect — see App.tsx's startup recovery.
   notice?: string
 }
 
-// Xtream Codes / Xtream UI panels (the most common IPTV panel software)
-// hand out a "get.php" M3U export URL, but also expose a much richer JSON
-// API (player_api.php: categories, live streams, VOD, series, EPG) at the
-// same server/credentials. Prefer that when we recognize the URL shape;
-// otherwise treat it as a plain M3U URL.
-function sourceFromUrl(url: string): XtreamSourceRecord | M3uUrlSourceRecord {
-  const xtreamCreds = parseXtreamPlaylistUrl(url)
-  if (xtreamCreds) return { type: 'xtream', ...xtreamCreds }
-  return { type: 'm3u-url', url }
-}
+// sourceFromUrl / buildXtreamUrl / loadChannelsForSource /
+// loadChannelsFromFile all live in data/playlists/connectPlaylist.ts now.
+// They used to be private to this screen, which meant Settings' own
+// add/edit-playlist flow would have had to reimplement "what an Xtream URL
+// looks like" and "what counts as a valid playlist" a second time. One
+// definition, two surfaces.
 
-// Same shape parseXtreamPlaylistUrl recognizes — building it from the
-// stream-code fields lets the rest of the connect path (loadFromUrl) stay
-// exactly one code path regardless of which form the user filled in.
-function buildXtreamUrl(server: string, username: string, password: string): string {
-  const base = server.trim().replace(/\/+$/, '')
-  return `${base}/get.php?username=${encodeURIComponent(username.trim())}&password=${encodeURIComponent(password.trim())}&type=m3u_plus&output=ts`
-}
-
-export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props) {
+export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, notice }: Props) {
+  const isOnboarding = variant === 'onboarding'
   const [urlValue, setUrlValue] = useState('')
-  const [streamCodeOpen, setStreamCodeOpen] = useState(false)
   const [server, setServer] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [mode, setMode] = useState<ConnectMode>('url')
   const [state, setState] = useState<LoadState>({ status: 'idle' })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
@@ -78,9 +87,7 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
     setState({ status: 'loading' })
     try {
       const source = sourceFromUrl(url.trim())
-      const channels = await recoverChannelsFromSource(source)
-      if (channels.length === 0) throw new Error('No channels found in playlist')
-      onLoaded(channels, source)
+      onLoaded(await loadChannelsForSource(source), source)
       return true
     } catch (err) {
       setState({
@@ -97,6 +104,10 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
   // connect() has actually succeeded; a failed connect leaves the session
   // untouched so the phone page's "Playlist sent" message isn't a lie and
   // the user can fix a bad URL and resubmit within the same ~10 min window.
+  //
+  // Independent of `mode`: the phone submitting a playlist is an explicit
+  // action of its own, so it auto-submits regardless of which manual method
+  // happens to be armed.
   const pairing = usePairingSession(async (m3uUrl, pollSecret) => {
     const ok = await connect(m3uUrl)
     if (ok) await ackPairing(pollSecret)
@@ -108,9 +119,8 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
     if (!file) return
     setState({ status: 'loading' })
     try {
-      const raw = parseM3u(await file.text())
-      if (raw.length === 0) throw new Error('No channels found in playlist')
-      onLoaded(mergeChannelSources(raw), { type: 'file', fileName: file.name })
+      const { channels, source } = await loadChannelsFromFile(file)
+      onLoaded(channels, source)
     } catch (err) {
       setState({
         status: 'error',
@@ -119,15 +129,38 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
     }
   }
 
+  const xtreamComplete = Boolean(server.trim() && username.trim() && password.trim())
+  const urlComplete = Boolean(urlValue.trim())
+  const canContinue = state.status !== 'loading' && (mode === 'xtream' ? xtreamComplete : urlComplete)
+
   function handleContinue() {
-    if (streamCodeOpen && server && username && password) {
-      void connect(buildXtreamUrl(server, username, password))
-    } else {
-      void connect(urlValue)
-    }
+    if (!canContinue) return
+    if (mode === 'xtream') void connect(buildXtreamUrl(server, username, password))
+    else void connect(urlValue)
   }
 
-  const canContinue = state.status !== 'loading' && (streamCodeOpen ? Boolean(server && username && password) : Boolean(urlValue.trim()))
+  // Where Up out of the form's top row goes. The standalone variant renders
+  // BELOW TopNav, which is the only way off this screen without connecting
+  // something — but the avatar sits far right with no horizontal overlap
+  // against the form, so norigin's geometry can't find it. Onboarding has no
+  // TopNav at all, so Up there is simply the page edge.
+  function focusAboveForm(): false {
+    if (pairing.status === 'error') void setFocus(QR_RETRY_FOCUS_KEY)
+    else if (!isOnboarding) void setFocus('nav-avatar')
+    return false
+  }
+
+  // Where Down out of the form actually goes. Continue is deliberately
+  // unfocusable until the armed method is valid — but an explicit
+  // setFocus(key) bypasses norigin's own `focusable` guard, so aiming Down
+  // straight at it would park the highlight on a disabled button anyway.
+  // Fall through to Skip setup instead, and consume the key entirely when
+  // the footer has nothing focusable at all (standalone, empty form).
+  function focusFooter(): false {
+    if (canContinue) void setFocus(ONBOARDING_PRIMARY_FOCUS_KEY)
+    else if (isOnboarding && onSkip) void setFocus(ONBOARDING_SECONDARY_FOCUS_KEY)
+    return false
+  }
 
   // This screen is lazy-loaded (see App.tsx's SCREEN_FOCUS_KEYS) and also
   // reused as onboarding's step 1 — targeted by its own root key (rather
@@ -145,290 +178,265 @@ export function PlaylistSetupScreen({ onLoaded, stepperCurrent, notice }: Props)
   // focus — pressing OK on the highlighted card doesn't focus the nested
   // native <input> on its own, and Samsung's on-screen keyboard only appears
   // for an <input> that actually has DOM focus. See useSpatialTextInput for
-  // the shared bridge (blurs the native input again once spatial focus
-  // moves elsewhere, generalized from what used to be this field's own
-  // one-off implementation).
-  const { ref: urlRef, focused: urlFocused } = useSpatialTextInput(urlInputRef, { focusKey: URL_FOCUS_KEY })
-  const { ref: streamCodeToggleRef, focused: streamCodeToggleFocused } = useFocusable({
-    focusKey: STREAM_CODE_TOGGLE_FOCUS_KEY,
-    onEnterPress: () => setStreamCodeOpen((v) => !v),
+  // the shared bridge (it also blurs the native input again once spatial
+  // focus moves elsewhere).
+  //
+  // The explicit Right/Left/Up/Down overrides below exist because the two
+  // manual panels sit side by side across the full 1920px canvas: norigin
+  // needs >=20% geometric overlap to call two elements adjacent, and a
+  // single-line input in the left panel rarely overlaps a stacked field in
+  // the right one. Every crossing between the two panels, and every exit
+  // down to the footer, is therefore stated rather than inferred.
+  const { ref: urlRef, focused: urlFocused } = useSpatialTextInput(urlInputRef, {
+    focusKey: URL_FOCUS_KEY,
+    onEnterPress: () => setMode('url'),
+    onArrowPress: (direction) => {
+      if (direction === 'right') {
+        void setFocus(SERVER_FOCUS_KEY)
+        return false
+      }
+      // Answered explicitly rather than letting norigin escape to the
+      // screen root, which draws no focus ring (see SelectableCard's
+      // BLOCK_ARROW for the same problem).
+      if (direction === 'up') return focusAboveForm()
+      if (direction === 'left') return false // page edge
+      return true
+    },
   })
-  // Server/Username/Password used to be plain native <input>s with no
-  // spatial wrapper at all — reachable only once the card was expanded, and
-  // even then only by mouse. Same bridge as the URL field above.
-  const { ref: serverRef, focused: serverFocused } = useSpatialTextInput(serverInputRef)
-  const { ref: usernameRef, focused: usernameFocused } = useSpatialTextInput(usernameInputRef)
-  const { ref: passwordRef, focused: passwordFocused } = useSpatialTextInput(passwordInputRef)
+  const { ref: fileRef, focused: fileFocused } = useFocusable({
+    focusKey: FILE_FOCUS_KEY,
+    onEnterPress: () => fileInputRef.current?.click(),
+    onArrowPress: (direction) => {
+      if (direction === 'right') {
+        void setFocus(PASSWORD_FOCUS_KEY)
+        return false
+      }
+      if (direction === 'down') return focusFooter()
+      if (direction === 'left') return false // page edge
+      return true
+    },
+  })
+  const { ref: serverRef, focused: serverFocused } = useSpatialTextInput(serverInputRef, {
+    focusKey: SERVER_FOCUS_KEY,
+    onEnterPress: () => setMode('xtream'),
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        void setFocus(URL_FOCUS_KEY)
+        return false
+      }
+      if (direction === 'up') return focusAboveForm()
+      if (direction === 'right') return false // page edge
+      return true
+    },
+  })
+  const { ref: usernameRef, focused: usernameFocused } = useSpatialTextInput(usernameInputRef, {
+    onEnterPress: () => setMode('xtream'),
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        void setFocus(URL_FOCUS_KEY)
+        return false
+      }
+      if (direction === 'right') return false // page edge
+      return true
+    },
+  })
+  const { ref: passwordRef, focused: passwordFocused } = useSpatialTextInput(passwordInputRef, {
+    focusKey: PASSWORD_FOCUS_KEY,
+    onEnterPress: () => setMode('xtream'),
+    onArrowPress: (direction) => {
+      if (direction === 'left') {
+        void setFocus(FILE_FOCUS_KEY)
+        return false
+      }
+      if (direction === 'down') return focusFooter()
+      if (direction === 'right') return false // page edge
+      return true
+    },
+  })
   useFocusScrollIntoView(urlRef, urlFocused)
-  useFocusScrollIntoView(streamCodeToggleRef, streamCodeToggleFocused)
+  useFocusScrollIntoView(fileRef, fileFocused)
   useFocusScrollIntoView(serverRef, serverFocused)
   useFocusScrollIntoView(usernameRef, usernameFocused)
   useFocusScrollIntoView(passwordRef, passwordFocused)
 
-  // Collapsing the stream-code card while one of its own fields owns focus
-  // (its useSpatialTextInput registration unmounts the instant
-  // `streamCodeOpen` flips false) must not leave focus pointing at a
-  // removed component — hand it back to the toggle that owns this section.
-  useEffect(() => {
-    if (!streamCodeOpen) void setFocus(STREAM_CODE_TOGGLE_FOCUS_KEY)
-  }, [streamCodeOpen])
-
-  const { ref: fileRef, focused: fileFocused } = useFocusable({
-    onEnterPress: () => fileInputRef.current?.click(),
-  })
-  useFocusScrollIntoView(fileRef, fileFocused)
-  // `focusable: canContinue` — a disabled Continue button couldn't do
-  // anything on Enter anyway (canContinue already gates handleContinue's
-  // own effect), but it was still a registered, reachable spatial target,
-  // which reads as a broken/unresponsive button rather than an
-  // intentionally-unavailable one.
-  const { ref: continueRef, focused: continueFocused } = useFocusable({
-    focusable: canContinue,
-    onEnterPress: handleContinue,
-  })
-  useFocusScrollIntoView(continueRef, continueFocused)
-  const { ref: qrRetryRef, focused: qrRetryFocused } = useFocusable({
-    onEnterPress: pairing.retry,
-  })
-  useFocusScrollIntoView(qrRetryRef, qrRetryFocused)
-
   return (
     <FocusContext.Provider value={screenFocusKey}>
-    <main ref={screenRef} className="onboarding-screen">
-      <OnboardingTopBar current={stepperCurrent} />
+      <main ref={screenRef} className={`onboarding-screen ${isOnboarding ? '' : 'standalone'}`}>
+        {/* Onboarding only. In the standalone variant TopNav is already
+            rendered above this screen and carries the NINETY wordmark, so a
+            second logo bar would both duplicate it and eat the height this
+            layout needs. */}
+        {isOnboarding && <OnboardingTopBar current={1} />}
 
-      {notice && (
-        <p className="setup-status" role="status">
-          {notice}
-        </p>
-      )}
-
-      <div className="onboarding-info with-divider">
-        <h1 className="onboarding-headline">
-          Add your
-          <br />
-          <span className="accent">playlist</span>
-        </h1>
-        <p className="onboarding-description">
-          Enter your M3U playlist link or stream code to access your channels.
-        </p>
-
-        <ul className="onboarding-features">
-          <li>
-            <span className="setup-feature-icon">
-              <LinkIcon />
-            </span>
-            <div>
-              <p className="feature-title">Instant access</p>
-              <p className="feature-desc">Load your channels in seconds.</p>
-            </div>
-          </li>
-          <li>
-            <span className="setup-feature-icon">
-              <ShieldIcon />
-            </span>
-            <div>
-              <p className="feature-title">Your content</p>
-              <p className="feature-desc">We don't host or store any of your streams.</p>
-            </div>
-          </li>
-          <li>
-            <span className="setup-feature-icon">
-              <LockIcon />
-            </span>
-            <div>
-              <p className="feature-title">Private &amp; secure</p>
-              <p className="feature-desc">Your playlist stays private on your device.</p>
-            </div>
-          </li>
-        </ul>
-      </div>
-
-      <div className="onboarding-picker">
-        <div className="setup-qr-block">
-          <h2 className="setup-form-label">Scan with your phone</h2>
-          {pairing.status === 'waiting' && pairing.activationUrl && (
-            <div className="setup-qr-card">
-              <QrCode value={pairing.activationUrl} size={176} />
-              <p className="setup-qr-caption">Scan with your phone to connect your playlist</p>
-            </div>
+        <div className="onboarding-heading">
+          <h1 className="onboarding-headline">
+            Connect your <span className="accent">playlist</span>
+          </h1>
+          <p className="onboarding-description">
+            Add your TV provider once and Ninety will organize your channels around the sports you follow.
+          </p>
+          {notice && (
+            <p className="setup-status setup-notice" role="status">
+              {notice}
+            </p>
           )}
-          {pairing.status === 'loading' && <p className="setup-status">Generating code…</p>}
-          {pairing.status === 'error' && (
-            <div className="setup-qr-card setup-qr-card-error">
-              <p className="setup-status error">Couldn’t reach Ninety to generate a code.</p>
-              <button
-                ref={qrRetryRef}
-                className={`setup-qr-retry ${qrRetryFocused ? 'focused' : ''}`}
-                onClick={pairing.retry}
-              >
-                Try again
+        </div>
+
+        <div className="onboarding-body">
+          <section className="setup-qr-card">
+            <div className="setup-qr-code">
+              {pairing.status === 'waiting' && pairing.activationUrl && <QrCode value={pairing.activationUrl} size={188} />}
+              {pairing.status === 'loading' && <p className="setup-qr-placeholder">Generating code…</p>}
+              {pairing.status === 'error' && <p className="setup-qr-placeholder">No code</p>}
+            </div>
+
+            <div className="setup-qr-copy">
+              <span className="setup-qr-badge">Recommended</span>
+              <h2 className="setup-qr-title">Add with your phone</h2>
+              <p className="setup-qr-desc">Scan the QR code and paste your M3U URL — no typing on the TV.</p>
+              {pairing.status === 'error' && (
+                <div className="setup-qr-error">
+                  <p className="setup-status error">Couldn't reach Ninety to generate a code.</p>
+                  <QrRetryButton onRetry={pairing.retry} isOnboarding={isOnboarding} />
+                </div>
+              )}
+            </div>
+
+            <PhoneIllustration />
+          </section>
+
+          <div className="setup-manual-row">
+            <section className={`setup-panel ${mode === 'url' ? 'active' : ''}`}>
+              <h2 className="setup-panel-title">M3U playlist URL</h2>
+              <div ref={urlRef} className={`setup-field ${urlFocused ? 'focused' : ''}`}>
+                <input
+                  ref={urlInputRef}
+                  className="setup-input"
+                  type="text"
+                  placeholder="https://provider.com/get.php?..."
+                  value={urlValue}
+                  onChange={(e) => {
+                    setUrlValue(e.target.value)
+                    setMode('url')
+                  }}
+                />
+              </div>
+              <p className="setup-panel-hint">Paste the link your provider gave you. Xtream links are detected automatically.</p>
+              <button ref={fileRef} className={`setup-file-button ${fileFocused ? 'focused' : ''}`} onClick={() => fileInputRef.current?.click()}>
+                Load from an M3U file instead
               </button>
-            </div>
-          )}
-        </div>
+              <input ref={fileInputRef} type="file" accept=".m3u,.m3u8" hidden onChange={(e) => void handleFile(e)} />
+            </section>
 
-        <div className="setup-divider">
-          <span />
-          <span className="setup-divider-label">OR</span>
-          <span />
-        </div>
-
-        <h2 className="setup-form-label">Enter your M3U playlist link</h2>
-        <div ref={urlRef} className={`setup-url-card ${urlFocused ? 'focused' : ''}`}>
-          <span className="setup-url-card-tag">M3U URL</span>
-          <input
-            ref={urlInputRef}
-            className="setup-url-input"
-            type="text"
-            placeholder="https://your-provider.com/playlist.m3u"
-            value={urlValue}
-            onChange={(e) => {
-              setUrlValue(e.target.value)
-              setStreamCodeOpen(false)
-            }}
-          />
-        </div>
-
-        <div className="setup-divider">
-          <span />
-          <span className="setup-divider-label">OR</span>
-          <span />
-        </div>
-
-        <div
-          ref={streamCodeToggleRef}
-          className={`setup-code-card ${streamCodeToggleFocused ? 'focused' : ''}`}
-          onClick={() => setStreamCodeOpen((v) => !v)}
-        >
-          <p className="setup-code-title">Or enter stream code</p>
-          <p className="setup-code-desc">Some providers use a username, password or code instead of an M3U link.</p>
-          {!streamCodeOpen ? (
-            <div className="setup-code-toggle">
-              <PlusIcon /> Enter stream code
-            </div>
-          ) : (
-            <div className="setup-code-fields" onClick={(e) => e.stopPropagation()}>
-              <div ref={serverRef} className={`setup-code-input-wrap ${serverFocused ? 'focused' : ''}`}>
-                <input
-                  ref={serverInputRef}
-                  className="setup-code-input"
-                  type="text"
-                  placeholder="Server (https://your-provider.com:port)"
-                  value={server}
-                  onChange={(e) => setServer(e.target.value)}
-                />
+            <section className={`setup-panel ${mode === 'xtream' ? 'active' : ''}`}>
+              <h2 className="setup-panel-title">Provider login</h2>
+              <p className="setup-panel-hint">Use this if your provider gave you a server address, username and password.</p>
+              <div className="setup-fields">
+                <div ref={serverRef} className={`setup-field ${serverFocused ? 'focused' : ''}`}>
+                  <input
+                    ref={serverInputRef}
+                    className="setup-input"
+                    type="text"
+                    placeholder="Server (https://your-provider.com:port)"
+                    value={server}
+                    onChange={(e) => {
+                      setServer(e.target.value)
+                      setMode('xtream')
+                    }}
+                  />
+                </div>
+                <div ref={usernameRef} className={`setup-field ${usernameFocused ? 'focused' : ''}`}>
+                  <input
+                    ref={usernameInputRef}
+                    className="setup-input"
+                    type="text"
+                    placeholder="Username"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value)
+                      setMode('xtream')
+                    }}
+                  />
+                </div>
+                <div ref={passwordRef} className={`setup-field ${passwordFocused ? 'focused' : ''}`}>
+                  <input
+                    ref={passwordInputRef}
+                    className="setup-input"
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      setMode('xtream')
+                    }}
+                  />
+                </div>
               </div>
-              <div ref={usernameRef} className={`setup-code-input-wrap ${usernameFocused ? 'focused' : ''}`}>
-                <input
-                  ref={usernameInputRef}
-                  className="setup-code-input"
-                  type="text"
-                  placeholder="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </div>
-              <div ref={passwordRef} className={`setup-code-input-wrap ${passwordFocused ? 'focused' : ''}`}>
-                <input
-                  ref={passwordInputRef}
-                  className="setup-code-input"
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="setup-row">
-          <button ref={fileRef} className={`file-btn ${fileFocused ? 'focused' : ''}`} onClick={() => fileInputRef.current?.click()}>
-            M3U File…
-          </button>
-          <input ref={fileInputRef} type="file" accept=".m3u,.m3u8" hidden onChange={(e) => void handleFile(e)} />
-        </div>
-
-        <div className="setup-info-box">
-          <InfoIcon />
-          <div>
-            <p className="setup-info-title">Don't have a playlist?</p>
-            <p className="setup-info-desc">Contact your IPTV provider to get your M3U link or stream code.</p>
+            </section>
           </div>
+
+          {state.status === 'loading' && <p className="setup-status">Loading playlist…</p>}
+          {state.status === 'error' && <p className="setup-status error">{state.message}</p>}
         </div>
 
-        {state.status === 'loading' && <p className="setup-status">Loading playlist…</p>}
-        {state.status === 'error' && <p className="setup-status error">{state.message}</p>}
-
-        <button
-          ref={continueRef}
-          className={`continue-button ${continueFocused ? 'focused' : ''}`}
-          disabled={!canContinue}
-          onClick={handleContinue}
-        >
-          Continue <ArrowRightIcon />
-        </button>
-      </div>
-    </main>
+        <OnboardingFooter
+          secondary={isOnboarding && onSkip ? { label: 'Skip setup', onPress: onSkip } : undefined}
+          primary={{ label: 'Continue', onPress: handleContinue, disabled: !canContinue }}
+          upFocusKey={mode === 'xtream' ? PASSWORD_FOCUS_KEY : URL_FOCUS_KEY}
+        />
+      </main>
     </FocusContext.Provider>
   )
 }
 
-function LinkIcon() {
+// Its own component so norigin's registration and the DOM node have the
+// same lifetime. Calling useFocusable for this inline while rendering the
+// button only in the error branch registered a focusable with a null node
+// on every non-error render — which logs "Component added without a node
+// reference" and leaves a focusable sitting at an empty (0,0,0,0) layout
+// that a directional search can land on.
+function QrRetryButton({ onRetry, isOnboarding }: { onRetry: () => void; isOnboarding: boolean }) {
+  const { ref, focused } = useFocusable({
+    focusKey: QR_RETRY_FOCUS_KEY,
+    onEnterPress: onRetry,
+    onArrowPress: (direction) => {
+      if (direction === 'down') {
+        void setFocus(URL_FOCUS_KEY)
+        return false
+      }
+      if (direction === 'up') {
+        // Standalone renders below TopNav, which is the only way off this
+        // screen without connecting something; onboarding has no TopNav, so
+        // Up there is simply the page edge.
+        if (!isOnboarding) void setFocus('nav-avatar')
+        return false
+      }
+      if (direction === 'left' || direction === 'right') return false // page edge
+      return true
+    },
+  })
+  useFocusScrollIntoView(ref, focused)
   return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M8.5 11.5a3 3 0 0 0 4.2.3l2-2a3 3 0 0 0-4.2-4.2l-1 1"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-      <path
-        d="M11.5 8.5a3 3 0 0 0-4.2-.3l-2 2a3 3 0 0 0 4.2 4.2l1-1"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
+    <button ref={ref} className={`setup-qr-retry ${focused ? 'focused' : ''}`} onClick={onRetry}>
+      Try again
+    </button>
   )
 }
 
-function ShieldIcon() {
+// Deliberately CSS/SVG, not an image asset: it's a decorative hint, and the
+// packaged Tizen widget shouldn't carry a bitmap for it. Dark, low-contrast
+// and non-interactive — it sits behind the copy, not in front of it.
+function PhoneIllustration() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M10 2.5l6 2.2v4.3c0 4-2.6 6.9-6 8.5-3.4-1.6-6-4.5-6-8.5V4.7L10 2.5z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function LockIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <rect x="4.5" y="9" width="11" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9" stroke="currentColor" strokeWidth="1.3" />
-    </svg>
-  )
-}
-
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function InfoIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M10 9v5M10 6.5v.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
+    <div className="setup-phone" aria-hidden="true">
+      <div className="setup-phone-body">
+        <span className="setup-phone-notch" />
+        <div className="setup-phone-screen">
+          <span className="setup-phone-line wide" />
+          <span className="setup-phone-line" />
+          <span className="setup-phone-line short" />
+        </div>
+      </div>
+    </div>
   )
 }

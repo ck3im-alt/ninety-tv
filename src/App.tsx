@@ -7,12 +7,7 @@ import { AdminPanel } from './features/admin/AdminPanel'
 import { hasCompletedOnboarding, loadPreferences } from './data/preferences'
 import {
   loadFilters,
-  hydratePlaylistState,
-  xtreamCredsFromSource,
   saveFilters,
-  saveSource,
-  savePlaylistChannels,
-  removeLegacyPlaylistChannelsCache,
   loadFavoriteChannels,
   saveFavoriteChannels,
   loadFavoriteCategories,
@@ -20,21 +15,20 @@ import {
   loadRecentlyWatched,
   saveRecentlyWatched,
 } from './data/session'
-import { recoverChannelsFromSource } from './data/playlistRecovery'
+import { usePlaylistLibrary } from './data/playlists/usePlaylistLibrary'
 import { CategoryChannelsScreen } from './features/channels/CategoryChannelsScreen'
 import { BrowseCascadeScreen } from './features/channels/BrowseCascadeScreen'
 import type { CascadeLevel } from './features/channels/BrowseCascadeScreen'
 import { FilterPopup } from './features/channels/FilterPopup'
 import { ChannelPlayerScreen } from './features/player/ChannelPlayerScreen'
 import { parseCategory } from './features/channels/parseCategory'
-import { getChannelIndex, warmChannelIndexAsync } from './data/channelIndex'
-import { generatePlaylistGenerationId } from './data/playlistGeneration'
+import { getChannelIndex } from './data/channelIndex'
 import { useChannelIdentityIndex } from './data/sports/useChannelIdentityIndex'
 import { useHomeFeed } from './data/sports/useHomeFeed'
 import { markPerf, measurePerf } from './core/perf/devPerf'
 import { DEBUG_FORCE_SCREEN_KEY } from './core/debugForceScreen'
+import { SCREEN_AFTER_ONBOARDING, resolveInitialScreen, type Screen } from './core/appScreens'
 import type { Channel } from './data/channel'
-import type { PlaylistSourceRecord } from './data/session'
 import type { SportEvent } from './data/sports/types'
 import type { EventStreamDisplayParts } from './features/eventDetails/ppvDisplayName'
 import { createMultiviewSession } from './features/multiview/multiviewSession'
@@ -73,24 +67,9 @@ const MultiviewScreen = lazy(() => import('./features/multiview/MultiviewScreen'
 
 markPerf('app:module-load')
 
-// Temporary in-memory screen switcher, standing in for real routing
-// (navigation-compose equivalent) until that's built. Playlist, Channels
-// filter state, favorites, and recently-watched are all persisted (see
-// data/session.ts) so a reload doesn't force reconnecting/re-filtering/
-// re-favoriting; only screen/drill-down navigation position resets on
-// reload.
-type Screen =
-  | 'home'
-  | 'setup'
-  | 'onboarding'
-  | 'browse-cascade'
-  | 'channels-favorites'
-  | 'channels-recent'
-  | 'player'
-  | 'multiview'
-  | 'event-details'
-  | 'competitions'
-  | 'settings'
+// `Screen`, resolveInitialScreen and SCREEN_AFTER_ONBOARDING live in
+// core/appScreens.ts — pure, and therefore testable without mounting this
+// entire module (hls.js, workers, network and all).
 
 const RECENTLY_WATCHED_LIMIT = 30
 
@@ -105,7 +84,9 @@ const RECENTLY_WATCHED_LIMIT = 30
 // 'setup' and 'onboarding' share PlaylistSetupScreen's key: onboarding's
 // step 1 IS PlaylistSetupScreen (see OnboardingFlow.tsx), so a fresh
 // onboarding entry resolves to the same target as the standalone Setup
-// screen.
+// screen. This now matters on every first launch, not just when a user
+// goes looking for Channels — onboarding is the initial screen for a
+// brand-new install, so its chunk is being fetched while this effect runs.
 const SCREEN_FOCUS_KEYS: Partial<Record<Screen, string>> = {
   setup: 'setup-screen',
   onboarding: 'setup-screen',
@@ -115,60 +96,30 @@ const SCREEN_FOCUS_KEYS: Partial<Record<Screen, string>> = {
   multiview: 'multiview-screen',
 }
 
-// The connected playlist's channels/source/generationId, updated together as
-// one atomic unit (via installPlaylist below) so no code path can ever
-// observe/persist a torn combination of old channels with a new source, or
-// vice versa — this matters because the playlist-persistence effect keys its
-// "did this generation already get written to IndexedDB" guard off
-// reference identity across all three fields at once.
-interface PlaylistState {
-  channels: Channel[]
-  source: PlaylistSourceRecord | null
-  generationId: string | null
-}
-const EMPTY_PLAYLIST: PlaylistState = { channels: [], source: null, generationId: null }
-
 function App() {
-  // Home always opens first — its data comes from TheSportsDB, not the
-  // connected IPTV playlist, so there's nothing it needs to wait on. This
-  // holds on every launch, including a device's very first one: onboarding
-  // (which starts with connecting a playlist — Steg 25) only kicks in once
-  // the user actually goes looking for Channels, via onSelectChannels below.
+  // A device's very first launch opens straight into onboarding; every
+  // launch after that opens Home. See resolveInitialScreen (core/
+  // appScreens.ts) for why, and for the DEV-only force-flag exception that
+  // keeps AdminPanel's "Reset onboarding & preferences" reload working.
   //
-  // One DEV-only exception: AdminPanel's "Reset onboarding & preferences"
-  // exists specifically to let a developer re-trigger the onboarding flow
-  // without digging through devtools storage. It reloads the page (the
-  // simplest reliable way to get back to a clean first-launch state), but a
-  // reload always re-runs this same initializer — without reading the
-  // one-shot flag AdminPanel sets first, the reset button would silently
-  // land back on Home instead of onboarding, defeating its own purpose.
+  // Home's own data comes from ninety-api, not the connected IPTV playlists,
+  // so when Home IS the initial screen it still has nothing to wait on —
+  // the async playlist hydration below never blocks its first paint.
   const [screen, setScreen] = useState<Screen>(() => {
-    if (import.meta.env.DEV) {
-      const forced = sessionStorage.getItem(DEBUG_FORCE_SCREEN_KEY)
-      if (forced) {
-        sessionStorage.removeItem(DEBUG_FORCE_SCREEN_KEY)
-        return forced as Screen
-      }
-    }
-    return 'home'
+    const isDev = import.meta.env.DEV
+    const forced = isDev ? sessionStorage.getItem(DEBUG_FORCE_SCREEN_KEY) : null
+    if (forced) sessionStorage.removeItem(DEBUG_FORCE_SCREEN_KEY)
+    return resolveInitialScreen({ forcedScreen: forced, isDev, onboardingComplete: hasCompletedOnboarding() })
   })
 
-  // Playlist state now hydrates asynchronously from IndexedDB (see
-  // session.ts's hydratePlaylistState) instead of a synchronous
-  // localStorage JSON.parse at module load — a ~30,925-channel playlist
-  // would otherwise block the very first paint. Starts empty; Home renders
-  // and accepts input immediately regardless (see hydrationStatus below).
-  const [playlist, setPlaylist] = useState<PlaylistState>(EMPTY_PLAYLIST)
-  function installPlaylist(channels: Channel[], source: PlaylistSourceRecord | null, generationId: string) {
-    setPlaylist({ channels, source, generationId })
-  }
-  // Marks whichever exact channels array a cache-hit hydration produced —
-  // the playlist-persistence effect below skips writing when `playlist
-  // .channels` is still reference-equal to this, since that data is already
-  // durably stored and re-writing it would be a redundant IndexedDB write
-  // immediately after reading the very same thing back.
-  const hydratedChannelsRef = useRef<Channel[] | null>(null)
-  const [hydrationStatus, setHydrationStatus] = useState<'pending' | 'done'>('pending')
+  // Every connected playlist, their combined channel list, and the
+  // per-playlist Xtream credential resolver — see
+  // data/playlists/usePlaylistLibrary.ts. This replaced App's former
+  // single `playlist` state (one channels array, one source, one
+  // generationId) plus its hydrate/persist effects; the atomicity,
+  // pre-warming and never-block-first-paint behaviour those effects
+  // carried moved into the hook unchanged.
+  const library = usePlaylistLibrary()
 
   // DEV-perf: module-load -> first mount timing (markPerf('app:module-load')
   // fires once, above, at the top of this file, when the module first
@@ -183,7 +134,7 @@ function App() {
   }, [])
 
   // DEV-only diagnostic hook for scripts/evaluate-real-playlist-channel-identity.ts
-  // — exposes a SAFE projection of the in-memory playlist (no
+  // — exposes a SAFE projection of the in-memory combined playlist (no
   // ChannelSource.url, no credentials) on window so it can be exported from
   // devtools via `copy(JSON.stringify(window.__ninetyExportChannels))`.
   // Needed because a playlist this large can fail to round-trip through
@@ -192,7 +143,7 @@ function App() {
   // React state.
   useEffect(() => {
     if (!import.meta.env.DEV) return
-    ;(window as unknown as { __ninetyExportChannels?: unknown }).__ninetyExportChannels = playlist.channels.map((c) => {
+    ;(window as unknown as { __ninetyExportChannels?: unknown }).__ninetyExportChannels = library.channels.map((c) => {
       const parsed = parseCategory(c.groupTitle ?? '')
       return {
         id: c.id,
@@ -205,17 +156,13 @@ function App() {
         hasEpgChannelId: c.hasEpgChannelId,
       }
     })
-  }, [playlist.channels])
-  // Only set when the connected playlist was an Xtream source — EPG
-  // (get_short_epg) only exists on that API, not for plain M3U playlists.
-  // Derived from playlist.source rather than its own state so the two can
-  // never drift apart.
-  const xtreamCreds = useMemo(() => xtreamCredsFromSource(playlist.source), [playlist.source])
-  // Prepared/indexed view of the playlist, built once per playlist
-  // generation (memoized by `playlist.channels`'s own array reference — see
-  // data/channelIndex.ts) instead of every consumer independently rescanning
-  // the full ~30,925-channel array on every focus movement/state change.
-  const channelIndex = useMemo(() => getChannelIndex(playlist.channels), [playlist.channels])
+  }, [library.channels])
+  // Prepared/indexed view of the COMBINED playlist set, built once per
+  // playlist generation (memoized by the channels array's own reference —
+  // see data/channelIndex.ts) instead of every consumer independently
+  // rescanning the full ~30,925-channel array on every focus movement/state
+  // change.
+  const channelIndex = useMemo(() => getChannelIndex(library.channels), [library.channels])
   // Channel Identity Resolver v2's runtime index — built once per (catalog
   // version, playlist) pair and reused by every event's Ninety-stage
   // channel match (see useChannelIdentityIndex.ts's own header for the
@@ -223,7 +170,7 @@ function App() {
   // build completes, or permanently null this session if no catalog is
   // reachable at all — matchChannelsForEvent degrades gracefully either
   // way (see channelMatch.ts).
-  const identityIndex = useChannelIdentityIndex(playlist.channels, playlist.generationId)
+  const identityIndex = useChannelIdentityIndex(library.channels, library.generationId)
   // Owned here (not by HomeScreen) so its fetch/match state survives Home
   // unmounting while the user is on Event Details/Player/Channels and
   // remounting on Back — HomeScreen used to own this hook directly, which
@@ -233,19 +180,11 @@ function App() {
   // (cheap sync localStorage read), same as HomeScreen used to do — Effect
   // 1 inside useHomeFeed only actually refetches when the derived prefsKey
   // string changes, e.g. right after onboarding calls savePreferences.
-  const homeFeedState = useHomeFeed(loadPreferences(), playlist.channels, xtreamCreds, identityIndex)
-  // Plain-language, non-technical message shown when the channel cache
-  // couldn't be saved (or couldn't be auto-recovered) — see the persistence
-  // effect and the startup-recovery effect below. Cleared once the user
-  // dismisses it or a save/recovery later succeeds.
-  const [playlistNotice, setPlaylistNotice] = useState<string | null>(null)
-  // Shown on the setup screen only — when the only thing on record is a
-  // file-upload source with no valid cache, there's nothing to auto-fetch
-  // (the file's contents were never kept around), so the user is told
-  // plainly that re-adding the file is required rather than the app
-  // pretending it can recover on its own. See PlaylistSetupScreen's
-  // `notice` prop.
-  const [reconnectNotice, setReconnectNotice] = useState<string | null>(null)
+  const homeFeedState = useHomeFeed(loadPreferences(), library.channels, library.xtream, identityIndex)
+  // Both playlist notices now live in the playlist library hook (it owns
+  // every path that can produce one) — see PlaylistToast below for the
+  // "couldn't save/reconnect" case and PlaylistSetupScreen's `notice` prop
+  // for "this file playlist needs the file again".
   // The event the user drilled into from Home (hero or a Live Now/Coming Up
   // card) — set right before navigating to 'event-details', read by that
   // screen to know which fixture to look up broadcast channels for.
@@ -351,107 +290,19 @@ function App() {
     const previousScreen = previousScreenRef.current
     previousScreenRef.current = screen
     if (screen === 'browse-cascade') return
-    if (previousScreen === 'settings' && screen !== 'settings') {
+    // Leaving Settings BACK to where it was opened from restores focus to
+    // the avatar it was opened with. Since the Settings rebuild, Back is the
+    // only way out of Settings — connecting and editing playlists happens in
+    // its own dialogs rather than by navigating to the setup screen — so the
+    // guard is really "did we return, or did something else change the
+    // screen", and anything else still falls through to that screen's own
+    // focus target below.
+    if (previousScreen === 'settings' && screen === settingsReturnScreen) {
       void setFocus('nav-avatar')
       return
     }
     void setFocus(SCREEN_FOCUS_KEYS[screen] ?? ROOT_FOCUS_KEY)
-  }, [screen])
-
-  // Startup: hydrate playlist state from IndexedDB (fast, async, never
-  // blocks first paint) and, if the large channel cache is missing/stale but
-  // the small source record survived, automatically rebuild it from source
-  // instead of forcing the user back through setup — see
-  // session.ts's hydratePlaylistState()'s 'recovering' outcome. Only Xtream
-  // and M3U-URL sources are recoverable this way; a file-upload source with
-  // no cache surfaces as reconnectNotice instead. Runs once, on mount.
-  useEffect(() => {
-    let cancelled = false
-    markPerf('playlist:hydrate-start')
-    void hydratePlaylistState().then(async (result) => {
-      markPerf('playlist:hydrate-end')
-      measurePerf('playlist:hydrate', 'playlist:hydrate-start', 'playlist:hydrate-end')
-      if (cancelled) return
-      if (result.kind === 'ready') {
-        // Pre-warm the ChannelIndex cache (chunked, yielding between
-        // batches) BEFORE installPlaylist triggers the render that would
-        // otherwise force useMemo(() => getChannelIndex(...)) to build it
-        // synchronously in one large main-thread task — see
-        // data/channelIndex.ts's warmChannelIndexAsync for why this matters
-        // on lower-powered Tizen hardware at ~30,925-channel scale.
-        await warmChannelIndexAsync(result.channels)
-        if (cancelled) return
-        installPlaylist(result.channels, result.source, result.generationId)
-        hydratedChannelsRef.current = result.channels
-        removeLegacyPlaylistChannelsCache()
-      } else if (result.kind === 'recovering') {
-        try {
-          const recovered = await recoverChannelsFromSource(result.source)
-          if (cancelled) return
-          await warmChannelIndexAsync(recovered)
-          if (cancelled) return
-          // Deliberately NO explicit savePlaylistChannels call here — the
-          // playlist-persistence effect below is the ONE place that writes
-          // the large channel cache, so a fresh recovery performs exactly
-          // one IndexedDB write (via that effect reacting to this state
-          // change), never two.
-          installPlaylist(recovered, result.source, generatePlaylistGenerationId())
-        } catch (err) {
-          console.error('Automatic playlist recovery failed — the playlist will need to be reconnected manually.', err)
-          if (!cancelled) {
-            setPlaylistNotice("Ninety couldn't automatically reconnect your playlist. Open Channels to reconnect it.")
-          }
-        }
-      } else if (result.kind === 'unrecoverable-file-source') {
-        setReconnectNotice(
-          `Ninety needs your playlist file again to reconnect — please re-add "${result.source.fileName}" below.`,
-        )
-      }
-      if (!cancelled) setHydrationStatus('done')
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // Persist the connected playlist whenever it changes (setup, onboarding,
-  // or reconnecting) — the ONLY place savePlaylistChannels is called, so a
-  // fresh connect/recovery performs exactly one large IndexedDB write, never
-  // two. Skips: the empty initial state (nothing to save); the exact array
-  // a cache-hit hydration just produced (already durably stored — see
-  // hydratedChannelsRef above); and the brief instant before the first
-  // installPlaylist call has ever run (no generationId yet).
-  //
-  // savePlaylistChannels only writes the large channel cache; saveSource
-  // (small, essentially-never-fails) is written alongside it so a channel-
-  // cache write failure still leaves a recoverable source record behind for
-  // next launch. The toast below exists so that isn't a silent surprise.
-  useEffect(() => {
-    if (playlist.channels.length === 0) return
-    if (playlist.channels === hydratedChannelsRef.current) return
-    if (!playlist.generationId) return
-    let cancelled = false
-    void savePlaylistChannels(playlist.channels, playlist.generationId).then((persisted) => {
-      if (cancelled) return
-      if (!persisted) {
-        // localStore.ts/idb.ts already log the underlying error. This is
-        // the one write in the app large enough to plausibly fail — when it
-        // happens, the connected playlist silently won't survive a reload,
-        // so it's worth a distinct, findable log line here too.
-        console.error('Playlist did not persist — it will need to be reconnected after a reload.')
-        setPlaylistNotice(
-          "Ninety couldn't fully save your playlist. It'll keep working for now, but you may need to reconnect it if the app restarts.",
-        )
-      } else {
-        removeLegacyPlaylistChannelsCache()
-        setPlaylistNotice(null)
-      }
-    })
-    saveSource(playlist.source)
-    return () => {
-      cancelled = true
-    }
-  }, [playlist])
+  }, [screen, settingsReturnScreen])
 
   useEffect(() => {
     saveFilters(hiddenCountries, hiddenCategories)
@@ -475,9 +326,9 @@ function App() {
   // rescanning + re-parseCategory-ing the whole playlist on every playing-
   // channel change.
   const playerChannels = useMemo(() => {
-    if (!playingChannel) return playlist.channels
+    if (!playingChannel) return library.channels
     return [playingChannel, ...channelIndex.getSiblings(playingChannel)]
-  }, [playlist.channels, channelIndex, playingChannel])
+  }, [library.channels, channelIndex, playingChannel])
 
   // The freshest known version of selectedEvent — looked up by id in
   // useHomeFeed's own event map (kept current by its silent ~60s/
@@ -552,29 +403,34 @@ function App() {
 
   return (
     <>
-      {screen !== 'player' && screen !== 'onboarding' && screen !== 'multiview' && screen !== 'event-details' && (
+      {screen !== 'player' &&
+        screen !== 'onboarding' &&
+        screen !== 'multiview' &&
+        screen !== 'event-details' &&
+        screen !== 'settings' && (
         <TopNav
-          // Event Details no longer renders TopNav at all (it has its own
-          // simplified back-only header — see EventDetailsScreen.tsx), so
-          // this no longer needs to account for that screen's navigation
-          // origin. Settings gets no tab highlighted; the avatar's own
-          // focus style already marks it.
-          activeItem={
-            screen === 'home' ? 'Home' : screen === 'competitions' ? 'Competitions' : screen === 'settings' ? 'Settings' : 'Channels'
-          }
+          // Event Details and Settings both render their own back-only
+          // header instead of TopNav (see EventDetailsScreen.tsx and
+          // SettingsScreen.tsx). For Settings that isn't cosmetic: TopNav is
+          // 84px tall, so keeping it would push a screen designed for the
+          // full 1080px canvas into page-level scrolling — the exact thing
+          // the Settings rebuild exists to remove.
+          activeItem={screen === 'home' ? 'Home' : screen === 'competitions' ? 'Competitions' : 'Channels'}
           onSelectHome={() => setScreen('home')}
           onSelectChannels={
-            hydrationStatus === 'pending'
+            library.hydration === 'pending'
               ? undefined
               : () => {
                   markPerf('channels:open-start')
-                  if (playlist.channels.length > 0) setScreen('browse-cascade')
-                  // No playlist yet: a device's true first-ever Channels visit
-                  // goes through the full onboarding wizard (Sports/Countries,
-                  // plus playlist connect as its first step); anyone already
-                  // onboarded but currently playlist-less (e.g. cleared storage)
-                  // gets just the plain reconnect screen instead.
-                  else setScreen(hasCompletedOnboarding() ? 'setup' : 'onboarding')
+                  if (library.channels.length > 0) setScreen('browse-cascade')
+                  // No playlist: just the plain reconnect screen. This no
+                  // longer needs to branch on hasCompletedOnboarding() —
+                  // onboarding is now the initial screen for a device that
+                  // hasn't completed it (see resolveInitialScreen), so
+                  // nobody can be standing on Home un-onboarded. Reaching
+                  // Home means onboarding is done, whether a playlist was
+                  // connected during it or skipped.
+                  else setScreen('setup')
                 }
           }
           onSelectCompetitions={() => setScreen('competitions')}
@@ -583,8 +439,13 @@ function App() {
             setScreen('settings')
           }}
           onOpenAdmin={import.meta.env.DEV ? () => setAdminOpen(true) : undefined}
+          // Only the standalone playlist-setup screen needs this: its form
+          // starts on the far left, so nothing sits under the right-hand
+          // avatar for norigin's geometric Down search to find. Every other
+          // screen keeps the purely geometric behaviour.
+          downFocusKey={screen === 'setup' ? 'setup-url' : undefined}
         />
-      )}
+        )}
       {/* TopNav stays outside this boundary deliberately — it's never lazy,
           so it never suspends, but a Suspense boundary hides its ENTIRE
           children while any descendant inside it is loading. Keeping TopNav
@@ -595,7 +456,7 @@ function App() {
       {screen === 'home' && (
         <HomeScreen
           feedState={homeFeedState}
-          xtreamCreds={xtreamCreds}
+          xtream={library.xtream}
           favoriteChannels={favoriteChannelsList}
           onSelectEvent={(event) => {
             setSelectedEvent(event)
@@ -619,18 +480,25 @@ function App() {
 
       {screen === 'settings' && (
         <SettingsScreen
-          channels={playlist.channels}
-          source={playlist.source}
+          library={library}
+          channelIndex={channelIndex}
+          hiddenCountries={hiddenCountries}
+          hiddenCategories={hiddenCategories}
+          onChangeChannelVisibility={(nextCountries, nextCategories) => {
+            setHiddenCountries(nextCountries)
+            setHiddenCategories(nextCategories)
+          }}
+          recentlyWatchedCount={recentlyWatched.length}
+          onClearRecentlyWatched={() => setRecentlyWatched([])}
           onBack={() => setScreen(settingsReturnScreen)}
-          onReconnectPlaylist={() => setScreen('setup')}
         />
       )}
 
       {screen === 'event-details' && liveSelectedEvent && (
         <EventDetailsScreen
           event={liveSelectedEvent}
-          channels={playlist.channels}
-          xtreamCreds={xtreamCreds}
+          channels={library.channels}
+          xtream={library.xtream}
           identityIndex={identityIndex}
           favoriteChannels={favoriteChannels}
           onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
@@ -642,16 +510,20 @@ function App() {
 
       {screen === 'setup' && (
         <PlaylistSetupScreen
-          notice={reconnectNotice ?? undefined}
+          variant="standalone"
+          notice={library.reconnectNotice ?? undefined}
           onLoaded={(loaded, source) => {
-            const generationId = generatePlaylistGenerationId()
-            // Pre-warm before installPlaylist for the same reason as the
-            // bootstrap effect above — avoids a synchronous ChannelIndex
-            // build landing on the same tick as the screen transition.
-            void warmChannelIndexAsync(loaded).finally(() => {
-              installPlaylist(loaded, source, generationId)
-              setScreen('browse-cascade')
-            })
+            // ADDS a playlist rather than replacing the library — Settings
+            // owns editing an existing playlist. The one exception is the
+            // other reason this screen is reached: re-supplying the file a
+            // playlist is waiting for (library.reconnectNotice above), which
+            // restores THAT playlist in place instead of leaving the broken
+            // row beside a duplicate. See playlists/reconnectTarget.ts.
+            //
+            // The library hook handles persistence and the ChannelIndex
+            // pre-warm, so the screen transition still never lands on the
+            // same main-thread task as a ~30,000-channel index build.
+            void library.addOrReconnectPlaylist(source, loaded).then(() => setScreen('browse-cascade'))
           }}
         />
       )}
@@ -659,7 +531,14 @@ function App() {
       {screen === 'onboarding' && (
         <OnboardingFlow
           onDone={(loaded, source) => {
-            const generationId = generatePlaylistGenerationId()
+            // Step 1 can be skipped, in which case there is no playlist to
+            // install at all — go straight to Home rather than adding an
+            // empty playlist to the library. `source` is null on exactly
+            // that path, so the two are checked together.
+            if (loaded.length === 0 || !source) {
+              setScreen(SCREEN_AFTER_ONBOARDING)
+              return
+            }
             // Country detection for the initial filter doesn't depend on
             // ChannelIndex — safe to compute immediately, in parallel with
             // the pre-warm below (parseCategory's own memoization already
@@ -675,13 +554,17 @@ function App() {
               const favorites = new Set(favoriteCountries)
               setHiddenCountries(new Set([...allCountries].filter((name) => !favorites.has(name))))
             }
-            // Pre-warm before installPlaylist for the same reason as the
-            // bootstrap effect above — avoids a synchronous ChannelIndex
-            // build landing on the same tick as the screen transition.
-            void warmChannelIndexAsync(loaded).finally(() => {
-              installPlaylist(loaded, source, generationId)
-              setScreen('browse-cascade')
-            })
+            // addPlaylist persists the playlist AND pre-warms the
+            // ChannelIndex before installing it, so this transition still
+            // never lands a ~30,000-channel index build on the same
+            // main-thread task as the screen change. Home, not the channel
+            // browser — onboarding exists to personalize Home (sports +
+            // leagues + preferred countries all feed useHomeFeed), and
+            // loadPreferences() is re-read on every App render, so the
+            // preferences savePreferences just wrote are picked up by
+            // useHomeFeed's prefsKey on this very transition; no restart, no
+            // second preferences store.
+            void library.addOrReconnectPlaylist(source, loaded).then(() => setScreen(SCREEN_AFTER_ONBOARDING))
           }}
         />
       )}
@@ -689,7 +572,7 @@ function App() {
       {screen === 'browse-cascade' && (
         <BrowseCascadeScreen
           channelIndex={channelIndex}
-          xtreamCreds={xtreamCreds}
+          xtream={library.xtream}
           hiddenCountries={hiddenCountries}
           hiddenCategories={hiddenCategories}
           favoriteCategories={favoriteCategories}
@@ -720,7 +603,7 @@ function App() {
           breadcrumb={['Channels', 'Favorites']}
           emptyMessage="You haven't favorited any channels yet — press the star on a channel to add it here."
           channels={favoriteChannelsList}
-          xtreamCreds={xtreamCreds}
+          xtream={library.xtream}
           favoriteChannels={favoriteChannels}
           onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
           onBack={() => setScreen('browse-cascade')}
@@ -736,7 +619,7 @@ function App() {
           breadcrumb={['Channels', 'Recently Watched']}
           emptyMessage="Channels you watch will show up here."
           channels={recentChannelsList}
-          xtreamCreds={xtreamCreds}
+          xtream={library.xtream}
           favoriteChannels={favoriteChannels}
           onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
           onBack={() => setScreen('browse-cascade')}
@@ -768,8 +651,8 @@ function App() {
         <MultiviewScreen
           session={multiviewSession}
           onSessionChange={(updater) => setMultiviewSession((prev) => (prev ? updater(prev) : prev))}
-          channels={playlist.channels}
-          xtreamCreds={xtreamCreds}
+          channels={library.channels}
+          xtream={library.xtream}
           identityIndex={identityIndex}
           favoriteChannels={favoriteChannels}
           favoriteChannelsList={favoriteChannelsList}
@@ -792,10 +675,10 @@ function App() {
         />
       )}
 
-      {playlistNotice && <PlaylistToast message={playlistNotice} onDismiss={() => setPlaylistNotice(null)} />}
+      {library.notice && <PlaylistToast message={library.notice} onDismiss={library.dismissNotice} />}
 
       {import.meta.env.DEV && adminOpen && (
-        <AdminPanel channels={playlist.channels} onClose={() => setAdminOpen(false)} />
+        <AdminPanel channels={library.channels} onClose={() => setAdminOpen(false)} />
       )}
       {import.meta.env.DEV && (
         <FocusDebugOverlay screen={screen} region={screen === 'browse-cascade' ? cascadeLevel : undefined} overlay={filterOpen ? 'filter' : adminOpen ? 'admin' : null} />

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
+import { firstXtreamSource, type XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
 import type { Channel } from '../../data/channel'
-import type { XtreamCredentials } from '../../data/xtream/types'
 
 export interface FavoriteChannelNowPlaying {
   channel: Channel
@@ -20,7 +20,10 @@ export interface FavoriteChannelNowPlaying {
 // and sees what's actually playing on it right now.
 export function useFavoriteChannelsNowPlaying(
   favoriteChannels: Channel[],
-  xtreamCreds: XtreamCredentials | null,
+  // Per-source, not per-app: a favorited channel can be carried by more than
+  // one connected playlist, and its EPG has to be asked of the panel that
+  // actually serves the stream we look up. See data/playlists/xtreamResolver.
+  xtream: XtreamCredentialResolver,
 ): FavoriteChannelNowPlaying[] {
   const [result, setResult] = useState<FavoriteChannelNowPlaying[]>([])
   // Stable key so the effect only refires when the actual favorite set
@@ -32,22 +35,24 @@ export function useFavoriteChannelsNowPlaying(
       setResult([])
       return
     }
-    if (!xtreamCreds) {
+    if (!xtream.hasAny) {
       setResult(favoriteChannels.map((channel) => ({ channel, title: null })))
       return
     }
     let cancelled = false
     Promise.all(
       favoriteChannels.map(async (channel): Promise<FavoriteChannelNowPlaying> => {
-        const source = channel.sources[0]
-        const streamId = source ? extractStreamId(source.url) : null
-        if (streamId === null) return { channel, title: null }
+        // First source that BOTH belongs to an Xtream playlist and yields a
+        // stream id — after cross-playlist merging, sources[0] can easily be
+        // a plain-M3U playlist's stream while a later one is the Xtream one.
+        const xtreamSource = firstXtreamSource(channel, xtream, extractStreamId)
+        if (!xtreamSource) return { channel, title: null }
         try {
           // Limit 2, not 1 — get_short_epg's now_playing flag isn't always
           // populated on the very first entry across every panel (same
           // caveat documented in getShortEpg's own comments), so a couple
           // of candidates gives the now_playing check something to find.
-          const listings = await getShortEpg(xtreamCreds, streamId, 2)
+          const listings = await getShortEpg(xtreamSource.creds, xtreamSource.streamId, 2)
           const current = listings.find((l) => l.now_playing === 1) ?? listings[0]
           return { channel, title: current?.title ?? null }
         } catch {
@@ -61,7 +66,7 @@ export function useFavoriteChannelsNowPlaying(
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelsKey, xtreamCreds])
+  }, [channelsKey, xtream])
 
   return result
 }

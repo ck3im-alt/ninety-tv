@@ -7,6 +7,7 @@ import {
   migrateFootballLeagueIds,
   savePreferences,
   withCountryToggled,
+  withPrimaryCountry,
   type SportPreferences,
 } from './preferences'
 
@@ -170,5 +171,45 @@ describe('withCountryToggled (max-5 / primary ordering rule)', () => {
     withCountryToggled(input, 'Sweden')
     withCountryToggled(input, 'Norway')
     expect(input).toEqual(['Norway'])
+  })
+})
+
+describe('withPrimaryCountry (Settings-only re-ordering)', () => {
+  it('promotes a selected country to primary', () => {
+    expect(withPrimaryCountry(['Norway', 'Sweden', 'United Kingdom'], 'Sweden')).toEqual([
+      'Sweden',
+      'Norway',
+      'United Kingdom',
+    ])
+  })
+
+  it('preserves the relative order of every other selection', () => {
+    expect(withPrimaryCountry(['Norway', 'Sweden', 'Denmark', 'Germany'], 'Germany')).toEqual([
+      'Germany',
+      'Norway',
+      'Sweden',
+      'Denmark',
+    ])
+  })
+
+  it('is a no-op for the country that is already primary', () => {
+    const selected = ['Norway', 'Sweden']
+    expect(withPrimaryCountry(selected, 'Norway')).toEqual(selected)
+  })
+
+  it('is a no-op for a country that is not selected — it never adds one as a side effect', () => {
+    const selected = ['Norway', 'Sweden']
+    expect(withPrimaryCountry(selected, 'France')).toEqual(selected)
+  })
+
+  it('never changes how many countries are selected, so the cap cannot be bypassed through it', () => {
+    const five = ['Norway', 'Sweden', 'Denmark', 'United Kingdom', 'Germany']
+    expect(withPrimaryCountry(five, 'Germany')).toHaveLength(MAX_PREFERRED_COUNTRIES)
+  })
+
+  it('never mutates its input', () => {
+    const input = ['Norway', 'Sweden']
+    withPrimaryCountry(input, 'Sweden')
+    expect(input).toEqual(['Norway', 'Sweden'])
   })
 })

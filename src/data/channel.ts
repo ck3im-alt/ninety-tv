@@ -9,6 +9,20 @@ export interface ChannelSource {
   // The raw provider-listed name this source entry had before merge-key
   // normalization (see mergeChannels.ts) — e.g. "UK | TNT SPORTS 1 FHD".
   originalName?: string
+  // Which connected playlist this playable stream actually came from (see
+  // data/playlists/playlistDefinition.ts). Stamped at the storage boundary
+  // by stampPlaylistProvenance the moment a playlist's channels enter the
+  // library — never by the parsers or by mergeChannelSources, which know
+  // nothing about playlist identity.
+  //
+  // This is what makes multi-playlist support correct rather than cosmetic:
+  // two playlists can be merged into one logical Channel (same TNT Sports 1
+  // from two providers) while each of its sources still resolves to ITS OWN
+  // Xtream credentials for EPG lookups — see
+  // data/playlists/xtreamResolver.ts. Optional because hand-built Channel
+  // literals (mostly tests) predate it and because a source can legitimately
+  // belong to no playlist during a merge test.
+  playlistId?: string
 }
 
 // Logical channel after merging quality-variant duplicates from the raw

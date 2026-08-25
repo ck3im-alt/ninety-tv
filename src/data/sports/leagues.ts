@@ -1,5 +1,9 @@
 import type { SportKey } from './types'
 
+// Mirrors ninety-api's CompetitionType (src/sports/leagues.ts) exactly --
+// the values GET /v1/competitions actually returns.
+export type CompetitionType = 'league' | 'cup' | 'qualification' | 'international'
+
 // Football competitions are NO LONGER hardcoded here (removed 2026-08-20's
 // Phase 1.1 audit) -- they're fetched at runtime from ninety-api's
 // canonical registry (GET /v1/competitions, backed by its own
@@ -39,6 +43,13 @@ export interface LeagueDef {
   // SportEvent.leagueTier (set at mapping time, see mapEvent.ts). Mirrors
   // ninety-api's LeagueConfig.tier.
   tier?: 1 | 2 | 3
+  // What kind of competition this is, straight from ninety-api's
+  // LeagueConfig.type (GET /v1/competitions already returned it; ninety-tv
+  // simply wasn't carrying it through until onboarding's home-league
+  // recommendation needed to prefer a country's actual top DIVISION over
+  // its cup competitions -- see features/onboarding/recommendedLeagues.ts).
+  // Football only; F1's STATIC_LEAGUES entry has no backend equivalent.
+  type?: CompetitionType
   badge?: string // league crest, used by the onboarding sport-picker grid
   // Overrides whatever event image TheSportsDB provides for fixtures in
   // this league — used for leagues where we have a specific curated hero

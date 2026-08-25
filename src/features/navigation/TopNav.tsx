@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FocusContext, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useFocusScrollIntoView } from '../../core/platform'
 import './TopNav.css'
 
@@ -14,19 +14,43 @@ function useClock() {
 
 const NAV_ITEMS = ['Home', 'Competitions', 'Channels'] as const
 
+// Opt-in escape hatch for screens whose first focusable doesn't sit
+// underneath the nav bar. Norigin only treats two elements as adjacent when
+// they overlap by >=20%, which holds for Home (hero button under the nav
+// items) but not for e.g. the standalone playlist setup screen, whose form
+// starts on the far left while the avatar sits on the far right — Down from
+// the avatar there found nothing and dropped focus onto the invisible
+// screen root. Screens that don't pass one keep the existing purely
+// geometric behaviour, unchanged.
+function useNavDownEscape(downFocusKey?: string) {
+  return (direction: string) => {
+    if (direction === 'down' && downFocusKey) {
+      void setFocus(downFocusKey)
+      return false
+    }
+    return true
+  }
+}
+
 interface NavItemProps {
   label: string
   active: boolean
   onSelect?: () => void
+  downFocusKey?: string
 }
 
-function NavItem({ label, active, onSelect }: NavItemProps) {
+function NavItem({ label, active, onSelect, downFocusKey }: NavItemProps) {
   // `focusable: onSelect != null` — a nav item with no handler (e.g.
   // Channels while playlist hydration is still pending, see App.tsx) must
   // not be a spatial-nav target at all. It used to always register, so a
   // remote user could focus and press Enter on it and nothing would happen
   // — a dead target that only "worked" by luck of onClick being undefined.
-  const { ref, focused } = useFocusable({ focusKey: `nav-${label}`, focusable: onSelect != null, onEnterPress: onSelect })
+  const { ref, focused } = useFocusable({
+    focusKey: `nav-${label}`,
+    focusable: onSelect != null,
+    onEnterPress: onSelect,
+    onArrowPress: useNavDownEscape(downFocusKey),
+  })
   // TopNav sits in normal document flow above Home's content (not a fixed
   // overlay), so moving focus up into it from a Home row scrolled deep down
   // the page needs the same scroll-follow every other Home focus target
@@ -45,8 +69,13 @@ function NavItem({ label, active, onSelect }: NavItemProps) {
   )
 }
 
-function Avatar({ onSelect }: { onSelect?: () => void }) {
-  const { ref, focused } = useFocusable({ focusKey: 'nav-avatar', focusable: onSelect != null, onEnterPress: onSelect })
+function Avatar({ onSelect, downFocusKey }: { onSelect?: () => void; downFocusKey?: string }) {
+  const { ref, focused } = useFocusable({
+    focusKey: 'nav-avatar',
+    focusable: onSelect != null,
+    onEnterPress: onSelect,
+    onArrowPress: useNavDownEscape(downFocusKey),
+  })
   useFocusScrollIntoView(ref, focused)
   return (
     <div ref={ref} className={`avatar ${onSelect ? 'clickable' : ''} ${focused ? 'focused' : ''}`} onClick={onSelect}>
@@ -55,8 +84,12 @@ function Avatar({ onSelect }: { onSelect?: () => void }) {
   )
 }
 
-function AdminDevButton({ onSelect }: { onSelect: () => void }) {
-  const { ref, focused } = useFocusable({ focusKey: 'nav-admin-dev', onEnterPress: onSelect })
+function AdminDevButton({ onSelect, downFocusKey }: { onSelect: () => void; downFocusKey?: string }) {
+  const { ref, focused } = useFocusable({
+    focusKey: 'nav-admin-dev',
+    onEnterPress: onSelect,
+    onArrowPress: useNavDownEscape(downFocusKey),
+  })
   useFocusScrollIntoView(ref, focused)
   return (
     <div ref={ref} className={`nav-admin-dev clickable ${focused ? 'focused' : ''}`} onClick={onSelect} title="Dev/debug panel">
@@ -81,6 +114,9 @@ interface TopNavProps {
   // and reusing the avatar for both would mean dev testing never exercises
   // the real production Settings entry point.
   onOpenAdmin?: () => void
+  // Where Down out of the nav bar should land, for screens whose own first
+  // focusable isn't geometrically below it — see useNavDownEscape.
+  downFocusKey?: string
 }
 
 export function TopNav({
@@ -90,6 +126,7 @@ export function TopNav({
   onSelectCompetitions,
   onOpenSettings,
   onOpenAdmin,
+  downFocusKey,
 }: TopNavProps) {
   const { ref, focusKey } = useFocusable({ focusKey: 'top-nav', trackChildren: true })
   const clock = useClock()
@@ -104,12 +141,12 @@ export function TopNav({
         <div className="logo">N I N E T Y</div>
         <nav className="nav-items">
           {NAV_ITEMS.map((item) => (
-            <NavItem key={item} label={item} active={item === activeItem} onSelect={handlers[item]} />
+            <NavItem key={item} label={item} active={item === activeItem} onSelect={handlers[item]} downFocusKey={downFocusKey} />
           ))}
         </nav>
         <div className="nav-meta">
-          {onOpenAdmin && <AdminDevButton onSelect={onOpenAdmin} />}
-          <Avatar onSelect={onOpenSettings} />
+          {onOpenAdmin && <AdminDevButton onSelect={onOpenAdmin} downFocusKey={downFocusKey} />}
+          <Avatar onSelect={onOpenSettings} downFocusKey={downFocusKey} />
           <span className="clock">{clock}</span>
         </div>
       </header>

@@ -1,0 +1,226 @@
+// "Where does my TV content come from?"
+//
+// Master/detail: the connected playlists on the left, the actions for
+// whichever one is highlighted on the right. That shape is what keeps this
+// on one screen no matter how many playlists exist — four action buttons per
+// playlist rendered inline would be a scrolling document by the second
+// playlist, which is exactly the failure mode this rebuild exists to fix.
+import { useEffect, useState } from 'react'
+import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { isResyncable, playlistSourceLabel, type PlaylistDefinition } from '../../data/playlists/playlistDefinition'
+import { SettingsAction, SettingsColumnHeader, SettingsPaneHeader, SettingsRow } from './settingsPrimitives'
+import { PANE_ENTRY_FOCUS_KEY } from './useSettingsFocusable'
+import { formatLastSynced } from './formatLastSynced'
+import type { PlaylistLibrary, PlaylistSyncStatus } from '../../data/playlists/usePlaylistLibrary'
+
+const ADD_FOCUS_KEY = 'settings-playlists-add'
+const ACTION_RENAME_FOCUS_KEY = 'settings-playlist-rename'
+
+// The list and the "+ Add playlist" button below it are one vertical chain,
+// stated rather than left to the library's geometric search: measured on a
+// real 1920x1080 render, Down from the last playlist row resolved to the
+// DETAIL column's second action instead of the Add button directly beneath
+// it (the right column overlaps the list's vertical band far more than the
+// short button does).
+function rowFocusKey(playlistId: string, index: number): string {
+  return index === 0 ? PANE_ENTRY_FOCUS_KEY : `settings-playlist-${playlistId}`
+}
+
+export type PlaylistDialogRequest =
+  | { kind: 'add' }
+  | { kind: 'rename'; playlist: PlaylistDefinition }
+  | { kind: 'edit'; playlist: PlaylistDefinition }
+  | { kind: 'remove'; playlist: PlaylistDefinition }
+
+export function PlaylistsPane({
+  library,
+  onRequestDialog,
+  onLeaveToRail,
+}: {
+  library: PlaylistLibrary
+  onRequestDialog: (request: PlaylistDialogRequest) => void
+  onLeaveToRail: () => void
+}) {
+  const { playlists } = library
+  const [activeId, setActiveId] = useState<string | null>(playlists[0]?.id ?? null)
+
+  // Keep the highlighted playlist valid as the library changes underneath —
+  // removing the playlist whose actions are showing must not leave the
+  // detail column pointing at something that no longer exists.
+  useEffect(() => {
+    if (playlists.length === 0) {
+      setActiveId(null)
+      return
+    }
+    setActiveId((current) => (current && playlists.some((p) => p.id === current) ? current : playlists[0].id))
+  }, [playlists])
+
+  const active = playlists.find((p) => p.id === activeId) ?? null
+  const resyncableCount = playlists.filter((p) => isResyncable(p.source)).length
+
+  if (playlists.length === 0) {
+    return (
+      <>
+        <SettingsPaneHeader title="Playlists" />
+        <div className="settings-empty">
+          <p className="settings-empty-title">No playlists connected</p>
+          <p className="settings-empty-body">
+            Add your TV provider and Ninety will organize its channels around the sports you follow. Fixtures and scores
+            keep working without one.
+          </p>
+          <SettingsAction
+            focusKey={PANE_ENTRY_FOCUS_KEY}
+            label="Add playlist"
+            tone="primary"
+            onEnter={() => onRequestDialog({ kind: 'add' })}
+            onLeft={onLeaveToRail}
+          />
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <SettingsPaneHeader title="Playlists" meta={`${playlists.length} connected`} />
+      <div className="settings-columns playlists">
+        <div className="settings-column">
+          <div className="settings-list">
+            {playlists.map((playlist, index) => (
+              <SettingsRow
+                // Entry-ness is part of the React key on purpose: the
+                // spatial-navigation library captures a focusable's key at
+                // REGISTRATION and ignores later changes, so removing the
+                // first playlist would otherwise leave PANE_ENTRY_FOCUS_KEY
+                // unclaimed and "Right from the rail" would focus nothing.
+                // Including it here remounts whichever row is first.
+                key={`${playlist.id}-${index === 0 ? 'entry' : 'row'}`}
+                // The first row is the pane's entry point, so "Right from
+                // the rail" always lands somewhere deterministic.
+                focusKey={rowFocusKey(playlist.id, index)}
+                label={playlist.name}
+                sublabel={playlistSourceLabel(playlist.source)}
+                value={<PlaylistStatus playlist={playlist} status={library.syncStatus(playlist.id)} />}
+                selected={playlist.id === activeId}
+                // Focus, not Enter, drives the detail column — the same
+                // live-preview-on-focus pattern the channel browser and the
+                // Channels filter already use, so arrowing down the list
+                // shows each playlist's actions without committing to
+                // anything.
+                onFocus={() => setActiveId(playlist.id)}
+                onEnter={() => void setFocus(ACTION_RENAME_FOCUS_KEY)}
+                onLeft={onLeaveToRail}
+                onRight={() => void setFocus(ACTION_RENAME_FOCUS_KEY)}
+                onUp={index === 0 ? () => {} : () => void setFocus(rowFocusKey(playlists[index - 1].id, index - 1))}
+                onDown={() =>
+                  void setFocus(
+                    index + 1 < playlists.length ? rowFocusKey(playlists[index + 1].id, index + 1) : ADD_FOCUS_KEY,
+                  )
+                }
+              />
+            ))}
+          </div>
+          <SettingsAction
+            focusKey={ADD_FOCUS_KEY}
+            label="+ Add playlist"
+            onEnter={() => onRequestDialog({ kind: 'add' })}
+            onLeft={onLeaveToRail}
+            onRight={() => void setFocus(ACTION_RENAME_FOCUS_KEY)}
+            onUp={() => void setFocus(rowFocusKey(playlists[playlists.length - 1].id, playlists.length - 1))}
+            onDown={() => {}}
+          />
+        </div>
+
+        <div className="settings-column detail">
+          <SettingsColumnHeader title={active ? active.name : 'Playlist'} />
+          {active && <PlaylistActions library={library} playlist={active} resyncableCount={resyncableCount} onRequestDialog={onRequestDialog} />}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function PlaylistActions({
+  library,
+  playlist,
+  resyncableCount,
+  onRequestDialog,
+}: {
+  library: PlaylistLibrary
+  playlist: PlaylistDefinition
+  resyncableCount: number
+  onRequestDialog: (request: PlaylistDialogRequest) => void
+}) {
+  const status = library.syncStatus(playlist.id)
+  const syncing = status.kind === 'syncing'
+  const resyncable = isResyncable(playlist.source)
+  const backToList = () => void setFocus(`settings-playlist-${playlist.id}`)
+
+  return (
+    <div className="settings-detail">
+      <dl className="settings-facts">
+        <div>
+          <dt>Source</dt>
+          <dd>{playlistSourceLabel(playlist.source)}</dd>
+        </div>
+        <div>
+          <dt>Channels</dt>
+          <dd>{playlist.channelCount.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Last synced</dt>
+          <dd>{formatLastSynced(playlist.lastSyncedAt)}</dd>
+        </div>
+      </dl>
+
+      <div className="settings-detail-actions">
+        <SettingsAction focusKey={ACTION_RENAME_FOCUS_KEY} label="Rename" onEnter={() => onRequestDialog({ kind: 'rename', playlist })} onLeft={backToList} />
+        <SettingsAction
+          label={resyncable ? 'Edit connection' : 'Replace file'}
+          onEnter={() => onRequestDialog({ kind: 'edit', playlist })}
+          onLeft={backToList}
+        />
+        {resyncable ? (
+          <SettingsAction
+            // Neither unmounted NOR made unfocusable while syncing — only
+            // its label changes, and Enter is inert until the sync finishes.
+            // An async status change must never pull the focused control out
+            // from under the user: focus would have nowhere to fall back to
+            // and the remote would appear to stop working mid-sync.
+            label={syncing ? 'Syncing…' : 'Resync now'}
+            onEnter={() => {
+              if (!syncing) void library.resyncPlaylist(playlist.id)
+            }}
+            onLeft={backToList}
+          />
+        ) : (
+          <p className="settings-detail-note">
+            This playlist came from a file. Ninety doesn't keep the file itself, so it can't refresh on its own — choose
+            the file again to update it.
+          </p>
+        )}
+        <SettingsAction label="Remove" tone="danger" onEnter={() => onRequestDialog({ kind: 'remove', playlist })} onLeft={backToList} />
+        {resyncableCount > 1 && (
+          <SettingsAction label="Resync all" onEnter={() => void library.resyncAll()} onLeft={backToList} />
+        )}
+      </div>
+
+      {status.kind === 'error' && (
+        <p className="settings-status error" role="status">
+          {status.message}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function PlaylistStatus({ playlist, status }: { playlist: PlaylistDefinition; status: PlaylistSyncStatus }) {
+  if (status.kind === 'syncing') return <span className="settings-badge">Syncing…</span>
+  if (status.kind === 'error') return <span className="settings-badge error">Sync failed</span>
+  return (
+    <span className="settings-row-value-stack">
+      <span>{playlist.channelCount.toLocaleString()} channels</span>
+      <span className="settings-row-value-meta">{formatLastSynced(playlist.lastSyncedAt)}</span>
+    </span>
+  )
+}

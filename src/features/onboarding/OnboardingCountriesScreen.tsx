@@ -1,256 +1,304 @@
-import { useEffect, useMemo } from 'react'
-import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
-import type { Channel } from '../../data/channel'
-import { parseCategory } from '../channels/parseCategory'
+import { useCallback, useEffect, useMemo } from 'react'
+import { FocusContext, useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation'
+import { useBackHandler } from '../../core/platform'
 import { flagSrc } from '../../data/countryCodes'
 import { MAX_PREFERRED_COUNTRIES } from '../../data/preferences'
+import type { PlaylistCountry } from '../../data/viewerCountry'
+import { buildRecommendedCountries, type RecommendedCountry } from './recommendedCountries'
+import { chunkIntoRows, isRowEdge, lastRowEntry, verticalNeighbour, type FocusChain } from './focusChain'
+import { OnboardingExpander } from './OnboardingExpander'
 import { OnboardingTopBar } from './OnboardingStepper'
-import { SelectableCard } from './OnboardingSportsScreen'
-import { ArrowRightIcon, BackArrowIcon } from './sportIcons'
+import { BLOCK_ARROW, SelectableCard } from './SelectableCard'
+import {
+  ONBOARDING_BACK_FOCUS_KEY,
+  ONBOARDING_PRIMARY_FOCUS_KEY,
+  ONBOARDING_SECONDARY_FOCUS_KEY,
+  OnboardingFooter,
+} from './OnboardingActions'
 import './onboardingShared.css'
 import './OnboardingCountriesScreen.css'
 
-interface CountryOption {
-  name: string
-  code: string | null
-  count: number
-}
+const COUNTRIES_TOGGLE_FOCUS_KEY = 'countries-toggle'
+// Matches .countries-grid's own `repeat(5, 1fr)` -- see
+// OnboardingCountriesScreen.css. Five is also MAX_PREFERRED_COUNTRIES, so
+// the recommended set is exactly one full row. Feeds the row model in
+// focusChain.ts.
+const GRID_COLUMNS = 5
+
+const countryKey = (name: string) => `country-${name}`
 
 interface Props {
-  channels: Channel[]
+  // Every country the connected playlist actually contains, biggest first
+  // (data/viewerCountry.ts's playlistCountries). Empty when step 1 was
+  // skipped -- the screen still works, it just recommends from the detected
+  // home country and the global fallbacks instead.
+  availableCountries: readonly PlaylistCountry[]
+  // Canonical ISO2-ish code for the TV's own country, or null.
+  viewerCountryCode: string | null
   // ORDERED, capped at MAX_PREFERRED_COUNTRIES by the owning flow (see
-  // preferences.ts's withCountryToggled) — the first entry is the primary
-  // country, shown with its own badge below.
+  // preferences.ts's withCountryToggled) -- the first entry is the primary
+  // country, badged as such below.
   selectedCountries: readonly string[]
+  showAllCountries: boolean
+  onToggleShowAllCountries: () => void
   onToggleCountry: (name: string) => void
-  onDeselectAll: () => void
+  onClearSelection: () => void
   onBack: () => void
-  onContinue: () => void
-}
-
-function GlobeIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M2.5 10h15M10 2.5c2.2 2 3.3 4.9 3.3 7.5s-1.1 5.5-3.3 7.5c-2.2-2-3.3-4.9-3.3-7.5S7.8 4.5 10 2.5z" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  )
-}
-
-function StarIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M10 2.5l2.2 4.7 5.1.6-3.8 3.5.9 5.1L10 13.9l-4.4 2.5.9-5.1-3.8-3.5 5.1-.6L10 2.5z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function TuneIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="7" cy="6" r="1.6" fill="currentColor" />
-      <circle cx="13" cy="10" r="1.6" fill="currentColor" />
-      <circle cx="9" cy="14" r="1.6" fill="currentColor" />
-    </svg>
-  )
+  onFinish: () => void
 }
 
 export function OnboardingCountriesScreen({
-  channels,
+  availableCountries,
+  viewerCountryCode,
   selectedCountries,
+  showAllCountries,
+  onToggleShowAllCountries,
   onToggleCountry,
-  onDeselectAll,
+  onClearSelection,
   onBack,
-  onContinue,
+  onFinish,
 }: Props) {
-  const { ref, focusKey } = useFocusable({ focusKey: 'onboarding-countries', trackChildren: true })
+  // PINNED, exactly like step 2's recommended leagues: the detected home
+  // country, up to two neighbouring markets, the UK and the US -- filtered
+  // to what the playlist actually carries and topped up from its biggest
+  // remaining countries. See recommendedCountries.ts.
+  const recommended = useMemo(
+    () => buildRecommendedCountries({ homeCountryCode: viewerCountryCode, available: availableCountries }),
+    [viewerCountryCode, availableCountries],
+  )
 
-  // Built from the playlist actually connected in step 1 — not a
-  // hardcoded "popular countries" list, since the whole point is to
-  // reflect what this user's own lineup actually contains.
-  const countries = useMemo<CountryOption[]>(() => {
-    const counts = new Map<string, { code: string | null; count: number }>()
-    for (const channel of channels) {
-      const { countryName, countryCode } = parseCategory(channel.groupTitle || '')
-      if (!countryName) continue
-      const existing = counts.get(countryName)
-      counts.set(countryName, { code: countryCode, count: (existing?.count ?? 0) + 1 })
+  // The pinned row also keeps anything the user picked out of the appended
+  // list. Without that, selecting (say) Germany from "More countries" and
+  // closing again hides it while it still counts against the 5-country cap
+  // -- visibly 5/5 selected with only four of them on screen, and no way to
+  // deselect it without opening the list again.
+  const pinned = useMemo<RecommendedCountry[]>(() => {
+    const shown = new Set(recommended.map((c) => c.name))
+    return [
+      ...recommended,
+      ...availableCountries.filter((c) => selectedCountries.includes(c.name) && !shown.has(c.name)),
+    ]
+  }, [recommended, availableCountries, selectedCountries])
+
+  // APPENDED below the expander when open -- never a replacement for the
+  // pinned row, and with every pinned name removed so no country renders
+  // twice (which would also mean two focusables sharing one
+  // `country-<name>` key).
+  const rest = useMemo<RecommendedCountry[]>(() => {
+    const shown = new Set(pinned.map((c) => c.name))
+    return availableCountries.filter((c) => !shown.has(c.name))
+  }, [pinned, availableCountries])
+
+  const canShowAll = rest.length > 0
+  const expanded = showAllCountries && canShowAll
+
+  // Every focusable row of the picker surface, top to bottom, in render
+  // order -- see focusChain.ts. Same model as step 2, so partial rows and
+  // the pinned/appended boundary need no per-card special cases.
+  const chain = useMemo<FocusChain>(() => {
+    const rows: string[][] = [...chunkIntoRows(pinned.map((c) => countryKey(c.name)), GRID_COLUMNS)]
+    if (canShowAll) rows.push([COUNTRIES_TOGGLE_FOCUS_KEY])
+    if (expanded) rows.push(...chunkIntoRows(rest.map((c) => countryKey(c.name)), GRID_COLUMNS))
+    return rows
+  }, [pinned, canShowAll, expanded, rest])
+
+  const arrowsFor = useCallback(
+    (key: string) => ({
+      onArrowUp: () => {
+        const target = verticalNeighbour(chain, key, 'up')
+        if (target) void setFocus(target)
+      },
+      onArrowDown: () => {
+        void setFocus(verticalNeighbour(chain, key, 'down') ?? ONBOARDING_PRIMARY_FOCUS_KEY)
+      },
+      onArrowLeft: isRowEdge(chain, key, 'left') ? BLOCK_ARROW : undefined,
+      onArrowRight: isRowEdge(chain, key, 'right') ? BLOCK_ARROW : undefined,
+    }),
+    [chain],
+  )
+
+  const firstCardFocusKey = pinned[0] ? countryKey(pinned[0].name) : undefined
+
+  // preferredChildFocusKey (not just the first card's forceFocus, which
+  // only applies on mount): the flow re-focuses this screen's own root key
+  // on every step change, including arriving back here from step 2 -- see
+  // OnboardingFlow's STEP_FOCUS_KEYS. Falls back to the primary action so a
+  // playlist-less, undetected-country viewer with no cards at all can still
+  // reach Finish setup.
+  const { ref, focusKey } = useFocusable({
+    focusKey: 'onboarding-countries',
+    trackChildren: true,
+    preferredChildFocusKey: firstCardFocusKey ?? ONBOARDING_PRIMARY_FOCUS_KEY,
+  })
+
+  // "Clear selection" only exists while something IS selected, so clearing
+  // via the remote unmounts the very button that was focused. Hand focus to
+  // Back (its neighbour in the same footer group) rather than leaving it on
+  // a removed component.
+  useEffect(() => {
+    if (selectedCountries.length === 0 && getCurrentFocusKey() === ONBOARDING_SECONDARY_FOCUS_KEY) {
+      void setFocus(ONBOARDING_BACK_FOCUS_KEY)
     }
-    return [...counts.entries()]
-      .map(([name, { code, count }]) => ({ name, code, count }))
-      .sort((a, b) => b.count - a.count)
-  }, [channels])
+  }, [selectedCountries.length])
 
-  const BACK_FOCUS_KEY = 'countries-back'
-  const CONTINUE_FOCUS_KEY = 'countries-continue'
-  const DESELECT_ALL_FOCUS_KEY = 'countries-deselect-all'
-  const firstCountryFocusKey = countries[0] ? `country-${countries[0].name}` : undefined
-  const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: BACK_FOCUS_KEY, onEnterPress: onBack })
-  const { ref: continueRef, focused: continueFocused } = useFocusable({
-    focusKey: CONTINUE_FOCUS_KEY,
-    onEnterPress: onContinue,
-  })
-  // NOT forceFocus -- that used to sit here (a real bug, not just the
-  // scroll gap below). norigin's directional search needs >=20% geometric
-  // overlap between two elements to consider them adjacent (same rule
-  // documented on the Continue-button hitbox further down); this row's
-  // button is narrow and right-aligned, so Down from here almost never
-  // lands in the grid's actual first column -- landing initial focus HERE
-  // instead of on a grid card made the entire country grid unreachable by
-  // remote, not just slow to reach. Sports screen never had this bug
-  // because its own forceFocus already targets a grid card directly (the
-  // football SelectableCard) -- mirrored below onto the first country card.
-  //
-  // Down explicitly targets the first country card for the same geometric-
-  // overlap reason — this is also the fix for the reverse direction (Down
-  // FROM this button), which previously depended on the same unreliable
-  // geometry as the forceFocus bug above. First row's onArrowUp (below, on
-  // the grid itself) targets it back. ("Select all" is gone — it can't
-  // mean anything under the MAX_PREFERRED_COUNTRIES cap.)
-  const { ref: deselectAllRef, focused: deselectAllFocused } = useFocusable({
-    focusKey: DESELECT_ALL_FOCUS_KEY,
-    onEnterPress: onDeselectAll,
-    onArrowPress: (direction) => {
-      if (direction === 'down' && firstCountryFocusKey) {
-        void setFocus(firstCountryFocusKey)
-        return false
-      }
+  // Closing the appended list unmounts its cards. Focus is normally already
+  // on the expander (that is what was pressed), but no other route into a
+  // close may leave focus pointing at a removed card.
+  useEffect(() => {
+    if (expanded) return
+    const current = getCurrentFocusKey()
+    if (!current.startsWith('country-')) return
+    if (!pinned.some((c) => countryKey(c.name) === current)) void setFocus(COUNTRIES_TOGGLE_FOCUS_KEY)
+  }, [expanded, pinned])
+
+  // Same "unwind the innermost thing first" Back behaviour as step 2, via
+  // the existing back-handler stack. Focus moves BEFORE the state change so
+  // no card is unmounted while focused.
+  useBackHandler(() => {
+    if (expanded) {
+      void setFocus(COUNTRIES_TOGGLE_FOCUS_KEY)
+      onToggleShowAllCountries()
       return true
-    },
+    }
+    onBack()
+    return true
   })
-
-  // Every standalone (non-grid-card) focus target on this screen needs its
-  // own scroll-into-view -- SelectableCard has one, these don't, same gap
-  // fixed on OnboardingSportsScreen's Back/Skip/Continue.
-  useEffect(() => {
-    if (backFocused) backRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [backFocused, backRef])
-  useEffect(() => {
-    if (continueFocused) continueRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [continueFocused, continueRef])
-  useEffect(() => {
-    if (deselectAllFocused) deselectAllRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [deselectAllFocused, deselectAllRef])
-
-  // Same problem, same fix as OnboardingSportsScreen.tsx's grids: Back
-  // sits in the left info panel and Continue sits below the grid, both
-  // often unreachable through norigin's default geometry-based directional
-  // search -- see SelectableCard's onArrowLeft/onArrowDown for the actual
-  // override mechanism. Column count matches countries-grid's own CSS
-  // (`repeat(5, 1fr)` — see OnboardingCountriesScreen.css).
-  const GRID_COLUMNS = 5
-  const lastRowStart = (Math.ceil(countries.length / GRID_COLUMNS) - 1) * GRID_COLUMNS
 
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="onboarding-screen">
         <OnboardingTopBar current={3} />
 
-        <div className="onboarding-info">
+        <div className="onboarding-heading">
           <h1 className="onboarding-headline">
-            Choose your
-            <br />
-            <span className="accent">favorite</span> countries
+            Choose your preferred <span className="accent">countries</span>
           </h1>
           <p className="onboarding-description">
-            Pick up to {MAX_PREFERRED_COUNTRIES} countries to follow — your first pick becomes your primary country and
-            its streams rank highest.
+            We'll prioritize streams from these countries when several options are available. Your first pick is your
+            primary country.
           </p>
-
-          <ul className="onboarding-features">
-            <li>
-              <GlobeIcon />
-              <div>
-                <p className="feature-title">Personalized channels</p>
-                <p className="feature-desc">Get channels and content from your favorite countries.</p>
-              </div>
-            </li>
-            <li>
-              <StarIcon />
-              <div>
-                <p className="feature-title">Relevant matches</p>
-                <p className="feature-desc">See more matches and events that matter to you.</p>
-              </div>
-            </li>
-            <li>
-              <TuneIcon />
-              <div>
-                <p className="feature-title">Easy to change</p>
-                <p className="feature-desc">Update your preferences anytime in settings.</p>
-              </div>
-            </li>
-          </ul>
-
-          <div className="onboarding-footer-actions">
-            <button ref={backRef} className={`back-button ${backFocused ? 'focused' : ''}`} onClick={onBack}>
-              <BackArrowIcon /> Back
-            </button>
-          </div>
         </div>
 
-        <div className="onboarding-picker">
-          <div className="picker-section-header">
-            <h2 className="picker-section-title">
-              Popular countries
-              <span className="picker-section-counter">
-                {selectedCountries.length}/{MAX_PREFERRED_COUNTRIES}
-              </span>
-            </h2>
-            <div className="picker-section-actions">
-              <button
-                ref={deselectAllRef}
-                className={`picker-section-action ${deselectAllFocused ? 'focused' : ''}`}
-                onClick={onDeselectAll}
-              >
-                Deselect all
-              </button>
-            </div>
-          </div>
-
-          {countries.length === 0 ? (
+        <div className="onboarding-body">
+          {pinned.length === 0 ? (
             <p className="countries-empty">
-              Couldn't detect any country names in your playlist's categories — you can still browse everything
-              normally, this step just personalizes what's shown first.
+              Couldn't detect any countries to suggest yet — you can still browse everything normally, and set this up
+              later in Settings once a playlist is connected.
             </p>
           ) : (
-            <div className="countries-grid">
-              {countries.map((country, index) => {
-                const isPrimary = selectedCountries[0] === country.name
-                return (
-                  <SelectableCard
+            <section className="onboarding-section">
+              <div className="picker-section-header">
+                <h2 className="picker-section-title">
+                  Recommended
+                  <span className="picker-section-counter">
+                    {selectedCountries.length}/{MAX_PREFERRED_COUNTRIES} selected
+                  </span>
+                </h2>
+              </div>
+
+              <div className="countries-grid">
+                {pinned.map((country, index) => (
+                  <CountryCard
                     key={country.name}
-                    focusKey={`country-${country.name}`}
+                    country={country}
                     selected={selectedCountries.includes(country.name)}
+                    isPrimary={selectedCountries[0] === country.name}
                     onToggle={() => onToggleCountry(country.name)}
                     forceFocus={index === 0}
-                    onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
-                    onArrowUp={index < GRID_COLUMNS ? () => void setFocus(DESELECT_ALL_FOCUS_KEY) : undefined}
-                    onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
-                  >
-                    <div className="pick-card-icon round">
-                      {country.code && flagSrc(country.code) && <img src={flagSrc(country.code)!} alt="" />}
-                    </div>
-                    <span className="pick-card-label">{country.name}</span>
-                    <span className="pick-card-sublabel">
-                      {isPrimary ? <span className="pick-card-primary">Primary</span> : `${country.count} channels`}
-                    </span>
-                  </SelectableCard>
-                )
-              })}
-            </div>
+                    arrows={arrowsFor(countryKey(country.name))}
+                  />
+                ))}
+              </div>
+
+              {/* Same stable-position, stable-focusKey control as step 2's
+                  More leagues: the appended list goes BELOW it, so it never
+                  moves out from under the focus ring. */}
+              {canShowAll && (
+                <OnboardingExpander
+                  focusKey={COUNTRIES_TOGGLE_FOCUS_KEY}
+                  expanded={expanded}
+                  moreLabel="More countries"
+                  fewerLabel="Show fewer"
+                  chain={chain}
+                  onToggle={onToggleShowAllCountries}
+                />
+              )}
+            </section>
           )}
 
-          <button ref={continueRef} className={`continue-button ${continueFocused ? 'focused' : ''}`} onClick={onContinue}>
-            Continue <ArrowRightIcon />
-          </button>
+          {expanded && (
+            <section className="onboarding-section countries-catalogue">
+              <h2 className="picker-section-title">
+                All countries
+                <span className="picker-section-counter">{rest.length} more in your playlist</span>
+              </h2>
+              <div className="countries-grid">
+                {rest.map((country) => (
+                  <CountryCard
+                    key={country.name}
+                    country={country}
+                    selected={selectedCountries.includes(country.name)}
+                    isPrimary={selectedCountries[0] === country.name}
+                    onToggle={() => onToggleCountry(country.name)}
+                    arrows={arrowsFor(countryKey(country.name))}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
+
+        <OnboardingFooter
+          onBack={onBack}
+          secondary={selectedCountries.length > 0 ? { label: 'Clear selection', onPress: onClearSelection } : undefined}
+          primary={{ label: 'Finish setup', onPress: onFinish }}
+          upFocusKey={lastRowEntry(chain) ?? undefined}
+        />
       </main>
     </FocusContext.Provider>
+  )
+}
+
+function CountryCard({
+  country,
+  selected,
+  isPrimary,
+  onToggle,
+  forceFocus,
+  arrows,
+}: {
+  country: RecommendedCountry
+  selected: boolean
+  isPrimary: boolean
+  onToggle: () => void
+  forceFocus?: boolean
+  arrows: {
+    onArrowUp: () => void
+    onArrowDown: () => void
+    onArrowLeft?: () => void
+    onArrowRight?: () => void
+  }
+}) {
+  const flag = country.code ? flagSrc(country.code) : null
+  return (
+    <SelectableCard
+      focusKey={countryKey(country.name)}
+      selected={selected}
+      onToggle={onToggle}
+      forceFocus={forceFocus}
+      {...arrows}
+    >
+      <div className="pick-card-icon round">{flag && <img src={flag} alt="" />}</div>
+      <span className="pick-card-label">{country.name}</span>
+      <span className="pick-card-sublabel">
+        {isPrimary ? (
+          <span className="pick-card-primary">Primary</span>
+        ) : country.count > 0 ? (
+          `${country.count} channels`
+        ) : (
+          'Suggested'
+        )}
+      </span>
+    </SelectableCard>
   )
 }

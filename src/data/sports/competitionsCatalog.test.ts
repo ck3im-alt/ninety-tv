@@ -44,6 +44,10 @@ describe('loadFootballCompetitions', () => {
         region: 'England',
         countryCode: 'GB',
         tier: 1,
+        // Carried through since 2026-08-25 — onboarding's home-league
+        // recommendation needs to prefer a country's top DIVISION over its
+        // cups (see features/onboarding/recommendedLeagues.ts).
+        type: 'league',
         badge: 'https://footballdata.io/img/league/england-premier-league.png',
         ninetyCompetitionId: 'football_premier_league',
       },

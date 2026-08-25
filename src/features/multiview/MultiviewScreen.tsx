@@ -33,7 +33,7 @@ import type { StreamRankingPreferences } from '../eventDetails/buildEventStreamO
 import type { HomeFeed } from '../../data/sports/useHomeFeed'
 import type { Channel } from '../../data/channel'
 import type { SportEvent } from '../../data/sports/types'
-import type { XtreamCredentials } from '../../data/xtream/types'
+import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
 import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
 import './MultiviewScreen.css'
 
@@ -43,7 +43,7 @@ interface Props {
   session: MultiviewSession
   onSessionChange: (updater: (session: MultiviewSession) => MultiviewSession) => void
   channels: Channel[]
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   identityIndex: ChannelIdentityIndex | null
   favoriteChannels: ReadonlySet<string>
   favoriteChannelsList: Channel[]
@@ -62,7 +62,7 @@ type PickerState = { kind: 'add' } | { kind: 'replace'; paneId: string } | null
 function PaneResolver({
   pane,
   channels,
-  xtreamCreds,
+  xtream,
   identityIndex,
   favoriteChannels,
   rankingPreferences,
@@ -71,14 +71,14 @@ function PaneResolver({
 }: {
   pane: MultiviewSession['panes'][number]
   channels: Channel[]
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   identityIndex: ChannelIdentityIndex | null
   favoriteChannels: ReadonlySet<string>
   rankingPreferences: StreamRankingPreferences
   networkFallbackQueue: ReturnType<typeof createSerialQueue>
   onResolved: (paneId: string, candidates: MultiviewSourceCandidate[], resolution: 'ready' | 'not-found') => void
 }) {
-  useMultiviewPaneResolution(pane, channels, xtreamCreds, identityIndex, favoriteChannels, rankingPreferences, networkFallbackQueue, onResolved)
+  useMultiviewPaneResolution(pane, channels, xtream, identityIndex, favoriteChannels, rankingPreferences, networkFallbackQueue, onResolved)
   return null
 }
 
@@ -86,7 +86,7 @@ export function MultiviewScreen({
   session,
   onSessionChange,
   channels,
-  xtreamCreds,
+  xtream,
   identityIndex,
   favoriteChannels,
   favoriteChannelsList,
@@ -160,7 +160,7 @@ export function MultiviewScreen({
           key={pane.assignmentId}
           pane={pane}
           channels={channels}
-          xtreamCreds={xtreamCreds}
+          xtream={xtream}
           identityIndex={identityIndex}
           favoriteChannels={favoriteChannels}
           rankingPreferences={{ favoriteCountries, streamType }}

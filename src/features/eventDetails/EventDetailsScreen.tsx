@@ -11,14 +11,14 @@ import { loadPreferences } from '../../data/preferences'
 import type { SportEvent } from '../../data/sports/types'
 import type { EventStreamDisplayParts } from './ppvDisplayName'
 import type { Channel, ChannelSource } from '../../data/channel'
-import type { XtreamCredentials } from '../../data/xtream/types'
+import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
 import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
 import './EventDetailsScreen.css'
 
 interface Props {
   event: SportEvent
   channels: Channel[]
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   identityIndex: ChannelIdentityIndex | null
   // Same Set/setter App.tsx already owns for every other favorite star in
   // the app (see App.tsx's favoriteChannels/toggleInSet) — this screen
@@ -47,7 +47,7 @@ type MatchState =
 export function EventDetailsScreen({
   event,
   channels,
-  xtreamCreds,
+  xtream,
   identityIndex,
   favoriteChannels,
   onToggleFavoriteChannel,
@@ -78,7 +78,7 @@ export function EventDetailsScreen({
     let cancelled = false
     const controller = new AbortController()
     setState({ status: 'loading' })
-    matchChannelsForEvent(event, channels, xtreamCreds, identityIndex, { allowNetworkFallback: true, signal: controller.signal })
+    matchChannelsForEvent(event, channels, xtream, identityIndex, { allowNetworkFallback: true, signal: controller.signal })
       .then(({ matches, apiStations }) => {
         if (cancelled) return
         setState(matches.length > 0 ? { status: 'ready', matches, apiStations } : { status: 'not-found', apiStations })
@@ -91,7 +91,7 @@ export function EventDetailsScreen({
       controller.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event.id, channels, xtreamCreds, identityIndex])
+  }, [event.id, channels, xtream, identityIndex])
 
   useBackHandler(() => {
     onBack()

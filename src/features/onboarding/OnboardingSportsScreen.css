@@ -1,38 +1,55 @@
-/* Step-specific to Sports & Leagues — shared layout/card rules live in
-   onboardingShared.css. */
+/* Step-specific to Sports & leagues — shared page skeleton and card rules
+   live in onboardingShared.css, and the expanded catalogue's own panel is
+   in LeagueBrowser.css.
 
-.sports-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
+   EVERYTHING HERE IS SIZED AGAINST A HEIGHT BUDGET. This step has to fit
+   the sports row, a full row of recommended leagues, the "Browse all
+   leagues" control, the league browser panel AND the footer inside 1080px.
+   The cards were noticeably taller than they needed to be for a 1920px-wide
+   layout (a 178px-tall tile holding a 54px badge and one line of text), so
+   the space the browser needs came out of that rather than out of
+   readability — nothing here got a smaller font. */
 
-.sports-section.centered {
-  /* No Football Leagues section to fill the rest of the column when
-     football isn't selected — center the sports grid in that space
-     instead of leaving it pinned to the top with empty space below. */
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-}
-
-.sports-section.centered .picker-section-title {
-  text-align: center;
-}
-
-.sports-section.centered .popular-sports-grid {
-  width: 100%;
-}
-
-.popular-sports-grid {
+/* Two compact cards, deliberately NOT stretched across the row: league
+   selection is the emphasis of this step, and a full-width Football tile
+   would out-shout the thing the user is actually here to pick. */
+.sports-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(2, 220px);
   gap: var(--space-4);
-  margin-bottom: var(--space-4);
 }
 
+.sports-grid .pick-card {
+  min-height: 84px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+}
+
+.sports-grid .pick-card-icon {
+  width: 30px;
+  height: 30px;
+}
+
+/* Eight columns because eight is exactly the maximum size of the
+   recommendation set (Big Five + the two tracked UEFA competitions + the
+   viewer's home league) — so the pinned row is ONE row on a 1920px screen,
+   with no carousel and no second rank of cards pushing the browser down.
+   Each card lands at ~202px, which is comfortably readable from a sofa.
+   The number is mirrored by RECOMMENDED_GRID_COLUMNS in the screen, which
+   feeds the row model in focusChain.ts. */
 .league-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   gap: var(--space-4);
+}
+
+.league-grid .pick-card {
+  min-height: 112px;
+  padding: var(--space-3) var(--space-2);
+  gap: var(--space-2);
+}
+
+.league-grid .pick-card-icon {
+  width: 40px;
+  height: 40px;
 }

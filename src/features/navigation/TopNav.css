@@ -6,7 +6,7 @@
      floating on top of it. Harmless on every other screen: nothing else
      competes for stacking there. */
   z-index: 5;
-  height: 84px;
+  height: var(--topnav-height);
   display: flex;
   align-items: center;
   justify-content: space-between;

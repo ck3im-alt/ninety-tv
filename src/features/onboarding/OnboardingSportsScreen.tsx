@@ -1,9 +1,21 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FocusContext, useFocusable, setFocus, getCurrentFocusKey } from '@noriginmedia/norigin-spatial-navigation'
+import { useBackHandler } from '../../core/platform'
 import type { SportKey } from '../../data/sports/types'
+import type { LeagueDef } from '../../data/sports/leagues'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
+import { buildRecommendedLeagues } from './recommendedLeagues'
+import { groupExpandedLeagues } from './groupExpandedLeagues'
+import { resolveActiveGroup } from './leagueBrowserState'
+import { chunkIntoRows, isRowEdge, lastRowEntry, verticalNeighbour, type FocusChain } from './focusChain'
+import { LeagueBrowser } from './LeagueBrowser'
+import { LeagueCard } from './LeagueCard'
+import { LEAGUE_FOCUS_PREFIX, REGION_FOCUS_PREFIX, leagueFocusKey, regionFocusKey } from './leagueFocusKeys'
+import { OnboardingExpander } from './OnboardingExpander'
 import { OnboardingTopBar } from './OnboardingStepper'
-import { ArrowRightIcon, BackArrowIcon, CheckIcon, FootballIcon, FormulaOneIcon, StarIcon, TrophyIcon, TuneIcon } from './sportIcons'
+import { BLOCK_ARROW, SelectableCard } from './SelectableCard'
+import { ONBOARDING_PRIMARY_FOCUS_KEY, OnboardingFooter } from './OnboardingActions'
+import { FootballIcon, FormulaOneIcon } from './sportIcons'
 import './onboardingShared.css'
 import './OnboardingSportsScreen.css'
 
@@ -18,217 +30,258 @@ const POPULAR_SPORTS: PopularSport[] = [
   { id: 'f1', label: 'Formula 1', icon: FormulaOneIcon },
 ]
 
+const FOOTBALL_FOCUS_KEY = 'sport-football'
+const LEAGUES_TOGGLE_FOCUS_KEY = 'leagues-toggle'
+// Matches .league-grid's own `repeat(8, 1fr)` (OnboardingSportsScreen.css).
+// Eight is exactly the recommendation's maximum size (Big Five + the two
+// tracked UEFA competitions + the viewer's home league), so the pinned row
+// is ONE row -- see the row model in focusChain.ts.
+const RECOMMENDED_GRID_COLUMNS = 8
+
+const sportKey = (id: SportKey) => `sport-${id}`
+
+// norigin types getCurrentFocusKey() as `string`, but it genuinely returns
+// null until something has been focused for the FIRST time -- which is
+// exactly when the focus-rescue effects below first run (they fire on
+// mount, before any forceFocus has been applied). Reading it through here
+// means those effects ask "is focus on something I just removed?" and get a
+// plain no, rather than throwing on null.startsWith.
+const currentFocusKey = (): string => (getCurrentFocusKey() as string | null) ?? ''
+
 interface Props {
   selectedSports: Set<SportKey>
   selectedLeagues: Set<string>
+  // Canonical ISO2-ish code for the TV's own country, or null when nothing
+  // could be detected -- see data/viewerCountry.ts. Adds the viewer's top
+  // domestic league to the recommendations, and makes their own region both
+  // the first row of the browser's rail and the region it opens on;
+  // detection failing just means one fewer card and a browser that opens on
+  // the international competitions instead.
+  viewerCountryCode: string | null
+  showAllLeagues: boolean
+  onToggleShowAllLeagues: () => void
   onToggleSport: (id: SportKey) => void
   onToggleLeague: (id: string) => void
   onBack: () => void
-  onSkip: () => void
   onContinue: () => void
-}
-
-export function SelectableCard({
-  focusKey,
-  selected,
-  onToggle,
-  forceFocus,
-  // These grids sit in a two-column layout where the "escape" targets
-  // (Back/Skip in the left info panel, Continue below the grid) are often
-  // far enough away, or narrow enough, that norigin's geometry-based
-  // directional search can't reliably reach them -- see the onArrowLeft/
-  // onArrowDown wiring at each grid's call site for exactly which cards
-  // get which override. Same onArrowPress-returns-false-to-override
-  // pattern as ListRow.tsx/BrowseCascadeScreen.tsx use for the identical
-  // problem in the channel browser.
-  onArrowLeft,
-  onArrowUp,
-  onArrowDown,
-  children,
-}: {
-  focusKey: string
-  selected: boolean
-  onToggle: () => void
-  forceFocus?: boolean
-  onArrowLeft?: () => void
-  // Escapes UP out of the topmost row of a grid — e.g. Settings' Countries
-  // grid back to the section above it, where default geometry can't be
-  // trusted any more than it can for onArrowLeft/onArrowDown (see those).
-  onArrowUp?: () => void
-  onArrowDown?: () => void
-  children: React.ReactNode
-}) {
-  const { ref, focused } = useFocusable({
-    focusKey,
-    onEnterPress: onToggle,
-    forceFocus,
-    onArrowPress: (direction) => {
-      if (direction === 'left' && onArrowLeft) {
-        onArrowLeft()
-        return false
-      }
-      if (direction === 'up' && onArrowUp) {
-        onArrowUp()
-        return false
-      }
-      if (direction === 'down' && onArrowDown) {
-        onArrowDown()
-        return false
-      }
-      return true
-    },
-  })
-  // Every other focusable grid/list in the app scrolls itself into view on
-  // focus (see HomeScreen/TopNav/StreamRow/ListRow) -- these onboarding
-  // grids never had it, so D-pad navigation past the visible rows moved
-  // focus without the viewport following it: keys registered (state did
-  // toggle) but looked completely unresponsive since the focused card was
-  // off-screen. Became a real, reproducible bug once the leagues grid grew
-  // to 50 competitions (was 7) and stopped fitting on one screen.
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
-  return (
-    <div
-      ref={ref}
-      className={`pick-card ${selected ? 'selected' : ''} ${focused ? 'focused' : ''}`}
-      onClick={onToggle}
-    >
-      <span className="pick-card-checkbox">{selected && <CheckIcon />}</span>
-      {children}
-    </div>
-  )
 }
 
 export function OnboardingSportsScreen({
   selectedSports,
   selectedLeagues,
+  viewerCountryCode,
+  showAllLeagues,
+  onToggleShowAllLeagues,
   onToggleSport,
   onToggleLeague,
   onBack,
-  onSkip,
   onContinue,
 }: Props) {
-  const { ref, focusKey } = useFocusable({ focusKey: 'onboarding-sports', trackChildren: true })
-  const footballSelected = selectedSports.has('football')
-  // Competition catalog is now an async fetch (GET /v1/competitions) —
-  // see competitionsCatalog.ts — rather than a hardcoded local array.
-  const competitionsState = useFootballCompetitions()
-  const footballLeagues = competitionsState.status === 'ready' ? competitionsState.leagues : []
-
-  const BACK_FOCUS_KEY = 'sports-back'
-  const CONTINUE_FOCUS_KEY = 'sports-continue'
-  const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: BACK_FOCUS_KEY, onEnterPress: onBack })
-  const { ref: skipRef, focused: skipFocused } = useFocusable({ onEnterPress: onSkip })
-  const { ref: continueRef, focused: continueFocused } = useFocusable({
-    focusKey: CONTINUE_FOCUS_KEY,
-    onEnterPress: onContinue,
+  // preferredChildFocusKey as well as the Football card's own forceFocus:
+  // forceFocus only applies on mount, but the flow re-focuses this screen's
+  // root key on every step change -- including arriving back here from
+  // step 3. See OnboardingFlow's STEP_FOCUS_KEYS.
+  const { ref, focusKey } = useFocusable({
+    focusKey: 'onboarding-sports',
+    trackChildren: true,
+    preferredChildFocusKey: FOOTBALL_FOCUS_KEY,
   })
+  const footballSelected = selectedSports.has('football')
+  // Competition catalog is an async fetch (GET /v1/competitions) -- see
+  // competitionsCatalog.ts -- never a local copy of the 50-competition list.
+  const competitionsState = useFootballCompetitions()
+  const catalog = useMemo<LeagueDef[]>(
+    () => (competitionsState.status === 'ready' ? competitionsState.leagues : []),
+    [competitionsState],
+  )
 
-  // Every standalone (non-grid-card) focus target on this screen needs its
-  // own scroll-into-view -- SelectableCard has one (see below), these
-  // didn't: reachable in principle (setFocus + the onArrowDown override
-  // above do transfer focus here), but with 50 leagues the button sits
-  // below the fold and the viewport never followed, so it looked like Down
-  // silently stopped working a row or two before the actual end.
-  useEffect(() => {
-    if (backFocused) backRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [backFocused, backRef])
-  useEffect(() => {
-    if (skipFocused) skipRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [skipFocused, skipRef])
-  useEffect(() => {
-    if (continueFocused) continueRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [continueFocused, continueRef])
+  // PINNED, AND STILL THE TOP OF THE SCREEN WHEN THE BROWSER IS OPEN.
+  // Big Five + tracked UEFA competitions + the viewer's own top domestic
+  // league (see recommendedLeagues.ts), sized to sit on ONE row. Opening
+  // the browser appends a panel below; it never scrolls these away and
+  // never moves them into the browser.
+  const recommended = useMemo(() => buildRecommendedLeagues(catalog, viewerCountryCode), [catalog, viewerCountryCode])
 
-  // Column count matches each grid's own CSS (`repeat(6, 1fr)` — see
-  // OnboardingSportsScreen.css) — used to compute which cards sit in the
-  // leftmost column (-> Left reaches Back) and in the grid's actual last
-  // row (-> Down reaches Continue), since neither is reliably reachable
-  // through norigin's default geometry-based search from every card. Only
-  // the truly last-rendered section's last row gets the Continue escape;
-  // the sports->leagues transition within the picker is a normal
-  // same-column downward move that already works.
-  const GRID_COLUMNS = 6
-  const isLastPickerSection = !footballSelected || footballLeagues.length === 0
+  // The rest of the catalog, grouped by region and ordered home-first, with
+  // every recommended id removed so no competition renders twice (which
+  // would also mean two focusables fighting over one `league-<id>` key) and
+  // with no empty group. Unchanged by this pass -- the browser below is a
+  // new way of RENDERING this result, not a new way of computing it.
+  const groups = useMemo(
+    () =>
+      groupExpandedLeagues({
+        leagues: catalog,
+        recommendedLeagueIds: recommended.map((l) => l.id),
+        viewerCountryCode,
+      }),
+    [catalog, recommended, viewerCountryCode],
+  )
+  const expandedCount = useMemo(() => groups.reduce((total, group) => total + group.leagues.length, 0), [groups])
+  const canShowAll = groups.length > 0
+  const hasLeagueGrid = footballSelected && recommended.length > 0
+  const expanded = showAllLeagues && canShowAll && hasLeagueGrid
 
-  // Deselecting Football removes the entire league grid — normally that
-  // only happens via Enter directly on the Football card, so focus is
-  // already sitting there and nothing is orphaned. But this stays cheap
-  // insurance against exactly the scenario the interaction audit calls
-  // out (focus stranded inside a grid that just disappeared) for any other
-  // path that might toggle it later: only redirects when the currently
-  // focused key actually WAS one of the now-removed league cards.
-  useEffect(() => {
-    if (!footballSelected && getCurrentFocusKey().startsWith('league-')) {
-      void setFocus('sport-football')
+  // Which region the browser is showing. Null until the user moves in the
+  // rail -- resolveActiveGroup then answers with the default region, so the
+  // browser has an active region from the very first render and this state
+  // never has to be seeded by an effect.
+  const [activeRegionKey, setActiveRegionKey] = useState<string | null>(null)
+  const activeGroup = useMemo(() => resolveActiveGroup(groups, activeRegionKey), [groups, activeRegionKey])
+
+  // THE VERTICAL model for the page above the browser: the sports row, the
+  // recommendations row(s), the expander, and -- when the browser is open
+  // -- one final row standing for the panel itself, entered at its active
+  // region. Up/Down for every card is answered by looking the current key
+  // up in here (focusChain.ts) rather than each card naming a neighbour, so
+  // a partial last row or a differently-sized recommendation set needs no
+  // special case. The browser's own two columns have their own chains --
+  // see LeagueBrowser.
+  const chain = useMemo<FocusChain>(() => {
+    const rows: string[][] = [POPULAR_SPORTS.map((sport) => sportKey(sport.id))]
+    if (hasLeagueGrid) {
+      rows.push(...chunkIntoRows(recommended.map((l) => leagueFocusKey(l.id)), RECOMMENDED_GRID_COLUMNS))
+      if (canShowAll) rows.push([LEAGUES_TOGGLE_FOCUS_KEY])
+      if (expanded && activeGroup) rows.push([regionFocusKey(activeGroup.key)])
     }
+    return rows
+  }, [hasLeagueGrid, recommended, canShowAll, expanded, activeGroup])
+
+  // One set of arrow handlers for every card on the page above the browser,
+  // derived from the model above. Down past the last row is the footer; Up
+  // past the first row and Left/Right past a row edge are consumed, because
+  // letting norigin's search run off the edge hands focus to the screen's
+  // own root, which renders no focus ring at all.
+  const arrowsFor = useCallback(
+    (key: string) => ({
+      onArrowUp: () => {
+        const target = verticalNeighbour(chain, key, 'up')
+        if (target) void setFocus(target)
+      },
+      onArrowDown: () => {
+        void setFocus(verticalNeighbour(chain, key, 'down') ?? ONBOARDING_PRIMARY_FOCUS_KEY)
+      },
+      onArrowLeft: isRowEdge(chain, key, 'left') ? BLOCK_ARROW : undefined,
+      onArrowRight: isRowEdge(chain, key, 'right') ? BLOCK_ARROW : undefined,
+    }),
+    [chain],
+  )
+
+  // Every focus key the open browser currently has mounted. Used only to
+  // validate the remembered return key below -- a remembered key whose card
+  // has since been unmounted (the region changed, the catalog reloaded)
+  // must never be a setFocus target.
+  const browserFocusKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (!expanded) return keys
+    for (const group of groups) keys.add(regionFocusKey(group.key))
+    for (const league of activeGroup?.leagues ?? []) keys.add(leagueFocusKey(league.id))
+    return keys
+  }, [expanded, groups, activeGroup])
+
+  // Where the user stepped DOWN out of the browser into the footer. Up from
+  // Continue returns there rather than to a fixed entry point, so leaving to
+  // check the footer and coming back does not lose your place. A ref, not
+  // state: it is read at key-press time (norigin re-registers the footer's
+  // handlers on every render, so the closure below is never stale) and
+  // nothing renders differently because of it.
+  const browserReturnKeyRef = useRef<string | null>(null)
+  const footerUpFocusKey = useCallback(() => {
+    const remembered = browserReturnKeyRef.current
+    if (remembered && browserFocusKeys.has(remembered)) return remembered
+    // Otherwise the last row of the page model: the browser's active region
+    // when it is open, the expander when it is not.
+    return lastRowEntry(chain) ?? FOOTBALL_FOCUS_KEY
+  }, [browserFocusKeys, chain])
+
+  // Deselecting Football unmounts the whole league section -- grid, expander
+  // and browser. Only redirects when focus actually WAS on something that
+  // just disappeared; norigin would otherwise fall back to the invisible
+  // screen root.
+  useEffect(() => {
+    if (footballSelected) return
+    const current = currentFocusKey()
+    const inLeagueSection =
+      current.startsWith(LEAGUE_FOCUS_PREFIX) || current.startsWith(REGION_FOCUS_PREFIX) || current === LEAGUES_TOGGLE_FOCUS_KEY
+    if (inLeagueSection) void setFocus(FOOTBALL_FOCUS_KEY)
   }, [footballSelected])
+
+  // Closing the browser unmounts every region row and every card in it.
+  // Focus is normally already on the expander (that is what was pressed),
+  // but no other route into a close may leave focus pointing at a removed
+  // element.
+  useEffect(() => {
+    if (expanded) return
+    const current = currentFocusKey()
+    const wasInBrowser =
+      current.startsWith(REGION_FOCUS_PREFIX) ||
+      (current.startsWith(LEAGUE_FOCUS_PREFIX) && !recommended.some((l) => leagueFocusKey(l.id) === current))
+    if (wasInBrowser) void setFocus(LEAGUES_TOGGLE_FOCUS_KEY)
+  }, [expanded, recommended])
+
+  // Changing region swaps the entire detail pane. Focus normally sits in the
+  // rail while that happens (focusing a region row is what changes it), but
+  // a mouse/click route can leave it on a card that is no longer rendered --
+  // hand it back to the region that now owns the pane.
+  useEffect(() => {
+    if (!expanded || !activeGroup) return
+    const current = currentFocusKey()
+    if (!current.startsWith(LEAGUE_FOCUS_PREFIX)) return
+    if (recommended.some((l) => leagueFocusKey(l.id) === current)) return
+    if (activeGroup.leagues.some((l) => leagueFocusKey(l.id) === current)) return
+    void setFocus(regionFocusKey(activeGroup.key))
+  }, [expanded, activeGroup, recommended])
+
+  // Back inside the open browser closes it and returns to the control that
+  // opened it, rather than leaving step 2 outright -- the standard "unwind
+  // the innermost thing first" TV behaviour, through the existing
+  // back-handler stack (no second global key listener). Focus is moved
+  // BEFORE the state change so nothing is unmounted while focused. A second
+  // Back reaches this same handler with nothing left to close and goes back
+  // to step 1.
+  useBackHandler(() => {
+    if (expanded) {
+      void setFocus(LEAGUES_TOGGLE_FOCUS_KEY)
+      onToggleShowAllLeagues()
+      return true
+    }
+    onBack()
+    return true
+  })
 
   return (
     <FocusContext.Provider value={focusKey}>
-      <main ref={ref} className="onboarding-screen">
+      {/* `dense`: this step has the most to fit of the three (sports +
+          recommendations + a whole browser panel + the footer, all inside
+          1080px), so it tightens the shared chrome's vertical rhythm. */}
+      <main ref={ref} className="onboarding-screen dense">
         <OnboardingTopBar current={2} />
 
-        <div className="onboarding-info">
+        <div className="onboarding-heading">
           <h1 className="onboarding-headline">
-            Choose your
-            <br />
-            favorite sports
+            Choose what you <span className="accent">follow</span>
           </h1>
           <p className="onboarding-description">
-            Select the sports and leagues you love. We'll personalize your experience based on your selections.
+            Pick your favorite leagues so Ninety can personalize your Home screen.
           </p>
-
-          <ul className="onboarding-features">
-            <li>
-              <StarIcon />
-              <div>
-                <p className="feature-title">Personalized for you</p>
-                <p className="feature-desc">Get recommendations and highlights from your favorite leagues.</p>
-              </div>
-            </li>
-            <li>
-              <TrophyIcon />
-              <div>
-                <p className="feature-title">Faster access</p>
-                <p className="feature-desc">Jump straight to what you care about most.</p>
-              </div>
-            </li>
-            <li>
-              <TuneIcon />
-              <div>
-                <p className="feature-title">You can change this anytime</p>
-                <p className="feature-desc">Update your preferences in settings whenever you want.</p>
-              </div>
-            </li>
-          </ul>
-
-          <div className="onboarding-footer-actions">
-            <button ref={backRef} className={`back-button ${backFocused ? 'focused' : ''}`} onClick={onBack}>
-              <BackArrowIcon /> Back
-            </button>
-            <button ref={skipRef} className={`skip-button ${skipFocused ? 'focused' : ''}`} onClick={onSkip}>
-              Skip for now
-            </button>
-          </div>
         </div>
 
-        <div className="onboarding-picker">
-          <div className={`sports-section ${footballSelected ? '' : 'centered'}`}>
-            <h2 className="picker-section-title">POPULAR SPORTS</h2>
-            <div className="popular-sports-grid">
-              {POPULAR_SPORTS.map((sport, index) => {
+        {/* `browsing` turns the content area from a centred, scrollable
+            document into a fixed layout whose last child (the browser) takes
+            exactly the leftover height -- see onboardingShared.css. */}
+        <div className={`onboarding-body ${expanded ? 'browsing' : ''}`}>
+          <section className="onboarding-section sports-section">
+            <h2 className="picker-section-title">Sports</h2>
+            <div className="sports-grid">
+              {POPULAR_SPORTS.map((sport) => {
                 const Icon = sport.icon
                 return (
                   <SelectableCard
                     key={sport.id}
-                    focusKey={`sport-${sport.id}`}
+                    focusKey={sportKey(sport.id)}
                     selected={selectedSports.has(sport.id)}
                     onToggle={() => onToggleSport(sport.id)}
                     forceFocus={sport.id === 'football'}
-                    onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
-                    onArrowDown={isLastPickerSection ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
+                    {...arrowsFor(sportKey(sport.id))}
                   >
                     <div className="pick-card-icon">
                       <Icon />
@@ -238,54 +291,66 @@ export function OnboardingSportsScreen({
                 )
               })}
             </div>
-          </div>
+          </section>
 
-          {footballSelected && competitionsState.status === 'loading' && (
-            <p className="picker-status">Loading competitions…</p>
-          )}
-          {footballSelected && competitionsState.status === 'error' && (
-            <p className="picker-status">{competitionsState.message}</p>
-          )}
+          {footballSelected && competitionsState.status === 'loading' && <p className="picker-status">Loading competitions...</p>}
+          {footballSelected && competitionsState.status === 'error' && <p className="picker-status">{competitionsState.message}</p>}
 
-          {footballSelected && footballLeagues.length > 0 && (
-            <>
-              <h2 className="picker-section-title">FOOTBALL LEAGUES</h2>
-              <div className="league-grid">
-                {footballLeagues.map((league, index) => {
-                  const lastRowStart = (Math.ceil(footballLeagues.length / GRID_COLUMNS) - 1) * GRID_COLUMNS
-                  return (
-                    <SelectableCard
-                      key={league.id}
-                      focusKey={`league-${league.id}`}
-                      selected={selectedLeagues.has(league.id)}
-                      onToggle={() => onToggleLeague(league.id)}
-                      onArrowLeft={index % GRID_COLUMNS === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
-                      onArrowDown={index >= lastRowStart ? () => void setFocus(CONTINUE_FOCUS_KEY) : undefined}
-                    >
-                      <div className="pick-card-icon">
-                        {league.badge && <img src={league.badge} alt="" />}
-                      </div>
-                      <span className="pick-card-label">{league.name}</span>
-                    </SelectableCard>
-                  )
-                })}
+          {hasLeagueGrid && (
+            <section className="onboarding-section">
+              <div className="picker-section-header">
+                <h2 className="picker-section-title">
+                  Recommended leagues
+                  <span className="picker-section-counter">{recommended.length} shown</span>
+                </h2>
               </div>
-            </>
+
+              <div className="league-grid">
+                {recommended.map((league) => (
+                  <LeagueCard
+                    key={league.id}
+                    league={league}
+                    selected={selectedLeagues.has(league.id)}
+                    onToggle={() => onToggleLeague(league.id)}
+                    arrows={arrowsFor(leagueFocusKey(league.id))}
+                  />
+                ))}
+              </div>
+
+              {/* Stays mounted, in this exact DOM position, under this exact
+                  focusKey whether or not the browser below is open -- only
+                  the label changes. Pressing OK opens a panel BELOW it and
+                  moves nothing, so focus never has to be rescued. */}
+              {canShowAll && (
+                <OnboardingExpander
+                  focusKey={LEAGUES_TOGGLE_FOCUS_KEY}
+                  expanded={expanded}
+                  moreLabel={`Browse all leagues (${expandedCount})`}
+                  fewerLabel="Hide league browser"
+                  chain={chain}
+                  onToggle={onToggleShowAllLeagues}
+                />
+              )}
+            </section>
           )}
 
-          {/* norigin's Down-navigation only considers a target "adjacent" if it
-              overlaps at least 20% of the reference card's width. The visible
-              button is narrow and right-aligned, so cards on the left/middle
-              of the (up to 6-wide) league grid never overlap it and Down does
-              nothing from there. Widening the focusable ref itself to the
-              full row (while keeping the button visually right-aligned
-              inside it) makes it reachable from every column. */}
-          <div ref={continueRef} className="continue-button-hitbox">
-            <button className={`continue-button ${continueFocused ? 'focused' : ''}`} onClick={onContinue}>
-              Continue <ArrowRightIcon />
-            </button>
-          </div>
+          {expanded && activeGroup && (
+            <LeagueBrowser
+              groups={groups}
+              activeGroup={activeGroup}
+              selectedLeagues={selectedLeagues}
+              onActivateRegion={setActiveRegionKey}
+              onToggleLeague={onToggleLeague}
+              exitUpFocusKey={LEAGUES_TOGGLE_FOCUS_KEY}
+              exitDownFocusKey={ONBOARDING_PRIMARY_FOCUS_KEY}
+              onExitDown={(from) => {
+                browserReturnKeyRef.current = from
+              }}
+            />
+          )}
         </div>
+
+        <OnboardingFooter onBack={onBack} primary={{ label: 'Continue', onPress: onContinue }} upFocusKey={footerUpFocusKey} />
       </main>
     </FocusContext.Provider>
   )

@@ -1,27 +1,38 @@
-/* Step-specific to Countries — shared layout/card rules live in
+/* Step-specific to Countries — shared page skeleton and card rules (including
+   .pick-card-icon.round, which Settings' countries grid also uses) live in
    onboardingShared.css. */
 
+/* Five columns, matching MAX_PREFERRED_COUNTRIES: the recommended set fills
+   exactly one row with no orphan cell, and the expanded "every country in
+   your playlist" view lands on the same rhythm rather than reflowing.
+   OnboardingCountriesScreen.tsx's GRID_COLUMNS must stay in step with this. */
 .countries-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--space-4);
-  overflow-y: auto;
+}
+
+.countries-grid .pick-card {
+  min-height: 188px;
+  gap: var(--space-4);
+}
+
+.countries-grid .pick-card-icon.round {
+  width: 64px;
+  height: 64px;
 }
 
 .countries-empty {
   color: var(--text-secondary);
   font-size: var(--font-body);
   line-height: 1.5;
-  max-width: 640px;
+  max-width: 760px;
 }
 
-.pick-card-icon.round {
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--surface-elevated);
+/* Appended below the pinned recommendations when "More countries" is open —
+   same secondary treatment as step 2's league catalogue, and part of the
+   same single vertical scroll surface (no inner scroll container). */
+.countries-catalogue {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--divider);
 }
-
-/* (.picker-section-counter / .pick-card-primary live in
-   onboardingShared.css — Settings' countries grid uses them too.) */

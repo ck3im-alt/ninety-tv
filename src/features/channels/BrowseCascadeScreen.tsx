@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel, ChannelSource } from '../../data/channel'
-import type { XtreamCredentials, XtreamEpgListing } from '../../data/xtream/types'
+import { firstXtreamSource, type XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
+import type { XtreamEpgListing } from '../../data/xtream/types'
 import type { ChannelIndex } from '../../data/channelIndex'
 import { useBackHandler, pickFallbackAfterRemoval } from '../../core/platform'
 import { previousCascadeStep } from './cascadeNavigation'
@@ -73,7 +74,7 @@ interface Props {
   // every focus move. The raw Channel[] itself isn't needed here — every
   // use in this screen goes through the index.
   channelIndex: ChannelIndex
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   hiddenCountries: Set<string>
   // Composite `${country}::${category}` keys (categoryFavoriteKey) — a
   // category is hidden per-country, not globally, since the same label can
@@ -149,22 +150,22 @@ type EpgState = { status: 'idle' | 'loading' | 'unavailable' | 'error'; listings
 // Own EPG fetch (deliberately not sharing CategoryChannelsScreen's
 // EpgSection component) since the card layout here — subtitle line +
 // "Next N" list, no NOW badge — reads differently from the classic panel.
-function usePreviewEpg(source: ChannelSource | undefined, xtreamCreds: XtreamCredentials | null): EpgState {
+// Takes the CHANNEL, not one pre-picked source: which stream can answer an
+// EPG query is a per-source question now (only sources belonging to an
+// Xtream playlist can), and after cross-playlist merging sources[0] is not
+// necessarily one of them. See data/playlists/xtreamResolver.
+function usePreviewEpg(channel: Channel | undefined, xtream: XtreamCredentialResolver): EpgState {
   const [state, setState] = useState<EpgState>({ status: 'idle', listings: [] })
 
   useEffect(() => {
-    if (!source || !xtreamCreds) {
-      setState({ status: 'unavailable', listings: [] })
-      return
-    }
-    const streamId = extractStreamId(source.url)
-    if (streamId === null) {
+    const target = channel ? firstXtreamSource(channel, xtream, extractStreamId) : null
+    if (!target) {
       setState({ status: 'unavailable', listings: [] })
       return
     }
     let cancelled = false
     setState({ status: 'loading', listings: [] })
-    getShortEpg(xtreamCreds, streamId, 4)
+    getShortEpg(target.creds, target.streamId, 4)
       .then((listings) => {
         if (!cancelled) setState({ status: listings.length ? 'idle' : 'unavailable', listings })
       })
@@ -174,21 +175,21 @@ function usePreviewEpg(source: ChannelSource | undefined, xtreamCreds: XtreamCre
     return () => {
       cancelled = true
     }
-  }, [source, xtreamCreds])
+  }, [channel, xtream])
 
   return state
 }
 
 function PreviewCard({
   channel,
-  xtreamCreds,
+  xtream,
   favorited,
   onToggleFavorite,
   onWatch,
   onFocusPreview,
 }: {
   channel: Channel
-  xtreamCreds: XtreamCredentials | null
+  xtream: XtreamCredentialResolver
   favorited: boolean
   onToggleFavorite: () => void
   onWatch: (channel: Channel, source: ChannelSource) => void
@@ -215,8 +216,7 @@ function PreviewCard({
 
   const debouncedEpgChannel = useDebouncedValue(channel, PREVIEW_EPG_DEBOUNCE_MS)
   const isEpgPending = channel.id !== debouncedEpgChannel.id
-  const epgSource = isEpgPending ? undefined : debouncedEpgChannel.sources[0]
-  const epg = usePreviewEpg(epgSource, xtreamCreds)
+  const epg = usePreviewEpg(isEpgPending ? undefined : debouncedEpgChannel, xtream)
 
   // Watch/Favorite always act on the immediate `channel`/its own first
   // source, never the debounced one — pressing Enter mid-fast-scroll must
@@ -276,7 +276,7 @@ function PreviewCard({
 
 export function BrowseCascadeScreen({
   channelIndex,
-  xtreamCreds,
+  xtream,
   hiddenCountries,
   hiddenCategories,
   favoriteCategories,
@@ -670,7 +670,7 @@ export function BrowseCascadeScreen({
           {selectedChannel && (
             <PreviewCard
               channel={selectedChannel}
-              xtreamCreds={xtreamCreds}
+              xtream={xtream}
               favorited={favoriteChannels.has(selectedChannel.id)}
               onToggleFavorite={() => onToggleFavoriteChannel(selectedChannel.id)}
               onWatch={onWatch}
@@ -794,7 +794,7 @@ export function BrowseCascadeScreen({
           {selectedChannel && (
             <PreviewCard
               channel={selectedChannel}
-              xtreamCreds={xtreamCreds}
+              xtream={xtream}
               favorited={favoriteChannels.has(selectedChannel.id)}
               onToggleFavorite={() => onToggleFavoriteChannel(selectedChannel.id)}
               onWatch={onWatch}

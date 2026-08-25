@@ -18,6 +18,7 @@ function toLeagueDef(c: NinetyCompetition): LeagueDef {
     region: c.region,
     countryCode: c.country_code,
     tier: c.tier,
+    type: c.type,
     badge: c.badge_url,
     ninetyCompetitionId: c.id,
   }

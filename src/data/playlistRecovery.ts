@@ -1,9 +1,9 @@
 // Rebuilds a channel list from a persisted playlist *source* alone — used
 // when the (large, quota-risky) channel cache is missing or stale but the
 // (small, essentially-never-fails) source record survived. See session.ts
-// for why those two are split, and App.tsx for where this gets called (on
-// startup, when loadPlaylistState() reports 'source-available-cache-missing'
-// or 'source-available-cache-invalid').
+// for why those two are split, and data/playlists/usePlaylistLibrary.ts for
+// where this gets called (on startup, for each playlist
+// hydratePlaylistLibrary() reports in `needsRecovery`).
 //
 // Talks directly to the user's own Xtream panel or M3U host — same as
 // PlaylistSetupScreen's initial connect flow — never to ninety-api. No
@@ -14,7 +14,7 @@
 // FileSourceRecord is a type error, not a silent no-op. There is nothing
 // to refetch — the original file's contents were never kept around after
 // the initial parse — so that case must surface as a reconnect-required
-// prompt instead (see loadPlaylistState()'s 'unrecoverable-file-source').
+// prompt instead (see hydratePlaylistLibrary()'s `unrecoverableFiles`).
 
 import { fetchWithDevCorsFallback } from '../core/net/devCorsProxy'
 import { parseM3u } from './m3u/parseM3u'
