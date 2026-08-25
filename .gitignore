@@ -12,6 +12,9 @@ dist
 dist-ssr
 dist-tizen
 .tizen-staging
+# Tizen Studio scratch output dirs, created next to the project
+Debug
+Release
 *.local
 
 # Personal API keys (api-football.com etc.) — never commit

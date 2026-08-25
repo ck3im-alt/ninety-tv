@@ -39,7 +39,6 @@ import type { SportEvent } from './data/sports/types'
 import type { EventStreamDisplayParts } from './features/eventDetails/ppvDisplayName'
 import { createMultiviewSession } from './features/multiview/multiviewSession'
 import type { MultiviewSession, PaneAssignment } from './features/multiview/multiviewSession'
-import { MultiviewDebugOverlay } from './features/multiview/MultiviewDebugOverlay'
 import type { ChannelSource } from './data/channel'
 
 // Lazy-loaded: screens that are rare (first-run-only onboarding, dev-admin
@@ -779,10 +778,6 @@ function App() {
           onBack={() => setScreen(multiviewReturnScreen)}
         />
       )}
-      {/* TEMPORARY — see MultiviewDebugOverlay's own header. Only rendered
-          while Multiview is on screen; remove once the real-Tizen-device
-          verification pass this was added for is complete. */}
-      {screen === 'multiview' && <MultiviewDebugOverlay />}
 
       {filterOpen && (
         <FilterPopup
