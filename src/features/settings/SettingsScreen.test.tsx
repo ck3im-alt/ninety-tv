@@ -201,7 +201,7 @@ describe('Settings rail', () => {
   })
 
   it('switching sections does not discard preference edits made in another section', () => {
-    savePreferences({ sports: ['football', 'f1'], footballLeagueIds: [], favoriteCountries: [], streamType: 'auto' })
+    savePreferences({ sports: ['football', 'f1'], footballLeagueIds: [], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [] })
     renderSettings()
 
     openSection('Playback')
@@ -352,7 +352,7 @@ describe('Settings — Playlists', () => {
 
 describe('Settings — Countries', () => {
   function setCountries(favoriteCountries: string[]) {
-    savePreferences({ sports: ['football'], footballLeagueIds: [], favoriteCountries, streamType: 'auto' })
+    savePreferences({ sports: ['football'], footballLeagueIds: [], favoriteCountries, streamType: 'auto', favoriteTeamIds: [] })
   }
 
   it('marks the first preferred country as Primary', () => {
@@ -406,7 +406,7 @@ describe('Settings — Countries', () => {
 
 describe('Settings — Sports & leagues', () => {
   function setPrefs(footballLeagueIds: string[], sports: Array<'football' | 'f1'> = ['football', 'f1']) {
-    savePreferences({ sports, footballLeagueIds, favoriteCountries: [], streamType: 'auto' })
+    savePreferences({ sports, footballLeagueIds, favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [] })
   }
 
   it('renders the leagues already followed', () => {
@@ -457,7 +457,7 @@ describe('Settings — Sports & leagues', () => {
 
 describe('Settings — Playback', () => {
   it('persists each stream-type choice through the existing preferences model', () => {
-    savePreferences({ sports: ['football'], footballLeagueIds: [], favoriteCountries: [], streamType: 'auto' })
+    savePreferences({ sports: ['football'], footballLeagueIds: [], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [] })
     renderSettings()
     openSection('Playback')
 

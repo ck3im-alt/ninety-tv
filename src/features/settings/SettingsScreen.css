@@ -591,6 +591,17 @@
   width: 1240px;
 }
 
+/* The team picker is the only dialog that holds real, unbounded LISTS (a
+   competition rail beside a club grid), so unlike the small confirm/prompt
+   dialogs it needs a stated height for those to size themselves against.
+   Without one the grid grows to fit every club in a league and the dialog
+   runs off the bottom of a 1080px screen; with one, .settings-league-grid's
+   own `overflow-y: auto` does what it was written to do. */
+.settings-team-dialog {
+  height: 840px;
+  max-height: calc(100vh - 120px);
+}
+
 .settings-dialog-title {
   margin: 0;
   font-size: var(--font-section);

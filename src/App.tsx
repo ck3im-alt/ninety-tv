@@ -25,6 +25,7 @@ import { parseCategory } from './features/channels/parseCategory'
 import { getChannelIndex } from './data/channelIndex'
 import { useChannelIdentityIndex } from './data/sports/useChannelIdentityIndex'
 import { useHomeFeed } from './data/sports/useHomeFeed'
+import { recordEventOpened, recordEventWatched } from './data/sports/watchAffinity'
 import { markPerf, measurePerf } from './core/perf/devPerf'
 import { DEBUG_FORCE_SCREEN_KEY } from './core/debugForceScreen'
 import { SCREEN_AFTER_ONBOARDING, resolveInitialScreen, type Screen } from './core/appScreens'
@@ -37,7 +38,7 @@ import type { ChannelSource } from './data/channel'
 
 // Lazy-loaded: screens that are rare (first-run-only onboarding, dev-admin
 // already tree-shaken separately) or off the primary Home->Channels->Watch
-// hot path (Event Details, Competitions). Measured via `npm run build`
+// hot path (Event Details, Schedule). Measured via `npm run build`
 // before/after — moving these out of the main chunk is a real reduction to
 // what has to parse/execute before the app is interactive; see the final
 // report for before/after chunk sizes. Deliberately NOT applied to
@@ -56,13 +57,11 @@ const OnboardingFlow = lazy(() => import('./features/onboarding/OnboardingFlow')
 const EventDetailsScreen = lazy(() =>
   import('./features/eventDetails/EventDetailsScreen').then((m) => ({ default: m.EventDetailsScreen })),
 )
-const CompetitionsScreen = lazy(() =>
-  import('./features/competitions/CompetitionsScreen').then((m) => ({ default: m.CompetitionsScreen })),
-)
+const ScheduleScreen = lazy(() => import('./features/schedule/ScheduleScreen').then((m) => ({ default: m.ScheduleScreen })))
 const SettingsScreen = lazy(() => import('./features/settings/SettingsScreen').then((m) => ({ default: m.SettingsScreen })))
 // Heavy (up to 4 concurrent Player instances) and rare relative to the
 // primary Home->Channels->Watch path — same lazy-loading rationale as
-// EventDetailsScreen/CompetitionsScreen above.
+// EventDetailsScreen/ScheduleScreen above.
 const MultiviewScreen = lazy(() => import('./features/multiview/MultiviewScreen').then((m) => ({ default: m.MultiviewScreen })))
 
 markPerf('app:module-load')
@@ -91,7 +90,10 @@ const SCREEN_FOCUS_KEYS: Partial<Record<Screen, string>> = {
   setup: 'setup-screen',
   onboarding: 'setup-screen',
   'event-details': 'event-details-screen',
-  competitions: 'competitions-screen',
+  // Internal screen id stayed 'competitions' when the surface became
+  // Schedule (see features/schedule/ScheduleScreen.tsx); the focus key
+  // follows the screen's own root key, which did change.
+  competitions: 'schedule-screen',
   settings: 'settings-screen',
   multiview: 'multiview-screen',
 }
@@ -189,12 +191,12 @@ function App() {
   // card) — set right before navigating to 'event-details', read by that
   // screen to know which fixture to look up broadcast channels for.
   const [selectedEvent, setSelectedEvent] = useState<SportEvent | null>(null)
-  // Where Event Details' Back button should return to — Home or
-  // Competitions, whichever the user drilled in from (same pattern as
-  // playerReturnScreen below).
+  // Where Event Details' Back button should return to — Home or Schedule,
+  // whichever the user drilled in from (same pattern as playerReturnScreen
+  // below).
   const [eventDetailsReturnScreen, setEventDetailsReturnScreen] = useState<Screen>('home')
   // Where Settings' Back button should return to — whichever screen the
-  // avatar was pressed from (Home, Competitions, or a Channels screen).
+  // avatar was pressed from (Home, Schedule, or a Channels screen).
   const [settingsReturnScreen, setSettingsReturnScreen] = useState<Screen>('home')
   const [playingChannel, setPlayingChannel] = useState<Channel | null>(null)
   const [playingSourceLabel, setPlayingSourceLabel] = useState<string | undefined>(undefined)
@@ -266,9 +268,9 @@ function App() {
   // For lazy (Suspense) screens this targets that screen's OWN root
   // focusKey (see SCREEN_FOCUS_KEYS above) instead of ROOT_FOCUS_KEY. That
   // isn't just cosmetic — it fixes a real race: `screen` can change (e.g.
-  // 'home' -> 'competitions') while Suspense is still rendering `null`
-  // waiting for the chunk, so this effect fires before the lazy screen's
-  // focus tree exists. setFocus(ROOT_FOCUS_KEY) resolves synchronously
+  // 'home' -> 'competitions', the Schedule screen) while Suspense is still
+  // rendering `null` waiting for the chunk, so this effect fires before the
+  // lazy screen's focus tree exists. setFocus(ROOT_FOCUS_KEY) resolves synchronously
   // against whatever's registered RIGHT NOW (getForcedFocusKey scans
   // currently-mounted forceFocus components only) — with nothing mounted
   // yet, it silently aborts, and since `screen` itself doesn't change again
@@ -335,7 +337,7 @@ function App() {
   // visibility-regain background refresh, see useHomeFeed.ts) rather than
   // the frozen snapshot captured at the moment the user drilled in. Falls
   // back to that frozen snapshot when the id isn't present (e.g. an event
-  // reached via Competitions, which uses its own separate fetch and isn't
+  // reached via Schedule, which uses its own separate fetch and isn't
   // part of useHomeFeed's followed-leagues scope — out of scope for this
   // pass, see the live-scores task's final report) — Event Details still
   // works exactly as before for those, it just doesn't get live updates.
@@ -365,6 +367,18 @@ function App() {
     return recentlyWatched.map((id) => channelIndex.getChannelById(id)).filter((c): c is Channel => c != null)
   }, [channelIndex, recentlyWatched])
 
+  // Opening an event's details is the app's one "the viewer is interested in
+  // this" signal that costs nothing to capture — it happens at a navigation
+  // point that already exists, nowhere near playback. Routed through here
+  // rather than repeated at each call site so Home, Schedule and any future
+  // entry point all feed the same local tally (see watchAffinity.ts).
+  function openEventDetails(event: SportEvent, fromScreen: Screen) {
+    recordEventOpened(event)
+    setSelectedEvent(event)
+    setEventDetailsReturnScreen(fromScreen)
+    setScreen('event-details')
+  }
+
   function watchChannel(channel: Channel, source: { label: string }, fromScreen: Screen) {
     recordWatched(channel.id)
     setPlayingChannel(channel)
@@ -391,6 +405,11 @@ function App() {
     const best = group.variants[0]?.candidates[0]
     if (!best) return
     recordWatched(best.channel.id)
+    // The strongest implicit signal Ninety has: a stream for THIS event
+    // actually started. Recorded here, at the navigation boundary, and
+    // deliberately not inside the player — personalization telemetry must
+    // never be on a code path that can affect playback reliability.
+    if (selectedEvent) recordEventWatched(selectedEvent)
     setPlayingChannel(best.channel)
     setPlayingSourceLabel(best.source.label)
     setPlayingGroup(group)
@@ -452,7 +471,7 @@ function App() {
           // 84px tall, so keeping it would push a screen designed for the
           // full 1080px canvas into page-level scrolling — the exact thing
           // the Settings rebuild exists to remove.
-          activeItem={screen === 'home' ? 'Home' : screen === 'competitions' ? 'Competitions' : 'Channels'}
+          activeItem={screen === 'home' ? 'Home' : screen === 'competitions' ? 'Schedule' : 'Channels'}
           onSelectHome={() => setScreen('home')}
           onSelectChannels={
             library.hydration === 'pending'
@@ -470,7 +489,7 @@ function App() {
                   else setScreen('setup')
                 }
           }
-          onSelectCompetitions={() => setScreen('competitions')}
+          onSelectSchedule={() => setScreen('competitions')}
           onOpenSettings={() => {
             setSettingsReturnScreen(screen)
             setScreen('settings')
@@ -495,22 +514,14 @@ function App() {
           feedState={homeFeedState}
           xtream={library.xtream}
           favoriteChannels={favoriteChannelsList}
-          onSelectEvent={(event) => {
-            setSelectedEvent(event)
-            setEventDetailsReturnScreen('home')
-            setScreen('event-details')
-          }}
+          onSelectEvent={(event) => openEventDetails(event, 'home')}
           onWatchChannel={(channel, source) => watchChannel(channel, source, 'home')}
         />
       )}
 
       {screen === 'competitions' && (
-        <CompetitionsScreen
-          onSelectEvent={(event) => {
-            setSelectedEvent(event)
-            setEventDetailsReturnScreen('competitions')
-            setScreen('event-details')
-          }}
+        <ScheduleScreen
+          onSelectEvent={(event) => openEventDetails(event, 'competitions')}
           onBack={() => setScreen('home')}
         />
       )}

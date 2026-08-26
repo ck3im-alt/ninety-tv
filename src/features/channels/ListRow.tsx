@@ -44,6 +44,18 @@ interface Props {
   // back for Left from the star at all except accidental geometry.
   // Optional — omit for a row with no favorite star.
   focusKey?: string
+  // Flag-only rail mode, used ONLY by Browse Cascade's Country column in its
+  // fully-expanded four-pane state (see BrowseCascadeScreen.css's
+  // [data-cols='4'] rules). The label text, count and chevron are not
+  // rendered at all — deliberately not CSS-hidden, so nothing invisible is
+  // left occupying layout in a ~70px-wide rail. The label itself is NOT lost:
+  // it moves onto the row as aria-label/title, so the country stays
+  // identifiable to assistive tech and on hover.
+  //
+  // An explicit opt-in prop rather than a global style change, because this
+  // component is shared with the Category column, which must keep its normal
+  // full row at every column count.
+  compact?: boolean
 }
 
 function FavoriteStar({
@@ -98,6 +110,7 @@ export function ListRow({
   onArrowLeft,
   onArrowUp,
   focusKey,
+  compact,
 }: Props) {
   const starFocusKey = onToggleFavorite && focusKey ? `${focusKey}-favorite` : undefined
   const { ref, focused } = useFocusable({
@@ -127,14 +140,24 @@ export function ListRow({
   useFocusScrollIntoView(ref, focused)
 
   return (
-    <div ref={ref} className={`list-row ${focused ? 'focused' : ''} ${active ? 'active' : ''}`} onClick={onSelect}>
+    <div
+      ref={ref}
+      className={`list-row ${compact ? 'list-row-compact' : ''} ${focused ? 'focused' : ''} ${active ? 'active' : ''}`}
+      onClick={onSelect}
+      aria-label={compact ? label : undefined}
+      title={compact ? label : undefined}
+    >
       {icon && <span className="list-row-icon">{icon}</span>}
-      <span className="list-row-label">{label}</span>
-      <span className="list-row-count">{count} channels</span>
+      {!compact && (
+        <>
+          <span className="list-row-label">{label}</span>
+          <span className="list-row-count">{count} channels</span>
+        </>
+      )}
       {onToggleFavorite && (
         <FavoriteStar favorited={!!favorited} onToggle={onToggleFavorite} focusKey={starFocusKey} rowFocusKey={focusKey} />
       )}
-      <span className="list-row-chevron">›</span>
+      {!compact && <span className="list-row-chevron">›</span>}
     </div>
   )
 }

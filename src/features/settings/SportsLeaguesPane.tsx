@@ -11,12 +11,18 @@ import { useFootballCompetitions } from '../../data/sports/useFootballCompetitio
 import { groupLeaguesByRegion, initialRegion, selectedLeagues } from './settingsLeagueRegions'
 import { gridNeighborIndex } from './settingsGrid'
 import { SettingsColumnHeader, SettingsPaneHeader, SettingsRow } from './settingsPrimitives'
+import { describeSavedTeams } from '../../data/sports/teamCatalog'
 import { PANE_ENTRY_FOCUS_KEY, useSettingsFocusable } from './useSettingsFocusable'
 import type { SportKey } from '../../data/sports/types'
 import type { LeagueDef } from '../../data/sports/leagues'
 
 const FOOTBALL_FOCUS_KEY = PANE_ENTRY_FOCUS_KEY
 const F1_FOCUS_KEY = 'settings-sport-f1'
+const MANAGE_TEAMS_FOCUS_KEY = 'settings-manage-teams'
+// How many followed teams the summary names before collapsing the rest into
+// "+N more". Three fits the pane's one line at the sofa-readable type size;
+// the exact count is always shown next to the heading either way.
+const TEAM_SUMMARY_LIMIT = 3
 const LEAGUE_COLUMNS = 2
 // Stable reference for the not-yet-loaded case — a fresh [] literal every
 // render would defeat the memos below, re-grouping the whole catalog on
@@ -35,12 +41,19 @@ export function SportsLeaguesPane({
   footballLeagueIds,
   onToggleSport,
   onToggleLeague,
+  favoriteTeamIds,
+  onManageTeams,
   onLeaveToRail,
 }: {
   sports: SportKey[]
   footballLeagueIds: string[]
   onToggleSport: (sport: SportKey) => void
   onToggleLeague: (leagueId: string) => void
+  // Canonical team ids. Shown here as a compact summary only — editing them
+  // happens in TeamPickerDialog, because a club grid inline in this pane is
+  // exactly the scrolling wall the Settings rebuild removed.
+  favoriteTeamIds: string[]
+  onManageTeams: () => void
   onLeaveToRail: () => void
 }) {
   const competitions = useFootballCompetitions()
@@ -60,6 +73,20 @@ export function SportsLeaguesPane({
 
   const firstRegionKey = groups[0] ? regionFocusKey(groups[0].region) : FOOTBALL_FOCUS_KEY
   const goToLeagues = () => void setFocus(firstRegionKey)
+  const goToTeams = () => void setFocus(MANAGE_TEAMS_FOCUS_KEY)
+
+  // Names come from the local display cache (teamCatalog.ts), not from a
+  // fetch: this summary has to be right the instant the pane opens, and it
+  // has to keep working against a Ninety backend with no team catalogue at
+  // all. Identity is still the id; this is only what to call it on screen.
+  const followedTeams = useMemo(() => describeSavedTeams(favoriteTeamIds), [favoriteTeamIds])
+  const teamSummary =
+    followedTeams.length === 0
+      ? 'None yet'
+      : followedTeams
+          .slice(0, TEAM_SUMMARY_LIMIT)
+          .map((team) => team.name)
+          .join(' · ') + (followedTeams.length > TEAM_SUMMARY_LIMIT ? ` · +${followedTeams.length - TEAM_SUMMARY_LIMIT} more` : '')
 
   return (
     <>
@@ -108,9 +135,29 @@ export function SportsLeaguesPane({
           <div className="settings-chips">
             {chosen.length === 0 && <p className="settings-pane-hint">Nothing followed yet — pick leagues below.</p>}
             {chosen.map((league) => (
-              <LeagueChip key={league.id} league={league} onRemove={() => onToggleLeague(league.id)} onDown={goToLeagues} onUp={() => void setFocus(FOOTBALL_FOCUS_KEY)} />
+              <LeagueChip key={league.id} league={league} onRemove={() => onToggleLeague(league.id)} onDown={goToTeams} onUp={() => void setFocus(FOOTBALL_FOCUS_KEY)} />
             ))}
           </div>
+
+          {/* FAVORITE TEAMS — a summary and one action, deliberately. The
+              full picker is a dialog (TeamPickerDialog); putting a club
+              grid here would push the competition browser below the fold
+              and turn this pane back into a scrolling page. */}
+          <SettingsColumnHeader
+            title="Favorite teams"
+            meta={`${followedTeams.length} ${followedTeams.length === 1 ? 'team' : 'teams'}`}
+          />
+          <SettingsRow
+            focusKey={MANAGE_TEAMS_FOCUS_KEY}
+            label={teamSummary}
+            sublabel="Ninety puts their matches first — wherever they're playing"
+            value="Manage ›"
+            onEnter={onManageTeams}
+            onLeft={onLeaveToRail}
+            onRight={onManageTeams}
+            onUp={() => void setFocus(FOOTBALL_FOCUS_KEY)}
+            onDown={goToLeagues}
+          />
 
           <div className="settings-columns leagues">
             <div className="settings-column narrow">

@@ -22,6 +22,23 @@ vi.mock('../../data/sports/useFootballCompetitions', () => ({
   useFootballCompetitions: () => ({ status: 'ready', leagues: TEST_CATALOG }),
 }))
 
+// The team catalogue is a SEPARATE network boundary (GET /v1/teams) that
+// most of this file has nothing to do with, and that may not exist on the
+// backend at all. Mocked at the hook so no test here can reach the network,
+// and so the team surface's own states can be driven explicitly — see
+// `teamState` below.
+const teamState = { current: { status: 'unavailable' } as TeamCatalogState }
+vi.mock('../../data/sports/useTeamCatalog', () => ({
+  useTeamCatalog: () => teamState.current,
+}))
+
+import type { TeamCatalogState } from '../../data/sports/useTeamCatalog'
+import type { TeamDef } from '../../data/sports/teamCatalog'
+
+function team(id: string, name: string, domesticCompetitionId: string, prominence = 0.5): TeamDef {
+  return { id, name, domesticCompetitionId, prominence }
+}
+
 const { OnboardingSportsScreen } = await import('./OnboardingSportsScreen')
 
 const VIEWER = 'NO'
@@ -47,13 +64,26 @@ const activeRegionName = () => document.querySelector('.league-browser-region')?
 
 // Drives the screen the way OnboardingFlow does — it owns the selection and
 // expansion state, the screen is a controlled component.
-function Harness({ initialOpen = false }: { initialOpen?: boolean }) {
-  const [selectedLeagues, setSelectedLeagues] = useState<Set<string>>(new Set())
+function Harness({ initialOpen = false, initialLeagues = [] }: { initialOpen?: boolean; initialLeagues?: string[] }) {
+  const [selectedLeagues, setSelectedLeagues] = useState<Set<string>>(new Set(initialLeagues))
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState(initialOpen)
+  const [teamsOpen, setTeamsOpen] = useState(false)
   return (
     <OnboardingSportsScreen
       selectedSports={new Set(['football'])}
       selectedLeagues={selectedLeagues}
+      selectedTeams={selectedTeams}
+      showAllTeams={teamsOpen}
+      onToggleShowAllTeams={() => setTeamsOpen((v) => !v)}
+      onToggleTeam={(id) =>
+        setSelectedTeams((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+      }
       viewerCountryCode={VIEWER}
       showAllLeagues={open}
       onToggleShowAllLeagues={() => setOpen((v) => !v)}
@@ -84,6 +114,9 @@ beforeEach(() => {
   // scrollIntoView on focus (useFocusScrollIntoView).
   Element.prototype.scrollIntoView = vi.fn()
   init({ debug: false, visualDebug: false })
+  // Default for the league-focused tests below: the team surface renders one
+  // explanatory line and nothing else, so it can't interfere with them.
+  teamState.current = { status: 'unavailable' }
 })
 
 afterEach(() => {
@@ -252,5 +285,99 @@ describe('selection', () => {
     await click(cardFor('FA Cup'))
     expect(document.querySelector('.league-browser')).toBeTruthy()
     expect(activeRegionName()).toBe('England')
+  })
+})
+
+// The 2026-08-26 personalization pass: "Teams you follow" is part of THIS
+// step rather than a fourth one, and is optional in the strong sense — a
+// backend with no team catalogue must still leave the step completable.
+describe('OnboardingSportsScreen — teams you follow', () => {
+  const teamGridNames = () => [...document.querySelectorAll('.team-grid .pick-card-label')].map((el) => el.textContent)
+  const teamCard = (name: string) =>
+    [...document.querySelectorAll('.team-grid .pick-card')].find(
+      (card) => card.querySelector('.pick-card-label')?.textContent === name,
+    ) ?? null
+
+  it('suggests clubs from the leagues the viewer actually picked, most prominent first', () => {
+    teamState.current = {
+      status: 'ready',
+      teams: [
+        team('t-arsenal', 'Arsenal', 'football_premier_league', 0.8),
+        team('t-city', 'Manchester City', 'football_premier_league', 0.95),
+      ],
+    }
+    render(<Harness initialLeagues={['football_premier_league']} />)
+    expect(teamGridNames()).toEqual(['Manchester City', 'Arsenal'])
+  })
+
+  it('mixes suggestions across several followed leagues rather than filling the row from one', () => {
+    teamState.current = {
+      status: 'ready',
+      teams: [
+        team('t-city', 'Manchester City', 'football_premier_league', 0.95),
+        team('t-arsenal', 'Arsenal', 'football_premier_league', 0.9),
+        team('t-glimt', 'Bodo/Glimt', 'norway_eliteserien', 0.4),
+      ],
+    }
+    render(<Harness initialLeagues={['football_premier_league', 'norway_eliteserien']} />)
+    // Second slot goes to the OTHER league, not to the second-best English
+    // club — otherwise following a small league would never show it.
+    expect(teamGridNames()).toEqual(['Manchester City', 'Bodo/Glimt', 'Arsenal'])
+  })
+
+  it('marks a followed team as selected and keeps it in the suggestions', async () => {
+    teamState.current = {
+      status: 'ready',
+      teams: [team('t-city', 'Manchester City', 'football_premier_league', 0.95)],
+    }
+    render(<Harness initialLeagues={['football_premier_league']} />)
+    await click(teamCard('Manchester City'))
+    expect(teamCard('Manchester City')?.className).toContain('selected')
+  })
+
+  // The point of the whole "unavailable" state: ninety-api's team route
+  // ships separately, and a first-run flow must never be gated on it.
+  it('explains itself and stays completable when the backend has no team catalogue', () => {
+    teamState.current = { status: 'unavailable' }
+    render(<Harness initialLeagues={['football_premier_league']} />)
+    expect(screen.getByText(/isn't available yet/)).toBeTruthy()
+    expect(document.querySelectorAll('.team-grid .pick-card')).toHaveLength(0)
+    // Continue is still there, still enabled.
+    expect(screen.getByText('Continue')).toBeTruthy()
+  })
+
+  it('renders a recoverable message rather than an error screen when the team fetch fails', () => {
+    teamState.current = { status: 'error', message: 'network down' }
+    render(<Harness initialLeagues={['football_premier_league']} />)
+    expect(screen.getByText(/Couldn't load teams/)).toBeTruthy()
+    expect(screen.getByText('Continue')).toBeTruthy()
+  })
+
+  // Both browsers are the last child of the content area and both claim the
+  // leftover height — two open at once would push the footer off a 1080px
+  // screen.
+  it('closes the league browser when the team browser is opened', async () => {
+    teamState.current = {
+      status: 'ready',
+      teams: [
+        team('t-city', 'Manchester City', 'football_premier_league', 0.95),
+        team('t-arsenal', 'Arsenal', 'football_premier_league', 0.9),
+        team('t-spurs', 'Tottenham', 'football_premier_league', 0.7),
+        team('t-glimt', 'Bodo/Glimt', 'norway_eliteserien', 0.4),
+        team('t-rosenborg', 'Rosenborg', 'norway_eliteserien', 0.35),
+        team('t-brann', 'Brann', 'norway_eliteserien', 0.3),
+        team('t-viking', 'Viking', 'norway_eliteserien', 0.28),
+        team('t-lsk', 'Lillestrom', 'norway_eliteserien', 0.25),
+        team('t-valerenga', 'Valerenga', 'norway_eliteserien', 0.2),
+      ],
+    }
+    render(<Harness initialOpen initialLeagues={['football_premier_league', 'norway_eliteserien']} />)
+    expect(document.querySelector('.league-browser:not(.team-browser)')).toBeTruthy()
+    // The team section is hidden while the league browser is open, so close
+    // that first — which is exactly the flow a viewer follows.
+    await click(screen.getByText(/Hide league browser/))
+    await click(screen.getByText(/Browse all teams/))
+    expect(document.querySelector('.team-browser')).toBeTruthy()
+    expect(document.querySelector('.league-browser:not(.team-browser)')).toBeNull()
   })
 })

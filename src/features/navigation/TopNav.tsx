@@ -12,7 +12,12 @@ function useClock() {
   return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const NAV_ITEMS = ['Home', 'Competitions', 'Channels'] as const
+// Each item's spatial-nav focus key is derived from its LABEL (`nav-${label}`
+// in NavItem below), so renaming one renames its focus key — nothing in the
+// app hardcodes `nav-Competitions`/`nav-Schedule`, and Down out of the bar is
+// resolved geometrically (or via downFocusKey), so no navigation depends on
+// these strings.
+const NAV_ITEMS = ['Home', 'Schedule', 'Channels'] as const
 
 // Opt-in escape hatch for screens whose first focusable doesn't sit
 // underneath the nav bar. Norigin only treats two elements as adjacent when
@@ -102,7 +107,7 @@ interface TopNavProps {
   activeItem?: string
   onSelectHome?: () => void
   onSelectChannels?: () => void
-  onSelectCompetitions?: () => void
+  onSelectSchedule?: () => void
   // The profile avatar's production entry point — a real Settings screen
   // (favorite sports/leagues/countries, same data onboarding writes). Always
   // wired up, dev and prod alike, so Settings itself gets exercised in
@@ -123,7 +128,7 @@ export function TopNav({
   activeItem = 'Home',
   onSelectHome,
   onSelectChannels,
-  onSelectCompetitions,
+  onSelectSchedule,
   onOpenSettings,
   onOpenAdmin,
   downFocusKey,
@@ -133,7 +138,7 @@ export function TopNav({
   const handlers: Partial<Record<(typeof NAV_ITEMS)[number], () => void>> = {
     Home: onSelectHome,
     Channels: onSelectChannels,
-    Competitions: onSelectCompetitions,
+    Schedule: onSelectSchedule,
   }
   return (
     <FocusContext.Provider value={focusKey}>

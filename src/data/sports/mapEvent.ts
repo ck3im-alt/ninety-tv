@@ -3,6 +3,7 @@ import type { NinetyEvent } from './ninetyApiClient'
 import type { LeagueDef } from './leagues'
 import type { SportEvent } from './types'
 import { isHeuristicallyLive } from './liveHeuristic'
+import { normalizeVenueName } from './humanText'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -47,7 +48,7 @@ export function mapEvent(ev: RawSportsDbEvent, league: LeagueDef): SportEvent {
     awayTeam: ev.strAwayTeam ?? undefined,
     homeBadge: ev.strHomeTeamBadge ?? undefined,
     awayBadge: ev.strAwayTeamBadge ?? undefined,
-    venue: ev.strVenue ?? undefined,
+    venue: normalizeVenueName(ev.strVenue),
     round: ev.intRound ?? undefined,
     dateTimeUtc,
     timeLabel: formatTimeLabel(dateTimeUtc),
@@ -59,6 +60,27 @@ export function mapEvent(ev: RawSportsDbEvent, league: LeagueDef): SportEvent {
     backgroundUrl: league.staticBackground ?? ev.strBanner ?? ev.strThumb ?? ev.strPoster ?? GENERAL_BACKGROUND,
     isLive: false,
   }
+}
+
+// A 0..1 signal from the backend, or undefined when this deployment doesn't
+// send it (or sends something unusable). UNDEFINED, never a substituted
+// number: "we don't know how big this club is" and "this club scores 0.5"
+// are different statements, and only the scorer (homePersonalization.ts)
+// should decide what a missing signal is worth — encoding a fallback here
+// would hide the difference from it. Non-finite values (a JSON null, a NaN
+// from a broken backend computation) are treated as missing rather than
+// propagated, so no score can ever become NaN downstream.
+function unitSignal(value: number | null | undefined): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return Math.min(1, Math.max(0, value))
+}
+
+// An id the backend may not send yet — '' and null both mean "absent" and
+// must never become a matchable value (an empty-string team id would
+// compare equal to another empty-string team id and invent a "same team"
+// relationship out of two unknowns).
+function optionalId(value: string | null | undefined): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 // ninety-api and TheSportsDB ids live in separate spaces — prefixed so a
@@ -94,7 +116,18 @@ export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
     awayBadge: ev.away_team_logo ?? undefined,
     homeForm: ev.home_team_form ?? undefined,
     awayForm: ev.away_team_form ?? undefined,
-    venue: ev.venue_name ?? undefined,
+    // Every one of these is absent against a ninety-api deployment older
+    // than 2026-08-26 — see NinetyEvent's own comment. They stay undefined
+    // there, and homePersonalization.ts's neutral fallbacks keep Home
+    // ranking correctly (just with fewer signals) rather than crashing.
+    homeTeamId: optionalId(ev.home_team_id),
+    awayTeamId: optionalId(ev.away_team_id),
+    homeDomesticCompetitionId: optionalId(ev.home_team_domestic_competition_id),
+    awayDomesticCompetitionId: optionalId(ev.away_team_domestic_competition_id),
+    homeTeamProminence: unitSignal(ev.home_team_prominence),
+    awayTeamProminence: unitSignal(ev.away_team_prominence),
+    rivalryImportance: unitSignal(ev.rivalry_importance),
+    venue: normalizeVenueName(ev.venue_name),
     round: ev.round_code ?? undefined,
     dateTimeUtc: ev.start_time_utc,
     timeLabel: formatTimeLabel(ev.start_time_utc),

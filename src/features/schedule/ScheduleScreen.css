@@ -1,0 +1,260 @@
+/* Schedule — "what football is on today", grouped by competition.
+   Carried over largely intact from the retired CompetitionsScreen.css (this
+   screen replaced it): the page frame, pill row and back link are the same
+   components with the same tokens; only the fixture row changed shape, from
+   a left-to-right list of four equal spans into a fixed center axis the
+   whole page scans down. */
+
+.schedule-screen {
+  padding: 0 var(--space-24) var(--space-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: calc(1080px - 84px);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.schedule-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.schedule-title {
+  font-size: var(--font-display-lg);
+  font-weight: var(--weight-light);
+  margin: 0;
+}
+
+/* The day the pills and sections below are scoped to. Quiet — it labels the
+   filter row, it isn't a second page heading. */
+.schedule-day {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-section);
+  font-weight: var(--weight-regular);
+}
+
+.schedule-status {
+  color: var(--text-muted);
+  padding: var(--space-4) 0;
+}
+
+.back-link {
+  font: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-body);
+  padding: var(--space-1) var(--space-2);
+}
+
+.back-link.focused {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  background: var(--surface-focus);
+}
+
+/* Only competitions with a fixture today appear here, in the same order as
+   the sections below (see scheduleFilterOptions) — the row reads as a table
+   of contents for the page rather than a separately-sorted second list. */
+.schedule-pills {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  flex-shrink: 0;
+  /* Focus/D-pad driven, same as Home's rows — the desktop scrollbar track
+     is meaningless on a TV. */
+  scrollbar-width: none;
+}
+
+.schedule-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.league-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  font: inherit;
+  font-size: var(--font-meta);
+  color: var(--text-secondary);
+  background: var(--surface-primary);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.league-pill img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.league-pill.active {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.league-pill.focused {
+  border-color: var(--border-focus);
+}
+
+/* ---------- Competition groups ---------- */
+
+.schedule-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A text line with a crest, not a card or a banded header — the fixtures
+   are the content, this only says which competition they belong to. */
+.schedule-group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-1);
+  font-size: var(--font-section);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.schedule-group-title img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.fixture-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Fixture row ---------- */
+/* A fixed three-part axis: time column, then two equal 1fr team halves
+   pushed toward a fixed-width center. Equal halves mean the center column
+   (VS, or the score) lands on the same vertical line for every row on the
+   page regardless of team-name length — the thing that makes a 60-fixture
+   day scannable at TV distance. */
+
+.fixture-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 56px;
+  box-sizing: border-box;
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.fixture-row.focused {
+  background: var(--surface-elevated);
+  border: 1.5px solid var(--border-focus);
+}
+
+.fixture-row-time {
+  width: 92px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Same live-red treatment as Home's cards and Event Details' status line —
+   Ninety already has one "live" look, this isn't a third. */
+.fixture-row-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--live-red);
+  font-weight: var(--weight-medium);
+}
+
+.fixture-row-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live-red);
+  flex-shrink: 0;
+}
+
+.fixture-row-ft {
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.fixture-row-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 0%;
+  min-width: 0;
+  font-size: var(--font-body);
+}
+
+/* Crest OUTSIDE the name on both sides, name innermost — the same reading
+   order as the Match View header (see EventHeader.tsx). */
+.fixture-row-team-home {
+  justify-content: flex-end;
+}
+
+.fixture-row-team-away {
+  justify-content: flex-start;
+}
+
+.fixture-row-team img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.fixture-row-team-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+/* Fixed width, so the axis never shifts between a "VS" row and a scored
+   one. VS is understated (this is structure); a real score is not (it's the
+   most valuable thing on the row when it exists). */
+.fixture-row-center {
+  width: 88px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-meta);
+  letter-spacing: 0.08em;
+}
+
+.fixture-row-center.has-score {
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fallback for an entry with no two named sides — takes the row rather than
+   rendering an empty matchup. */
+.fixture-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-body);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

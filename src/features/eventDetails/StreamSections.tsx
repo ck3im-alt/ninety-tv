@@ -17,16 +17,17 @@ interface SharedRowProps {
 }
 
 // Subtle section header above a contiguous run of same-country rows: flag +
-// uppercase name, then a thin rule that STARTS after the name and continues
-// across the remaining width on the same line — not a border drawn under
-// the whole header. The flat 'other' bucket (every non-preferred country,
-// unsplit) gets a plain muted label instead of a flag.
+// uppercase name, and nothing else — no rule, no border, no card. The trailing
+// hairline that used to run from the name to the right edge was removed once
+// the match artwork started bleeding down behind this row: a 1px line drawn
+// across a photo reads as a seam rather than as structure. The flat 'other'
+// bucket (every non-preferred country, unsplit) gets a plain muted label
+// instead of a flag.
 function CountrySectionHeader({ section }: { section: CountryGroupSection }) {
   if (section.kind === 'other') {
     return (
       <div className="stream-country-header stream-country-header-other">
         <span className="stream-country-header-name">Other countries</span>
-        <span className="stream-country-header-rule" />
       </div>
     )
   }
@@ -35,7 +36,6 @@ function CountrySectionHeader({ section }: { section: CountryGroupSection }) {
     <div className="stream-country-header">
       {flag && <img className="stream-country-header-flag" src={flag} alt="" />}
       <span className="stream-country-header-name">{section.countryName ?? section.countryCode}</span>
-      <span className="stream-country-header-rule" />
     </div>
   )
 }

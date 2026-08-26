@@ -170,6 +170,9 @@
    to be sized by what is left rather than by its contents. The min-height
    is a floor for an unusually short viewport: better a slightly clipped
    panel than one collapsed to nothing. */
+/* Both browsers (leagues and teams) are the same panel component — see
+   TeamBrowser.tsx — and only ever one is open at a time, so one rule
+   covers both. */
 .onboarding-body.browsing > .league-browser {
   flex: 1 1 0;
   min-height: 240px;

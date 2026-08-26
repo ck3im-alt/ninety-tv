@@ -12,6 +12,12 @@
    still come entirely from tokens.css. */
 
 .event-details {
+  /* How far the match artwork bleeds PAST the header's own content, and by
+     exactly how much the stream list is pulled back up over it — one number
+     driving both (.event-header's bottom padding and .stream-area's negative
+     margin below), so the artwork can be given more or less room without the
+     stream list drifting up or down as a side effect. */
+  --header-bleed: 220px;
   width: 100%;
   min-height: 100vh;
   box-sizing: border-box;
@@ -66,6 +72,21 @@
    positioned inside it (the backdrop) is guaranteed to paint within this
    box's own layer, never above later siblings — this is a containment
    fix, not a spacing one. */
+/* The bottom padding is what makes the curated artwork BLEED down toward
+   the stream list instead of stopping at a hard line under the venue row.
+   It is deliberately this element's padding and NOT a taller backdrop: the
+   backdrop is height: 100% of this box (see its own comment below for the
+   Chromium raster bug that pins it there), so growing the header grows the
+   artwork while the stream list moves down by exactly the same amount — the
+   backdrop grows with it. Padding, not margin: it has to be INSIDE the box
+   the backdrop resolves against (the backdrop is height: 100% of this
+   element — see its own comment below).
+
+   The stream list is then pulled back up over that bleed by the same
+   --header-bleed amount (see .stream-area), so the artwork dissolves BEHIND
+   the first stream rows rather than pushing them down the page. That
+   overlap is deliberate and is why .stream-area carries its own z-index —
+   see that rule for the painting-order reason it needs one. */
 .event-header {
   position: relative;
   z-index: 0;
@@ -74,7 +95,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: 56px 0 4px;
+  padding: 56px 0 calc(4px + var(--header-bleed));
   overflow: visible;
 }
 
@@ -108,7 +129,10 @@
    .event-header's own flex-computed height, so this can never again
    physically reach past the header into the stream list, for any event
    state (LIVE/FINISHED/UPCOMING have different heights) or any future
-   spacing change — a structural guarantee, not a tuned magic number. */
+   spacing change — a structural guarantee, not a tuned magic number. It is
+   also why the bleed toward the stream list is implemented as .event-header
+   padding rather than by making this box taller: see that rule's own
+   comment. */
 .event-header-backdrop {
   position: absolute;
   top: 0;
@@ -123,19 +147,27 @@
     radial-gradient(ellipse 45% 100% at 100% 0%, transparent 60%, var(--bg-primary) 100%);
 }
 
-/* Champions League curated photo — the URL itself is set inline from TSX
-   (needs import.meta.env.BASE_URL, same asset-path convention as
-   leagues.ts's own staticBackground/flagSrc), this just sizes/positions
-   the two background layers the inline style declares (the fade gradient,
-   then the photo). Overrides the base .event-header-backdrop's gradient
+/* Curated per-competition photo (see data/sports/competitionArtwork.ts for
+   which competitions have one). Only the URL is set inline from TSX, since
+   that needs import.meta.env.BASE_URL — same asset-path convention as
+   leagues.ts's own staticBackground/flagSrc. Everything else is shared by
+   the whole banner set and lives here.
+
+   `center` on the photo layer is a real decision, not a default: this box is
+   a wide, short strip (1920×307) while the banners are ~2172×724, so `cover`
+   always crops them vertically. Centring keeps the lit stand structures at
+   the left and right edges in shot, flanking the matchup; top-cropping would
+   show only the near-black upper stands. The gradient layer is always
+   stretched over the whole box (100% 100%, origin-anchored) so the dissolve
+   never shifts with it. Overrides the base .event-header-backdrop's gradient
    background — same specificity, later in source order wins. */
-.event-header-backdrop-cl {
+.event-header-backdrop-photo {
   background-size:
     100% 100%,
     cover;
   background-position:
     0 0,
-    top center;
+    center;
   background-repeat: no-repeat, no-repeat;
 }
 
@@ -188,7 +220,7 @@
 /* One shared grid for every alignment-sensitive row (competition/matchweek,
    the team matchup, the divider, stadium/kickoff) — the center column is a
    single track shared across all rows, so whatever sits in it (a "•", the
-   score "—", a "|") lands on the exact same vertical axis by construction,
+   matchup's "VS", a "|") lands on the exact same vertical axis by construction,
    never by eyeballed margins. Side columns are equal `1fr` tracks, so the
    center track is always mathematically centered regardless of how long
    either side's content is. Each logical row below emits either exactly 3
@@ -248,9 +280,6 @@
   min-width: 0;
 }
 
-.event-header-team-reverse {
-  flex-direction: row-reverse;
-}
 
 /* Real crest artwork varies a lot in how much transparent canvas surrounds
    the mark itself — a fixed bounding box alone can make two badges read as
@@ -277,6 +306,12 @@
   max-width: 420px;
 }
 
+/* Both sides lay out in plain document order (see FootballEventHeader's own
+   comment — neither is flex-reversed), so the score sits AFTER the name on
+   the home side and BEFORE it on the away side. That's the one asymmetry
+   left, and it's a margin, not a direction: the gap always goes on the
+   name's side of the score, keeping both scores tight against the center
+   VS. */
 .event-header-score {
   font-size: 62px;
   font-weight: var(--weight-medium);
@@ -285,22 +320,23 @@
   margin-left: 18px;
 }
 
-.event-header-team-reverse .event-header-score {
+.event-header-team-away .event-header-score {
   margin-left: 0;
   margin-right: 18px;
 }
 
-/* Deliberately NOT styled as "a hyphen" — reduced weight/opacity/tracking
-   so it reads as a quiet structural rule the eye passes over on its way
-   between the two scores, never competing with them. Still the one fixed
-   anchor an upcoming fixture's matchup is built around, so it stays fully
-   opaque enough to always be legible on its own. */
-.event-header-score-dash {
-  font-size: 38px;
-  font-weight: 200;
+/* The fixed center anchor the whole matchup is built around — shown for
+   every fixture, scored or not. Deliberately understated relative to the
+   46px team names and the 62px scores (smaller, lighter, muted, wide
+   tracking) so it reads as structure rather than content, while staying
+   opaque enough to be legible from across a room. No border/rule of any
+   kind — the word alone is the divider. */
+.event-header-vs {
+  font-size: 26px;
+  font-weight: var(--weight-medium);
   color: var(--text-muted);
-  opacity: 0.6;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
 }
 
 /* The one line beneath the matchup that carries LIVE/FINISHED status —
@@ -349,7 +385,13 @@
   white-space: nowrap;
 }
 
+/* Sized here rather than per-icon: the venue mark is the shared
+   StadiumIcon (sportIcons.tsx), which — like every icon in that file —
+   carries no width/height attributes of its own and is sized by the
+   caller's class. ClockIcon's own 17px attributes agree with this. */
 .event-header-meta-icon {
+  width: 17px;
+  height: 17px;
   color: var(--text-secondary);
   flex-shrink: 0;
 }
@@ -373,12 +415,33 @@
 
 /* ---------- Stream area ---------- */
 
+/* Pulled back up by exactly the header's bleed (see --header-bleed on
+   .event-details), so the artwork's dissolve runs BEHIND these rows instead
+   of pushing them down the page — the 3px is the original gap this rule
+   always had, preserved so the list sits precisely where it did before any
+   bleed existed.
+
+   position/z-index are load-bearing, not decorative. .event-header is a
+   POSITIONED element (position: relative + z-index: 0, for its own
+   containment reasons — see its comment), and per the CSS painting
+   algorithm positioned elements paint after non-positioned in-flow content
+   in the same stacking context REGARDLESS of DOM order. So a
+   non-positioned .stream-area would be painted over by the header — and
+   specifically by .event-header-backdrop — everywhere the two now
+   deliberately overlap: the first rows would vanish under a dark block.
+   That is the same symptom the backdrop's own comment records from when
+   this overlap happened accidentally. Giving this element its own
+   positioned layer at z-index 1 puts it definitively above the header's
+   z-index 0, so the overlap is safe by construction rather than by keeping
+   the boxes apart. */
 .stream-area {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
   flex: 1;
-  margin-top: 3px;
+  margin-top: calc(3px - var(--header-bleed));
 }
 
 .stream-row-list {
@@ -392,14 +455,22 @@
 }
 
 /* ---------- Country group sections ---------- */
-/* Deliberately just a text line + a rule that starts after the name and
-   continues to the right on the same line — never a card/background, and
-   never a border drawn underneath the whole header. */
+/* Deliberately just a text line — never a card, a background, or a border.
+   It also no longer carries the trailing hairline it once drew to the right
+   of the name: with the match artwork now bleeding down behind this row (see
+   --header-bleed on .event-details), a 1px line across a photo read as a
+   seam rather than as structure. Removed from the markup too, not hidden —
+   see StreamSections.tsx. */
 
 .stream-country-section + .stream-country-section {
   margin-top: 28px;
 }
 
+/* No shadow and no brightening here, deliberately: the artwork's fade is
+   tuned to finish ABOVE this row (see the gradient stops in EventHeader.tsx),
+   so this label always sits on flat background and can stay as quiet as the
+   design intends. If --header-bleed is ever increased without moving those
+   stops with it, this is the first thing that will start washing out. */
 .stream-country-header {
   display: flex;
   align-items: center;
@@ -429,13 +500,6 @@
   color: var(--text-muted);
 }
 
-.stream-country-header-rule {
-  flex: 1;
-  height: 1px;
-  background: var(--divider);
-  opacity: 0.55;
-  margin-left: 6px;
-}
 
 /* ---------- Stream row ---------- */
 /* One bordered/backgrounded card (this element, not a child) — the play

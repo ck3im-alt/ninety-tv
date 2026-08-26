@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mapNinetyEvent } from './mapEvent'
+import { mapEvent, mapNinetyEvent } from './mapEvent'
+import type { RawSportsDbEvent } from './theSportsDbClient'
 import type { NinetyEvent, NinetyBroadcast } from './ninetyApiClient'
 import type { LeagueDef } from './leagues'
 
@@ -200,5 +201,123 @@ describe('mapNinetyEvent broadcasts identity preservation', () => {
         classification: 'PROBABLE',
       },
     ])
+  })
+})
+
+// Venue text is repaired at the MAPPING boundary (see humanText.ts) rather
+// than in any one screen, so every surface reading SportEvent.venue — Match
+// View, Home's hero meta line — benefits without knowing about it. The
+// repair itself is covered exhaustively in humanText.test.ts; these two only
+// prove the mapper actually calls it, on both event pathways.
+describe('mapNinetyEvent venue normalization', () => {
+  it('repairs mojibake in venue_name', () => {
+    const result = mapNinetyEvent({ ...event([]), venue_name: 'Estadio Santiago BernabÃ©u' }, league)
+    expect(result.venue).toBe('Estadio Santiago Bernabéu')
+  })
+
+  it('leaves an already-correct accented venue name untouched', () => {
+    const result = mapNinetyEvent({ ...event([]), venue_name: 'Estadio Santiago Bernabéu' }, league)
+    expect(result.venue).toBe('Estadio Santiago Bernabéu')
+  })
+})
+
+describe('mapEvent (TheSportsDB) venue normalization', () => {
+  function tsdbEvent(strVenue: string | null): RawSportsDbEvent {
+    return {
+      idEvent: 'tsdb1',
+      strEvent: 'Home FC vs Away FC',
+      strLeague: 'Premier League',
+      strHomeTeam: 'Home FC',
+      strAwayTeam: 'Away FC',
+      strVenue,
+    } as RawSportsDbEvent
+  }
+
+  it('repairs mojibake in strVenue', () => {
+    expect(mapEvent(tsdbEvent('Estadio Santiago BernabÃ©u'), league).venue).toBe('Estadio Santiago Bernabéu')
+  })
+
+  it('leaves venue undefined when TheSportsDB has none', () => {
+    expect(mapEvent(tsdbEvent(null), league).venue).toBeUndefined()
+  })
+})
+
+// TEST 14 — the personalization block ninety-api gained on 2026-08-26. The
+// TV ships before (and independently of) the backend that sends these, so
+// "absent" is the case that has to be right first.
+describe('mapNinetyEvent personalization fields', () => {
+  const bare = () => event([])
+
+  it('leaves every new field undefined against a backend that does not send them', () => {
+    const result = mapNinetyEvent(bare(), league)
+    expect(result.homeTeamId).toBeUndefined()
+    expect(result.awayTeamId).toBeUndefined()
+    expect(result.homeDomesticCompetitionId).toBeUndefined()
+    expect(result.awayDomesticCompetitionId).toBeUndefined()
+    expect(result.homeTeamProminence).toBeUndefined()
+    expect(result.awayTeamProminence).toBeUndefined()
+    expect(result.rivalryImportance).toBeUndefined()
+  })
+
+  it('keeps every existing display field working against that same old payload', () => {
+    const result = mapNinetyEvent(bare(), league)
+    expect(result.homeTeam).toBe('Home FC')
+    expect(result.awayTeam).toBe('Away FC')
+    expect(result.title).toBe('Home FC vs Away FC')
+    expect(result.league).toBe('Premier League')
+    expect(result.broadcasts).toEqual([])
+  })
+
+  it('carries the fields through when the backend does send them', () => {
+    const result = mapNinetyEvent(
+      {
+        ...bare(),
+        home_team_id: 'team_glimt',
+        away_team_id: 'team_benfica',
+        home_team_domestic_competition_id: 'norway_eliteserien',
+        away_team_domestic_competition_id: 'portugal_primeira',
+        home_team_prominence: 0.42,
+        away_team_prominence: 0.71,
+        rivalry_importance: 0.15,
+      },
+      league,
+    )
+    expect(result.homeTeamId).toBe('team_glimt')
+    expect(result.awayTeamId).toBe('team_benfica')
+    expect(result.homeDomesticCompetitionId).toBe('norway_eliteserien')
+    expect(result.awayDomesticCompetitionId).toBe('portugal_primeira')
+    expect(result.homeTeamProminence).toBe(0.42)
+    expect(result.awayTeamProminence).toBe(0.71)
+    expect(result.rivalryImportance).toBe(0.15)
+  })
+
+  // An explicit null is "we have no value for this", which must be
+  // indistinguishable downstream from the field being absent.
+  it('treats an explicit null the same as an absent field', () => {
+    const result = mapNinetyEvent(
+      { ...bare(), home_team_id: null, home_team_prominence: null, rivalry_importance: null },
+      league,
+    )
+    expect(result.homeTeamId).toBeUndefined()
+    expect(result.homeTeamProminence).toBeUndefined()
+    expect(result.rivalryImportance).toBeUndefined()
+  })
+
+  // Two unknowns must never compare equal and invent a "same team" relation.
+  it('treats an empty-string id as absent rather than as a matchable value', () => {
+    const result = mapNinetyEvent({ ...bare(), home_team_id: '', away_team_id: '' }, league)
+    expect(result.homeTeamId).toBeUndefined()
+    expect(result.awayTeamId).toBeUndefined()
+  })
+
+  it('clamps an out-of-range prominence into 0..1 instead of propagating it', () => {
+    const result = mapNinetyEvent({ ...bare(), home_team_prominence: 4.5, away_team_prominence: -2 }, league)
+    expect(result.homeTeamProminence).toBe(1)
+    expect(result.awayTeamProminence).toBe(0)
+  })
+
+  it('drops a non-finite signal so no score downstream can become NaN', () => {
+    const result = mapNinetyEvent({ ...bare(), home_team_prominence: Number.NaN }, league)
+    expect(result.homeTeamProminence).toBeUndefined()
   })
 })

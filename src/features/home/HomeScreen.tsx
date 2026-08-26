@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react'
 import { useFocusable, FocusContext } from '@noriginmedia/norigin-spatial-navigation'
 import type { HomeFeedState } from '../../data/sports/useHomeFeed'
 import type { SportEvent } from '../../data/sports/types'
+import type { EventTiming, FeedGroup } from '../../data/sports/homeRanking'
 import { useFavoriteChannelsNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { FavoriteChannelNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
-import { ArrowRightIcon, FootballIcon, FormulaOneIcon } from '../onboarding/sportIcons'
+import { eventCardStatus, cardTimeText, startingSoonLabel } from './homeRowItems'
+import { ArrowRightIcon, FootballIcon, FormulaOneIcon, StadiumIcon } from '../onboarding/sportIcons'
 import './HomeScreen.css'
 
 function CalendarIcon() {
@@ -19,13 +21,11 @@ function CalendarIcon() {
   )
 }
 
+// Extracted to sportIcons.tsx so Event Details' match header renders the
+// exact same stadium mark (it used to draw a map pin) — this is now a thin
+// alias keeping the local `.meta-icon` sizing convention.
 function VenueIcon() {
-  return (
-    <svg className="meta-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <ellipse cx="8" cy="8" rx="6.8" ry="4.2" stroke="currentColor" strokeWidth="1.2" />
-      <ellipse cx="8" cy="8" rx="3.6" ry="2.1" stroke="currentColor" strokeWidth="1" />
-    </svg>
-  )
+  return <StadiumIcon className="meta-icon" />
 }
 
 const SPORT_ICONS: Record<string, () => React.JSX.Element> = {
@@ -36,10 +36,15 @@ const SPORT_ICONS: Record<string, () => React.JSX.Element> = {
 function Hero({
   event,
   isWatchableNow,
+  timing,
   onSelect,
 }: {
   event: SportEvent | null
   isWatchableNow: boolean
+  // Resolved by the feed against the same clock the ranking used — see
+  // HomeFeed.heroTiming. Not recomputed here, so the hero can never
+  // disagree with the row below it about whether a match has kicked off.
+  timing: EventTiming
   onSelect: (event: SportEvent) => void
 }) {
   // Norigin's setFocus(ROOT_FOCUS_KEY) only lands on a component that opts
@@ -93,6 +98,15 @@ function Hero({
             <span className="hero-live-dot" /> LIVE{!event.isLiveHeuristic && event.liveClock ? ` · ${event.liveClock}` : ''}
           </span>
         )}
+        {timing === 'starting-soon' && (
+          // The hero can legitimately be a match that has NOT kicked off —
+          // that is the whole point of the 60-minute watchable window (see
+          // homeRanking.ts), since most people put a big game on for the
+          // build-up. It therefore needs a state of its own: reusing the
+          // red LIVE badge here would claim the match is under way, and
+          // showing nothing would leave "Watch Now" unexplained.
+          <span className="hero-starting-soon-badge">STARTING SOON · {cardTimeText(event)}</span>
+        )}
         {event.league && (
           <div className="hero-league">
             {/* Crest image dropped — black line art on a dark photo needed
@@ -136,12 +150,13 @@ function Hero({
           )}
         </div>
         {/* This is the hero's only way of saying "you can actually watch
-            this right now" vs. "this is just what's coming up next" —
-            selectHero (heroScoring.ts) only marks something watchable when
-            it's live or starting within the hour, so the label has to
-            match: promising "Watch Now" for something two days out would
-            be a lie the button can't back up (it isn't wired to playback
-            yet either way — this only fixes the label, not the action). */}
+            this right now" vs. "this is just what's coming up next".
+            selectHero (homeRanking.ts) only marks a hero watchable when it
+            is live-or-within-the-hour AND a real stream for it exists in
+            this viewer's playlist, so the label always has something behind
+            it: promising "Watch Now" for something two days out — or for a
+            match no connected playlist actually carries — would be a lie
+            the button can't back up. */}
         <button ref={ref} className={`watch-now ${focused ? 'focused' : ''}`} onClick={() => onSelect(event)}>
           {isWatchableNow ? <>▶ Watch Now</> : 'Event Preview'}
         </button>
@@ -206,6 +221,24 @@ function CardBody({ event }: { event: SportEvent }) {
 // rendering, not a reimplementation, since the picker shows the exact same
 // live/upcoming event data (useHomeFeed's own feed) in the exact same
 // shape.
+// The card header's status line, driven by homeRowItems.ts's pure
+// eventCardStatus — one place decides which of the three states a card is
+// in, and this only renders the answer.
+function CardStatusLine({ event, group }: { event: SportEvent; group: FeedGroup }) {
+  const status = eventCardStatus(event, group)
+  if (status.kind === 'live') {
+    return (
+      <span className="live-badge">
+        <span className="live-dot" /> LIVE
+      </span>
+    )
+  }
+  if (status.kind === 'starting-soon') {
+    return <span className="starting-soon-badge">{startingSoonLabel(status)}</span>
+  }
+  return <span className="event-card-time">{status.time}</span>
+}
+
 export function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: (event: SportEvent) => void }) {
   const { ref, focused } = useFocusable({ onEnterPress: () => onSelect(event) })
   // The spatial-nav library moves focus but never scrolls — .scroll-row
@@ -218,9 +251,7 @@ export function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: 
   return (
     <div ref={ref} className={`event-card ${focused ? 'focused' : ''}`} onClick={() => onSelect(event)}>
       <div className="event-card-header">
-        <span className="live-badge">
-          <span className="live-dot" /> LIVE
-        </span>
+        <CardStatusLine event={event} group="live" />
         {/* Football is the overwhelming majority of events and the label
             was purely redundant there — still shown for other sports
             (e.g. F1) where it's the only thing distinguishing the card. */}
@@ -237,7 +268,20 @@ export function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: 
 }
 
 // Exported for reuse by Multiview's EventPicker.tsx — see LiveNowCard above.
-export function ComingUpCard({ event, onSelect }: { event: SportEvent; onSelect: (event: SportEvent) => void }) {
+//
+// `group` defaults to 'coming-up' (a plain kickoff time) so the Multiview
+// picker, which shows a flat "today" list with no notion of the 60-minute
+// window, keeps rendering exactly as it did. Home passes each item's real
+// group, which is what turns the next hour's fixtures into STARTING SOON.
+export function ComingUpCard({
+  event,
+  onSelect,
+  group = 'coming-up',
+}: {
+  event: SportEvent
+  onSelect: (event: SportEvent) => void
+  group?: FeedGroup
+}) {
   const { ref, focused } = useFocusable({ onEnterPress: () => onSelect(event) })
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
@@ -245,7 +289,7 @@ export function ComingUpCard({ event, onSelect }: { event: SportEvent; onSelect:
   return (
     <div ref={ref} className={`event-card ${focused ? 'focused' : ''}`} onClick={() => onSelect(event)}>
       <div className="event-card-header">
-        <span className="event-card-time">{event.timeLabel.replace(/^Today /, '')}</span>
+        <CardStatusLine event={event} group={group} />
         {event.sportLabel !== 'FOOTBALL' && <span className="sport-label">{event.sportLabel}</span>}
       </div>
       <CardBody event={event} />
@@ -329,11 +373,11 @@ export function HomeScreen({
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="home-screen">
-        <Hero event={feed.hero} isWatchableNow={feed.heroIsWatchableNow} onSelect={onSelectEvent} />
+        <Hero event={feed.hero} isWatchableNow={feed.heroIsWatchableNow} timing={feed.heroTiming} onSelect={onSelectEvent} />
         {/* Hero is position:absolute (see HomeScreen.css) so it can bleed
             up behind TopNav and reach the true top of the app — this
-            reserves the flow space it would otherwise occupy so Live
-            Now/Tonight land in the right place below it. */}
+            reserves the flow space it would otherwise occupy so the rows
+            below land in the right place under it. */}
         <div className="hero-spacer" aria-hidden="true" />
 
         {feedState.status === 'error' && (
@@ -342,24 +386,42 @@ export function HomeScreen({
         {feedState.status === 'partial' && <p className="feed-status feed-status-error">{feedState.message}</p>}
         {feedState.status === 'loading' && <p className="feed-status">Loading fixtures…</p>}
 
+        {/* Live Now and Coming Up used to be two stacked sections; they are
+            one horizontally scrollable row now. The row is ALREADY in its
+            final order — rankHomeFeed (homeRanking.ts) groups it live ->
+            starting soon -> later today and personalizes within each group
+            — so this maps it straight out and adds no ordering of its own.
+            The card's own status line differentiates the three states, which
+            is why there is deliberately no heading inside the row. One
+            restrained empty state covers the all-empty case rather than
+            three separate "nothing here" lines. */}
         <section className="row">
-          <h2 className="row-title">Live Now</h2>
-          {feed.liveNow.length > 0 ? (
+          <h2 className="row-title">Live now &amp; coming up</h2>
+          {feed.items.length > 0 ? (
             <ScrollRow>
-              {feed.liveNow.map((event) => (
-                <LiveNowCard key={event.id} event={event} onSelect={onSelectEvent} />
-              ))}
+              {feed.items.map(({ event, group }) =>
+                group === 'live' ? (
+                  <LiveNowCard key={event.id} event={event} onSelect={onSelectEvent} />
+                ) : (
+                  <ComingUpCard key={event.id} event={event} group={group} onSelect={onSelectEvent} />
+                ),
+              )}
             </ScrollRow>
           ) : (
             (feedState.status === 'ready' || feedState.status === 'partial') && (
-              <p className="feed-status">No ongoing matches in the top 5 leagues or UEFA competitions right now.</p>
+              <p className="feed-status">Nothing live or coming up right now.</p>
             )
           )}
         </section>
 
-        {favoriteChannelsNowPlaying.length > 0 && (
-          <section className="row">
-            <h2 className="row-title">Your Favorite Channels</h2>
+        {/* Always rendered, even with no favorites — the section is how a
+            user discovers the feature exists, so it can't only appear once
+            they've already found it. The empty state is plain text, NOT a
+            placeholder card: it must never become a focus target the remote
+            can land on with nothing to do. */}
+        <section className="row">
+          <h2 className="row-title">Your Favorite Channels</h2>
+          {favoriteChannelsNowPlaying.length > 0 ? (
             <ScrollRow>
               {favoriteChannelsNowPlaying.map((entry) => (
                 <FavoriteChannelCard
@@ -372,21 +434,8 @@ export function HomeScreen({
                 />
               ))}
             </ScrollRow>
-          </section>
-        )}
-
-        <section className="row">
-          <h2 className="row-title">Coming Up</h2>
-          {feed.tonight.length > 0 ? (
-            <ScrollRow>
-              {feed.tonight.map((event) => (
-                <ComingUpCard key={event.id} event={event} onSelect={onSelectEvent} />
-              ))}
-            </ScrollRow>
           ) : (
-            (feedState.status === 'ready' || feedState.status === 'partial') && (
-              <p className="feed-status">No upcoming fixtures in this window.</p>
-            )
+            <p className="feed-status">Your favorite channels will appear here.</p>
           )}
         </section>
       </main>

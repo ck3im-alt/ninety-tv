@@ -64,6 +64,7 @@ const PREFERENCES: SportPreferences = {
   footballLeagueIds: ['comp1'],
   favoriteCountries: [],
   streamType: 'auto',
+  favoriteTeamIds: [],
 }
 
 function ninetyEvent(overrides: Partial<NinetyEvent> = {}): NinetyEvent {
@@ -117,6 +118,14 @@ beforeEach(() => {
   loadFootballCompetitionsMock.mockResolvedValue([LEAGUE])
   matchChannelsForEventMock.mockResolvedValue({ matches: [{ channel: {}, source: {} }], apiHasData: true, apiStations: [] })
   getAllEventsMock.mockReset()
+  // Default for any call a test doesn't explicitly script. Needed because
+  // load() makes a SECOND request when the primary window contains nothing
+  // upcoming (the late-evening fallback — see useHomeFeed.ts), which every
+  // live-only fixture in this file triggers. Without a default that call
+  // resolves to undefined and the whole load reports a football error.
+  // mockResolvedValueOnce still takes priority, so scripted tests are
+  // unaffected.
+  getAllEventsMock.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -313,5 +322,96 @@ describe('useHomeFeed Home section transitions (scheduled -> live -> complete)',
     expect(result.current.eventsById.get('ninety:evt1')?.status).toBe('complete')
     expect(result.current.feed.liveNow.some((e) => e.id === 'ninety:evt1')).toBe(false)
     expect(result.current.feed.tonight.some((e) => e.id === 'ninety:evt1')).toBe(false)
+  })
+})
+
+// The 2026-08-26 personalization pass's most important architectural
+// change. Home used to fetch ONLY the competitions the viewer followed,
+// which made favorites a hard content filter: a Champions League final
+// could be live and Ninety would not know it existed, and a followed club
+// playing outside its own league was invisible. Favorites now decide ORDER
+// only.
+describe('useHomeFeed candidate generation', () => {
+  it('does NOT send a competition filter on the primary request', async () => {
+    await renderReady([ninetyEvent()])
+    const url = getAllEventsMock.mock.calls[0][0]
+    expect(url.competitionId).toBeUndefined()
+  })
+
+  it('asks for a window from the recent past to the end of the viewer local day', async () => {
+    await renderReady([ninetyEvent()])
+    const { from, to } = getAllEventsMock.mock.calls[0][0]
+    expect(new Date(from).getTime()).toBeLessThan(Date.now())
+    expect(new Date(to).getTime()).toBeGreaterThan(Date.now())
+    // The past reach is bounded — a whole afternoon of finished fixtures is
+    // not a Home candidate set.
+    expect(Date.now() - new Date(from).getTime()).toBeLessThanOrEqual(3 * 60 * 60 * 1000 + 1000)
+  })
+
+  // The point of dropping the filter: an event from a competition the
+  // viewer does NOT follow must still reach the feed.
+  it('keeps a live event from an unfollowed competition', async () => {
+    loadFootballCompetitionsMock.mockResolvedValue([LEAGUE, { ...LEAGUE, id: 'comp2', ninetyCompetitionId: 'comp2', name: 'Other League' }])
+    const result = await renderReady([
+      ninetyEvent({ id: 'other', competition_id: 'comp2', status: 'live', start_time_utc: new Date(Date.now() - 60_000).toISOString() }),
+    ])
+    expect(result.current.feed.items.map((item) => item.event.id)).toContain('ninety:other')
+  })
+
+  // A competition the cached catalog has never heard of must not make the
+  // fixture vanish — see fallbackFootballLeague.
+  it('keeps an event whose competition is missing from the catalog', async () => {
+    const result = await renderReady([
+      ninetyEvent({ id: 'brand-new', competition_id: 'comp_unknown', competition_name: 'Brand New Cup' }),
+    ])
+    expect(result.current.eventsById.get('ninety:brand-new')?.league).toBe('Brand New Cup')
+  })
+
+  // A live football match with no channel in the playlist stays OUT of the
+  // row (the long-standing rule) but must remain known to the app.
+  it('keeps an unplayable live event out of the row while still resolving it by id', async () => {
+    matchChannelsForEventMock.mockResolvedValue({ matches: [], apiHasData: true, apiStations: [] })
+    const result = await renderReady([
+      ninetyEvent({ status: 'live', start_time_utc: new Date(Date.now() - 60_000).toISOString() }),
+    ])
+    expect(result.current.feed.items.some((item) => item.event.id === 'ninety:evt1')).toBe(false)
+    expect(result.current.eventsById.get('ninety:evt1')).toBeDefined()
+  })
+
+  it('groups the row into live, then starting soon, then later today', async () => {
+    const result = await renderReady([
+      ninetyEvent({ id: 'later', start_time_utc: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString() }),
+      ninetyEvent({ id: 'soon', start_time_utc: new Date(Date.now() + 20 * 60 * 1000).toISOString() }),
+      ninetyEvent({ id: 'now', status: 'live', start_time_utc: new Date(Date.now() - 60_000).toISOString() }),
+    ])
+    expect(result.current.feed.items.map((item) => item.group)).toEqual(['live', 'starting-soon', 'coming-up'])
+  })
+
+  // Only when today is genuinely exhausted, and only then narrowed to what
+  // the viewer follows — this is a courtesy fetch, not the architecture.
+  it('looks a little further ahead only when nothing is upcoming today', async () => {
+    getAllEventsMock.mockResolvedValueOnce([])
+    getAllEventsMock.mockResolvedValueOnce([ninetyEvent({ id: 'tomorrow' })])
+    const { result } = renderHook(() => useHomeFeed(PREFERENCES, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null))
+    await flush()
+
+    expect(getAllEventsMock.mock.calls).toHaveLength(2)
+    expect(getAllEventsMock.mock.calls[1][0].competitionId).toEqual(['comp1'])
+    expect(result.current.eventsById.get('ninety:tomorrow')).toBeDefined()
+  })
+
+  it('makes only the one request when today still has fixtures to show', async () => {
+    await renderReady([ninetyEvent()])
+    expect(getAllEventsMock.mock.calls).toHaveLength(1)
+  })
+
+  // Never send an empty competition_id — the backend reads that as "no
+  // filter", i.e. every tracked competition for three days.
+  it('skips the look-ahead entirely when the viewer follows no competitions', async () => {
+    const noFavorites: SportPreferences = { ...PREFERENCES, footballLeagueIds: [] }
+    getAllEventsMock.mockResolvedValueOnce([])
+    renderHook(() => useHomeFeed(noFavorites, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null))
+    await flush()
+    expect(getAllEventsMock.mock.calls).toHaveLength(1)
   })
 })

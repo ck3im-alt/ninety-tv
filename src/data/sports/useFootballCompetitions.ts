@@ -8,10 +8,10 @@ export type FootballCompetitionsState =
   | { status: 'ready'; leagues: LeagueDef[] }
 
 // React wrapper around competitionsCatalog.ts's cached fetch -- used by
-// every surface that renders the competition list (CompetitionsScreen,
-// OnboardingSportsScreen, and Settings' SportsLeaguesPane). Multiple mounted
-// consumers share the same underlying cache/in-flight request, so this is
-// cheap to call from more than one component.
+// every surface that renders the competition list (OnboardingSportsScreen
+// and Settings' SportsLeaguesPane). Multiple mounted consumers share the
+// same underlying cache/in-flight request, so this is cheap to call from
+// more than one component.
 export function useFootballCompetitions(): FootballCompetitionsState {
   const [state, setState] = useState<FootballCompetitionsState>({ status: 'loading' })
 

@@ -5,7 +5,7 @@ import { firstXtreamSource, type XtreamCredentialResolver } from '../../data/pla
 import type { XtreamEpgListing } from '../../data/xtream/types'
 import type { ChannelIndex } from '../../data/channelIndex'
 import { useBackHandler, pickFallbackAfterRemoval } from '../../core/platform'
-import { previousCascadeStep } from './cascadeNavigation'
+import { previousCascadeStep, isCompactCountryRail } from './cascadeNavigation'
 import { preloadPlayerEngine } from '../../core/player'
 import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
@@ -136,6 +136,20 @@ function BarButton({ label, onSelect, downTarget }: { label: string; onSelect: (
     <button ref={ref} className={`filter-btn ${focused ? 'focused' : ''}`} onClick={onSelect}>
       {label}
     </button>
+  )
+}
+
+// Column header for the collapsed four-pane Country rail — a globe, since
+// the word "Countries" cannot fit ~70px at header size. Line-art, currentColor,
+// same visual language as the app's other inline icons; the accessible name
+// lives on the header element itself (see its aria-label at the call site).
+function CountriesRailIcon() {
+  return (
+    <svg className="cascade-col-header-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="7.2" stroke="currentColor" strokeWidth="1.3" />
+      <ellipse cx="10" cy="10" rx="3.1" ry="7.2" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M3 8h14M3 12h14" stroke="currentColor" strokeWidth="1.1" />
+    </svg>
   )
 }
 
@@ -614,6 +628,10 @@ export function BrowseCascadeScreen({
 
   const colCount = 1 + (selectedCountry ? 1 : 0) + (selectedCategory !== null ? 1 : 0) + (selectedChannel ? 1 : 0)
   const searchColCount = 1 + (selectedChannel ? 1 : 0)
+  // Flag-only Country rail — see isCompactCountryRail. The CSS keys the same
+  // state off [data-cols='4'] on .cascade-columns; this is the TSX half, and
+  // both read the one shared rule.
+  const compactCountries = isCompactCountryRail(colCount)
 
   return (
     <main className="browse-cascade">
@@ -682,8 +700,13 @@ export function BrowseCascadeScreen({
         <div className="cascade-columns" data-cols={colCount}>
           <FocusContext.Provider value={countryColFocusKey}>
             <div ref={countryColRef} className="cascade-col country">
-              <div className="cascade-col-header">
-                <span>Countries</span>
+              {/* "Countries" cannot fit a ~70px rail, so in the four-pane
+                  state the header becomes a centered globe mark carrying the
+                  same word as its accessible name — rather than being
+                  dropped entirely, which would leave the country list
+                  starting higher than every other column's. */}
+              <div className="cascade-col-header" aria-label={compactCountries ? 'Countries' : undefined} title={compactCountries ? 'Countries' : undefined}>
+                {compactCountries ? <CountriesRailIcon /> : <span>Countries</span>}
               </div>
               <div className="cascade-list">
                 {countries.map((country, index) => (
@@ -697,6 +720,7 @@ export function BrowseCascadeScreen({
                     onSelect={() => selectCountry(country.name)}
                     onFocus={() => previewCountry(country.name)}
                     onArrowUp={index === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined}
+                    compact={compactCountries}
                   />
                 ))}
               </div>

@@ -39,6 +39,42 @@ export interface SportEvent {
   awayTeam?: string
   homeBadge?: string
   awayBadge?: string
+  // --- Personalization identity/metadata (football, ninety-api only) ---
+  //
+  // Every field in this block is OPTIONAL AND MAY BE ABSENT, and not just
+  // "for other sports": ninety-api gained them in the same week ninety-tv
+  // did, so a TV running this build against a not-yet-deployed backend sees
+  // none of them. Nothing may assume they exist — see
+  // homePersonalization.ts, where each has an explicit neutral fallback so
+  // a pre-upgrade backend produces a valid, finite ranking rather than NaN
+  // or a crash. When they ARE present the extra signals switch on with no
+  // second code path.
+  //
+  // Canonical ninety-api team ids (teams.id) — the ONLY identity
+  // SportPreferences.favoriteTeamIds is ever compared against. Never match
+  // a favorite by homeTeam/awayTeam display name.
+  homeTeamId?: string
+  awayTeamId?: string
+  // The competition each side plays its LEAGUE football in, which is
+  // frequently NOT this event's own competition: Bodø/Glimt's domestic
+  // competition is Eliteserien even when this fixture is a Champions
+  // League tie. Canonical competition ids, comparable directly against
+  // SportPreferences.footballLeagueIds — this is what lets "I follow
+  // Eliteserien" surface a Norwegian club's European nights without the
+  // user having to also follow the Champions League.
+  homeDomesticCompetitionId?: string
+  awayDomesticCompetitionId?: string
+  // How big a club each side is, 0..1, server-computed and deliberately
+  // NOT league-table position: a mid-table Manchester United is still one
+  // of the biggest draws in the sport, and a runaway leader in a small
+  // league is not. Feeds matchup prominence (see matchupProminence in
+  // homePersonalization.ts).
+  homeTeamProminence?: number
+  awayTeamProminence?: number
+  // How much of a rivalry/occasion this specific pairing is, 0..1 — a
+  // derby or a Clásico scores here where the same two clubs' prominence
+  // alone would not distinguish it from any other fixture they play.
+  rivalryImportance?: number
   // Last-5 completed-results form, server-computed by ninety-api from
   // footballdata.io's own results (see teamForm.ts) — never fetched or
   // derived on the TV. Undefined when ninety-api hasn't computed it yet for

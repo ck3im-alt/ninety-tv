@@ -99,6 +99,23 @@
   background: var(--text-primary);
 }
 
+/* The hero's own starting-soon state — see .starting-soon-badge above for
+   why this is accent green and not --live-red. Sized to match
+   .hero-live-badge, which it appears in place of (never alongside: an event
+   is either live or not). */
+.hero-starting-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-dark);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.3px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
 .hero-score {
   color: var(--accent);
   font-weight: var(--weight-medium);
@@ -323,6 +340,29 @@
   height: 5px;
   border-radius: 999px;
   background: var(--text-primary);
+}
+
+/* The third card state, between LIVE and a plain kickoff time: kick-off is
+   within the hour but the match has NOT started.
+
+   Deliberately NOT red. --live-red is reserved for "this is happening right
+   now"; borrowing it here would be the badge quietly making a claim the app
+   can't back up. This uses the accent green Ninety already uses for kickoff
+   times (.event-card-time), on its own dark-green chip so it reads as a
+   state rather than as another piece of metadata — the same weight and
+   geometry as .live-badge, so the row stays visually even whichever state a
+   card is in. */
+.starting-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-dark);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.3px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 .sport-label {

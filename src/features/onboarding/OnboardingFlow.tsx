@@ -46,6 +46,10 @@ export function OnboardingFlow({ onDone }: Props) {
   const [source, setSource] = useState<PlaylistSourceRecord | null>(null)
   const [selectedSports, setSelectedSports] = useState<Set<SportKey>>(new Set(DEFAULT_PREFERENCES.sports))
   const [selectedLeagues, setSelectedLeagues] = useState<Set<string>>(new Set(DEFAULT_PREFERENCES.footballLeagueIds))
+  // Canonical ninety-api team ids. Starts EMPTY and stays optional: unlike
+  // sports and leagues there is no defensible default here — guessing which
+  // clubs someone supports would be worse than asking nothing at all.
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set(DEFAULT_PREFERENCES.favoriteTeamIds))
   // ORDERED, capped at MAX_PREFERRED_COUNTRIES — selection order is
   // priority order and the first pick is the user's primary country (see
   // SportPreferences.favoriteCountries / withCountryToggled).
@@ -54,6 +58,7 @@ export function OnboardingFlow({ onDone }: Props) {
   // screens so navigating Back and forward again doesn't silently collapse
   // a list the user deliberately expanded.
   const [showAllLeagues, setShowAllLeagues] = useState(false)
+  const [showAllTeams, setShowAllTeams] = useState(false)
   const [showAllCountries, setShowAllCountries] = useState(false)
 
   // Country-level personalization signal for this TV — device region, then
@@ -108,6 +113,15 @@ export function OnboardingFlow({ onDone }: Props) {
     })
   }
 
+  function toggleTeam(id: string) {
+    setSelectedTeams((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   function toggleCountry(name: string) {
     // Any manual edit ends the seeding window — see countriesSeededRef.
     countriesSeededRef.current = true
@@ -126,6 +140,11 @@ export function OnboardingFlow({ onDone }: Props) {
       // (no mandatory technical IPTV concepts during onboarding) —
       // everyone starts on 'auto' and can change it any time in Settings.
       streamType: 'auto',
+      // Optional, and genuinely optional: onboarding never blocks on the
+      // team catalogue being reachable (see OnboardingSportsScreen) — a
+      // viewer who skipped or couldn't load it finishes with an empty list
+      // and can add teams later in Settings.
+      favoriteTeamIds: selectedSports.has('football') ? [...selectedTeams] : [],
     })
     markOnboardingComplete()
     onDone(channels, source)
@@ -159,6 +178,10 @@ export function OnboardingFlow({ onDone }: Props) {
         onToggleShowAllLeagues={() => setShowAllLeagues((v) => !v)}
         onToggleSport={toggleSport}
         onToggleLeague={toggleLeague}
+        selectedTeams={selectedTeams}
+        onToggleTeam={toggleTeam}
+        showAllTeams={showAllTeams}
+        onToggleShowAllTeams={() => setShowAllTeams((v) => !v)}
         onBack={() => setStep(1)}
         onContinue={() => setStep(3)}
       />

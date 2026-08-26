@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchNextEventsForLeague, fetchPastEventsForLeague } from './theSportsDbClient'
 import { getAllEvents } from './ninetyApiClient'
-import { footballLeaguesForPreferences, otherLeaguesForPreferences } from './leagues'
+import { fallbackFootballLeague, footballLeaguesForPreferences, otherLeaguesForPreferences } from './leagues'
 import { loadFootballCompetitions } from './competitionsCatalog'
+import { localDayRange } from './localDay'
 import { deriveViewerMarkets } from './viewerMarket'
 import { mapNinetyEvent, mapEvent } from './mapEvent'
 import { isHeuristicallyLive } from './liveHeuristic'
-import { selectHero } from './heroScoring'
+import { buildPersonalizationContext } from './homePersonalization'
+import { describeRanking, eventTiming, rankHomeFeed, selectHero, type EventTiming, type HomeFeedItem } from './homeRanking'
+import { loadWatchAffinity } from './watchAffinity'
 import { matchChannelsForEvent } from './channelMatch'
 import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import type { SportEvent } from './types'
@@ -17,17 +20,44 @@ import type { ChannelIdentityIndex } from './channelIdentityIndex'
 
 export interface HomeFeed {
   hero: SportEvent | null
-  // Whether the hero is live/starting within the hour, i.e. whether
-  // "Watch Now" is actually true right now — see selectHero in
-  // heroScoring.ts. False means the hero is just the next upcoming event,
-  // shown for awareness rather than something to jump into immediately.
+  // Whether the hero is live/starting within the hour AND actually playable
+  // from the viewer's own playlist — see selectHero in homeRanking.ts.
+  // False means the hero is shown for awareness ("Event Preview") rather
+  // than as something to jump straight into.
   heroIsWatchableNow: boolean
+  // Where the hero sits relative to the clock, resolved with the same
+  // `now` the ranking used. Carried on the feed rather than recomputed at
+  // render time so the hero badge can never disagree with the card in the
+  // row below it about whether a match has kicked off.
+  heroTiming: EventTiming
+  // The "Live now & coming up" row, already ranked and grouped: every live
+  // event, then everything starting within the hour, then the rest of
+  // today. Each item carries its own group so a card can label itself
+  // ("STARTING SOON · 21:00") without re-deriving the boundary.
+  items: HomeFeedItem[]
+  // Flat views over the same items, kept because Multiview's EventPicker
+  // consumes them (it reuses Home's already-fetched feed rather than
+  // fetching its own). Derived, never separately ranked — the two can't
+  // drift.
   liveNow: SportEvent[]
   tonight: SportEvent[]
 }
 
-const EMPTY_FEED: HomeFeed = { hero: null, heroIsWatchableNow: false, liveNow: [], tonight: [] }
+const EMPTY_FEED: HomeFeed = { hero: null, heroIsWatchableNow: false, heroTiming: 'unknown', items: [], liveNow: [], tonight: [] }
 const EMPTY_EVENTS_BY_ID: ReadonlyMap<string, SportEvent> = new Map()
+
+// How far BACK the urgent window reaches. Long enough to still contain a
+// match that kicked off before the app was opened and is now at 80 minutes
+// (football's longest realistic in-play span, plus stoppages and a
+// half-time), short enough not to drag in a whole afternoon of finished
+// fixtures.
+const URGENT_LOOKBACK_MS = 3 * 60 * 60 * 1000
+
+// Only used when the viewer's day is genuinely out of football — see the
+// fallback fetch in load(). Narrow AND favorite-filtered on purpose: it
+// exists so Home isn't empty at 23:40, not so it can list a month of
+// fixtures.
+const FALLBACK_LOOKAHEAD_DAYS = 3
 
 // Shared by every HomeFeedState variant — see the union below. `eventsById`
 // is every event this hook has fetched (football + F1, live and upcoming
@@ -35,14 +65,14 @@ const EMPTY_EVENTS_BY_ID: ReadonlyMap<string, SportEvent> = new Map()
 // (Event Details' selectedEvent in App.tsx) can look up its freshest known
 // version after a background refresh without this hook needing to know
 // anything about that screen. Deliberately broader than HomeFeed's own
-// hero/liveNow/tonight — those are already filtered (liveNow requires a
-// channel match, tonight excludes the hero) in ways that would otherwise
-// make an event invisible to a lookup the moment it, say, goes live with no
-// available channel. `refresh` is a stable (see silentRefresh below)
-// imperative trigger for an immediate silent revalidation — used by App.tsx
-// on Player exit (see the task's "immediate refresh on Player exit"
-// requirement); periodic (~60s) and visibility-regain triggers are handled
-// internally by this hook and need no caller involvement.
+// hero/items — those are already filtered (the live row requires a channel
+// match) in ways that would otherwise make an event invisible to a lookup
+// the moment it, say, goes live with no available channel. `refresh` is a
+// stable (see silentRefresh below) imperative trigger for an immediate
+// silent revalidation — used by App.tsx on Player exit (see the task's
+// "immediate refresh on Player exit" requirement); periodic (~60s) and
+// visibility-regain triggers are handled internally by this hook and need
+// no caller involvement.
 interface HomeFeedBase {
   feed: HomeFeed
   eventsById: ReadonlyMap<string, SportEvent>
@@ -66,7 +96,7 @@ type FetchState =
   | { status: 'error'; message: string }
   | {
       status: 'loaded'
-      data: { upcoming: SportEvent[]; liveNowCandidates: SportEvent[]; footballError: string | null; eventsById: ReadonlyMap<string, SportEvent> }
+      data: { candidates: SportEvent[]; footballError: string | null; eventsById: ReadonlyMap<string, SportEvent> }
     }
 
 export function useHomeFeed(
@@ -75,18 +105,24 @@ export function useHomeFeed(
   xtream: XtreamCredentialResolver,
   identityIndex: ChannelIdentityIndex | null,
 ): HomeFeedState {
-  // Stable key so Effect 1 only refires when the actual selection changes,
-  // not on every render (preferences is a fresh object each time it's
-  // loaded from storage upstream). Includes the derived viewer markets (not
-  // raw favoriteCountries) so a favorite-country change that doesn't
-  // actually change which EPG markets are requested (e.g. adding a country
-  // with no EPG coverage) doesn't trigger a needless refetch.
+  // Stable key so Effect 1 only refires when something that changes WHAT IS
+  // FETCHED changes, not on every render (preferences is a fresh object each
+  // time it's loaded from storage upstream). Includes the derived viewer
+  // markets (not raw favoriteCountries) so a favorite-country change that
+  // doesn't actually change which EPG markets are requested (e.g. adding a
+  // country with no EPG coverage) doesn't trigger a needless refetch.
+  //
+  // Deliberately does NOT include favoriteTeamIds, and no longer depends on
+  // footballLeagueIds for the primary fetch: since candidate generation
+  // stopped filtering by followed competitions (see load() below), those
+  // preferences only affect ORDER. Re-ordering is local and instant — it
+  // happens in the derivation memo, with no network round-trip at all.
   const viewerMarkets = deriveViewerMarkets(preferences.favoriteCountries)
-  const prefsKey = `${preferences.sports.join(',')}|${preferences.footballLeagueIds.join(',')}|${viewerMarkets.join(',')}`
+  const fetchKey = `${preferences.sports.join(',')}|${preferences.footballLeagueIds.join(',')}|${viewerMarkets.join(',')}`
 
   const [fetchState, setFetchState] = useState<FetchState>({ status: 'loading' })
 
-  // True while ANY fetch (the prefsKey-driven load below, or a silent
+  // True while ANY fetch (the fetchKey-driven load below, or a silent
   // background refresh — see silentRefresh) is in flight — shared between
   // both so they can never overlap (task requirement: no duplicate/
   // overlapping requests). A background refresh that arrives while the
@@ -97,8 +133,8 @@ export function useHomeFeed(
   // lets a background refresh detect that preferences changed (and Effect 1
   // below already started a fresher load) while it was in flight, and
   // discard its now-stale result instead of overwriting newer data.
-  const prefsKeyRef = useRef(prefsKey)
-  prefsKeyRef.current = prefsKey
+  const fetchKeyRef = useRef(fetchKey)
+  fetchKeyRef.current = fetchKey
 
   // Extracted out of Effect 1 (unlike before) so silentRefresh (see below)
   // can run the exact same fetch logic for a background revalidation — only
@@ -111,67 +147,90 @@ export function useHomeFeed(
   async function load() {
     const otherLeagues = otherLeaguesForPreferences(preferences.sports)
 
-    // ninety-api: filtered server-side to just the leagues the user
-    // actually follows (competition_id accepts a comma-separated list —
-    // see ninetyApiClient.ts) rather than fetching every one of Ninety's
-    // 50 tracked competitions and discarding most of it client-side, the
-    // way this used to work when there were only 7. getAllEvents follows
-    // next_cursor to fetch every page rather than assuming the first
-    // page is the entire feed.
+    // FAVORITES ARE NOT A FETCH FILTER ANY MORE.
     //
-    // The competition catalog itself is now an async fetch too (see
-    // competitionsCatalog.ts — ninety-tv no longer hardcodes all 50
-    // competitions, it fetches them from ninety-api's GET
-    // /v1/competitions). Folded into the same try/catch as the events
-    // fetch below: from this hook's perspective, "can't get the
-    // catalog" and "can't get events for the catalog's competitions"
-    // are both just "football fixtures unavailable" — same footballError
-    // surface either way, so F1 can still render regardless of which
-    // step failed.
+    // This used to send the viewer's followed competitions as
+    // competition_id, which quietly made "leagues I follow" a hard content
+    // filter: a Champions League final could be live and Ninety would not
+    // know it existed, and a followed club playing outside its own league
+    // (Bodø/Glimt in Europe) was invisible. Both are exactly what Home is
+    // supposed to surface. Favorites now decide ORDER only — see
+    // homePersonalization.ts.
     //
-    // No favorites selected (empty footballLeagueIds, or none of them
-    // resolve to a real entry in the fetched catalog — e.g. a stale/
-    // removed competition id) intentionally short-circuits before ever
-    // calling getAllEvents: this must never send an empty
-    // `competition_id=` to the API, which the backend would treat as
-    // "no filter, return every tracked competition's events," not as
-    // "return nothing."
-    let footballAll: SportEvent[] = []
+    // The window is one query, not three: `now - 3h` through the end of the
+    // viewer's LOCAL day covers both the urgent band (anything live, or
+    // kicking off within the hero's 60-minute window) and the rest of
+    // today's candidates. Bounding it at the end of today is what keeps the
+    // unfiltered, all-competitions request a sane size — a month of every
+    // tracked competition would be an absurd payload to rank a TV home
+    // screen with.
+    //
+    // LOCAL day, via localDay.ts: ninety-api's own `date` filter compares
+    // the UTC calendar date, which misfiles evening kickoffs for anyone
+    // outside UTC. from/to asks the question the viewer actually means.
+    let footballCandidates: SportEvent[] = []
     let footballError: string | null = null
-    if (preferences.sports.includes('football') && preferences.footballLeagueIds.length > 0) {
+    if (preferences.sports.includes('football')) {
       try {
+        const now = Date.now()
+        const day = localDayRange(new Date(now))
         const catalog = await loadFootballCompetitions()
-        const footballLeagues = footballLeaguesForPreferences(preferences.footballLeagueIds, catalog)
-        if (footballLeagues.length > 0) {
-          const competitionIds = footballLeagues.map((l) => l.ninetyCompetitionId!)
-          const leagueByCompetitionId = new Map(footballLeagues.map((l) => [l.ninetyCompetitionId!, l]))
-          // country narrows each event's `broadcasts` payload to the
-          // viewer's preferred markets (reduces response size — see
-          // Phase 2B's performance goal); it never removes an event, even
-          // when none of these markets have a resolved broadcast for it
-          // (ninety-api's /v1/events country filter is broadcast-
-          // narrowing only, not event-eligibility). Omitted entirely when
-          // the user has no supported-market favorites, which the API
-          // already treats as "don't filter."
-          const events = await getAllEvents({
-            competitionId: competitionIds,
-            country: viewerMarkets.length > 0 ? viewerMarkets : undefined,
+        const leagueById = new Map(catalog.map((league) => [league.id, league]))
+        const toEvents = (raw: Awaited<ReturnType<typeof getAllEvents>>): SportEvent[] =>
+          raw.map((ev) => {
+            const league =
+              (ev.competition_id ? leagueById.get(ev.competition_id) : undefined) ??
+              fallbackFootballLeague(ev.competition_id, ev.competition_name)
+            return mapNinetyEvent(ev, league)
           })
-          footballAll = events.flatMap((ev) => {
-            const league = ev.competition_id ? leagueByCompetitionId.get(ev.competition_id) : undefined
-            return league ? [mapNinetyEvent(ev, league)] : []
-          })
+
+        // `country` narrows each event's `broadcasts` payload to the
+        // viewer's preferred markets (a real response-size reduction on an
+        // all-competitions query); it never removes an event, even when
+        // none of those markets carry it — ninety-api's /v1/events country
+        // filter is broadcast-narrowing only, not event-eligibility.
+        const country = viewerMarkets.length > 0 ? viewerMarkets : undefined
+        footballCandidates = toEvents(
+          await getAllEvents({ from: new Date(now - URGENT_LOOKBACK_MS).toISOString(), to: day.toUtc, country }),
+        )
+
+        // Late in the evening "the rest of today" is legitimately empty,
+        // and a Home screen with nothing coming up is a worse answer than
+        // looking slightly further ahead. This second request only fires in
+        // that case, and unlike the primary one it IS favorite-filtered and
+        // day-bounded: it is a small courtesy fetch, not part of the
+        // candidate architecture. Skipped entirely with no followed
+        // competitions — an empty competition_id would be read by the
+        // backend as "no filter", i.e. every tracked competition for three
+        // days, which is precisely what must not happen here.
+        const hasUpcoming = footballCandidates.some(
+          (ev) => !ev.isLive && ev.dateTimeUtc != null && new Date(ev.dateTimeUtc).getTime() > now,
+        )
+        if (!hasUpcoming) {
+          const followed = footballLeaguesForPreferences(preferences.footballLeagueIds, catalog)
+          if (followed.length > 0) {
+            const ahead = new Date(now + FALLBACK_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000).toISOString()
+            const extra = toEvents(
+              await getAllEvents({
+                competitionId: followed.map((l) => l.id),
+                from: new Date(day.endMs).toISOString(),
+                to: ahead,
+                country,
+              }),
+            )
+            footballCandidates = [...footballCandidates, ...extra]
+          }
         }
       } catch (err) {
         footballError = err instanceof Error ? err.message : 'Failed to load football fixtures'
       }
     }
-    const footballUpcoming = footballAll.filter((ev) => !ev.isLive)
-    const footballLive = footballAll.filter((ev) => ev.isLive)
 
     // Every other sport (just F1 now — see types.ts): unchanged
     // TheSportsDB per-league lookup, low enough volume that its "only
-    // returns one event" limitation rarely matters.
+    // returns one event" limitation rarely matters. Deliberately NOT
+    // day-bounded the way football is — F1 runs one weekend in three, and
+    // "the next race" is the only useful thing to say about it.
     const otherEventLists = await Promise.all(
       otherLeagues.map(async (league) => {
         try {
@@ -182,10 +241,6 @@ export function useHomeFeed(
         }
       }),
     )
-
-    const upcoming = [...footballUpcoming, ...otherEventLists.flat()]
-      .filter((ev) => ev.dateTimeUtc && new Date(ev.dateTimeUtc).getTime() > Date.now())
-      .sort((a, b) => new Date(a.dateTimeUtc!).getTime() - new Date(b.dateTimeUtc!).getTime())
 
     // Every other sport has no live signal at all — guess instead:
     // fetch each league's most recently-STARTED fixture (not "next",
@@ -209,22 +264,26 @@ export function useHomeFeed(
       )
     ).filter((ev): ev is SportEvent => ev != null)
 
-    const liveNowCandidates = [...footballLive, ...heuristicLive]
+    // ONE candidate pool, unranked and un-grouped. Which of these is live,
+    // which is starting soon and which is merely on later is a question
+    // about the CURRENT clock, so it is answered during derivation (below,
+    // and again on every background refresh) rather than frozen here at
+    // fetch time — an event fetched as "in 70 minutes" has to become
+    // "starting soon" on its own, without a refetch.
+    const candidates = [...footballCandidates, ...otherEventLists.flat(), ...heuristicLive]
     const eventsById = new Map<string, SportEvent>()
-    for (const ev of footballAll) eventsById.set(ev.id, ev)
-    for (const ev of otherEventLists.flat()) eventsById.set(ev.id, ev)
-    for (const ev of heuristicLive) eventsById.set(ev.id, ev)
-    return { upcoming, liveNowCandidates, footballError, eventsById }
+    for (const ev of candidates) eventsById.set(ev.id, ev)
+    return { candidates, footballError, eventsById }
   }
 
   // Effect 1 — fetch-only, on the user's actual selection changing.
-  // Deps: [prefsKey] ONLY. Deliberately excludes channels/xtream/
+  // Deps: [fetchKey] ONLY. Deliberately excludes channels/xtream/
   // identityIndex: this effect's only job is acquiring event data from
   // ninety-api/TheSportsDB, which has nothing to do with the user's local
   // playlist — refetching fixtures because the identity index finished
   // rebuilding was the actual bug this split fixes. The ONLY place that
   // shows a loading state (see HomeFeed's own comment on EMPTY_FEED/Effect
-  // 2 below) — a changed prefsKey means genuinely different data is
+  // 2 below) — a changed fetchKey means genuinely different data is
   // needed, unlike a background revalidation of the same selection.
   useEffect(() => {
     let cancelled = false
@@ -251,7 +310,7 @@ export function useHomeFeed(
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefsKey])
+  }, [fetchKey])
 
   // Always the CURRENT render's `load` (fresh preferences/viewerMarkets
   // closure) without the timer/visibility effect below needing to
@@ -270,24 +329,24 @@ export function useHomeFeed(
   // effect dependency below and as the `refresh` App.tsx calls on Player
   // exit without that triggering extra effect churn.
   const silentRefresh = useCallback(() => {
-    if (inFlightRef.current) return // an initial/prefsKey load or another silent refresh is already in flight
+    if (inFlightRef.current) return // an initial/fetchKey load or another silent refresh is already in flight
     inFlightRef.current = true
-    const requestedPrefsKey = prefsKeyRef.current
+    const requestedFetchKey = fetchKeyRef.current
     loadRef
       .current()
       .then((data) => {
         // preferences changed while this was in flight -- Effect 1 above
         // already issued (or is about to issue) a fresher load for the new
         // selection; applying this now-stale result would fight it.
-        if (prefsKeyRef.current !== requestedPrefsKey) return
+        if (fetchKeyRef.current !== requestedFetchKey) return
         // load() catches a football-fetch failure internally (see its own
-        // try/catch above) and still RESOLVES, with empty upcoming/
-        // liveNowCandidates/eventsById plus a set footballError -- correct
-        // for the initial/prefsKey-driven load (which has nothing better
-        // to show yet, hence 'partial' with an error message), but wrong
-        // for a background refresh: applying this would blank out perfectly
-        // good existing data just because one transient poll failed. Treat
-        // it the same as an outright rejection instead.
+        // try/catch above) and still RESOLVES, with empty candidates plus a
+        // set footballError -- correct for the initial/fetchKey-driven load
+        // (which has nothing better to show yet, hence 'partial' with an
+        // error message), but wrong for a background refresh: applying this
+        // would blank out perfectly good existing data just because one
+        // transient poll failed. Treat it the same as an outright rejection
+        // instead.
         if (data.footballError) {
           console.warn('[useHomeFeed] background refresh failed, keeping last known fixtures:', data.footballError)
           return
@@ -308,6 +367,12 @@ export function useHomeFeed(
   // coming back into focus and a Tizen app resuming from suspend, since
   // both fire the standard Page Visibility API — no Tizen-specific
   // lifecycle hook exists elsewhere in this codebase to prefer instead).
+  //
+  // This tick is also what keeps the feed's own time GROUPING current: a
+  // 21:00 kickoff becomes "starting soon" at 20:00 without anyone pressing
+  // anything, because the derivation below re-runs with a fresh clock every
+  // time a refresh lands.
+  //
   // Player-exit's own immediate refresh is triggered externally (App.tsx
   // calls the returned `refresh`, i.e. this same silentRefresh) since only
   // App.tsx knows about screen navigation. One interval/listener pair for
@@ -329,14 +394,33 @@ export function useHomeFeed(
     }
   }, [silentRefresh])
 
+  // The viewer half of ranking, rebuilt only when the actual preference
+  // VALUES change — not on every render, and never as part of the fetch key
+  // (changing a favorite must reorder Home instantly, with no network
+  // round-trip). Learned affinity is read from local storage here, once per
+  // derivation rather than once per event.
+  const favoriteTeamsKey = preferences.favoriteTeamIds.join(',')
+  const favoriteLeaguesKey = preferences.footballLeagueIds.join(',')
+  const personalization = useMemo(() => {
+    const affinity = loadWatchAffinity()
+    return buildPersonalizationContext({
+      favoriteTeamIds: preferences.favoriteTeamIds,
+      favoriteCompetitionIds: preferences.footballLeagueIds,
+      teamAffinity: affinity.teams,
+      competitionAffinity: affinity.competitions,
+      continuityEventId: affinity.continuityEventId,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [favoriteTeamsKey, favoriteLeaguesKey, fetchState])
+
   const [state, setState] = useState<HomeFeedState>({ status: 'loading', feed: EMPTY_FEED, eventsById: EMPTY_EVENTS_BY_ID, refresh: silentRefresh })
 
-  // Effect 2 — local derivation. Deps: [fetchState, channels, xtream,
-  // identityIndex]. Re-runs whenever the identity index (or the playlist
-  // itself) changes WITHOUT any network call — this is the actual fix.
+  // Effect 2 — local derivation. Deps: [fetchState, personalization,
+  // channels, xtream, identityIndex]. Re-runs whenever the identity index
+  // (or the playlist, or a favorite) changes WITHOUT any network call.
   // Channel-matching here never sets allowNetworkFallback, so this is
   // purely local/free-stage matching (see channelMatch.ts) — safe to run
-  // for every simultaneously-live event via Promise.all.
+  // for every watchable-now candidate via Promise.all.
   useEffect(() => {
     if (fetchState.status === 'loading') {
       setState({ status: 'loading', feed: EMPTY_FEED, eventsById: EMPTY_EVENTS_BY_ID, refresh: silentRefresh })
@@ -349,47 +433,90 @@ export function useHomeFeed(
 
     let cancelled = false
     markPerf('home:local-match-start')
-    const { upcoming, liveNowCandidates, footballError, eventsById } = fetchState.data
+    const { candidates, footballError, eventsById } = fetchState.data
     ;(async () => {
-      // Live Now is deliberately narrower than "everything currently live
-      // in a followed league": a non-football sport (just F1 now) is
-      // always allowed through (no channel-matching exists for
-      // single-entrant events anyway — see channelMatch.ts), but a
-      // football match only qualifies if we can actually find a channel in
-      // the user's playlist airing it. A "live" card with nowhere to watch
-      // it defeats the point of the row.
-      const liveNow = (
-        await Promise.all(
-          liveNowCandidates.map(async (ev): Promise<SportEvent | null> => {
-            if (ev.sportKey !== 'football') return ev
-            try {
-              const { matches } = await matchChannelsForEvent(ev, channels, xtream, identityIndex)
-              return matches.length > 0 ? ev : null
-            } catch {
-              return null
-            }
-          }),
-        )
-      ).filter((ev): ev is SportEvent => ev != null)
+      const now = Date.now()
+
+      // WHICH EVENTS CAN THIS VIEWER ACTUALLY PLAY?
+      //
+      // A separate question from which are relevant, and answered only for
+      // football (nothing else has broadcast data at all — see
+      // channelMatch.ts) and only for events near enough to matter, which
+      // keeps this bounded to a few dozen local lookups rather than the
+      // whole day's fixture list.
+      const nearTerm = candidates.filter((ev) => ev.sportKey === 'football' && isNearTerm(ev, now))
+      const playableIds = new Set<string>(
+        (
+          await Promise.all(
+            nearTerm.map(async (ev): Promise<string | null> => {
+              try {
+                const { matches } = await matchChannelsForEvent(ev, channels, xtream, identityIndex)
+                return matches.length > 0 ? ev.id : null
+              } catch {
+                return null
+              }
+            }),
+          )
+        ).filter((id): id is string => id != null),
+      )
 
       // A newer fetchState/channels/identityIndex has already superseded
       // this pass — never overwrite state produced for a newer generation
       // with a stale one that just finished.
       if (cancelled) return
 
-      // Two-tier pick, not a single blended score — see selectHero in
-      // heroScoring.ts: live/starting-within-the-hour wins outright over
-      // everything else regardless of prestige (a smaller game happening
-      // now beats a bigger one two days out, since only one of them can
-      // actually be watched right now); otherwise it falls back to the
-      // single soonest time slot. `upcoming` itself stays chronologically
-      // sorted for the Coming Up row below either way.
-      const { hero, isWatchableNow } = selectHero(liveNow, upcoming)
-      const tonight = upcoming.filter((ev) => ev.id !== hero?.id)
-      const feed: HomeFeed = { hero, heroIsWatchableNow: isWatchableNow, liveNow, tonight }
+      // A LIVE football card with nowhere to watch it defeats the point of
+      // the row, so those stay out of the feed — the long-standing
+      // behaviour, unchanged. Note what this does NOT do: the event is
+      // still in `candidates` (so the hero can consider it, and
+      // `eventsById` can still resolve it), and scheduled events are never
+      // filtered this way. "We can't play it" is a presentation decision
+      // about one row, not a reason to pretend the match isn't happening.
+      const feedEvents = candidates.filter((ev) => !(ev.isLive && ev.sportKey === 'football' && !playableIds.has(ev.id)))
+
+      const items = rankHomeFeed(feedEvents, personalization, now)
+      // The hero ranks over the FULL candidate pool, including live events
+      // with no playable stream — see selectHero: it prefers a playable
+      // candidate, and falls back to showing the most relevant one as a
+      // preview rather than to nothing.
+      const { hero, isWatchableNow } = selectHero(candidates, personalization, now, (ev) =>
+        ev.sportKey === 'football' ? playableIds.has(ev.id) : true,
+      )
+
+      const feed: HomeFeed = {
+        hero,
+        heroIsWatchableNow: isWatchableNow,
+        heroTiming: hero ? eventTiming(hero, now) : 'unknown',
+        items,
+        liveNow: items.filter((item) => item.group === 'live').map((item) => item.event),
+        tonight: items.filter((item) => item.group !== 'live').map((item) => item.event),
+      }
 
       markPerf('home:local-match-end')
       measurePerf('home:local-match', 'home:local-match-start', 'home:local-match-end')
+
+      // Why this order, itemized — see describeRanking. A ranking with this
+      // many inputs cannot be calibrated from its final order alone, so the
+      // full breakdown is parked on `window.__ninetyHomeRanking` (same
+      // convention as devPerf.ts's __ninetyPerf) where it can be inspected
+      // from a console — including Tizen's remote debugger — without any
+      // logging in the ranking itself. The printed table is additionally
+      // suppressed under `vitest` (MODE === 'test'), where it would bury
+      // real test output; a packaged production build runs none of it.
+      if (import.meta.env.DEV) {
+        const explained = describeRanking(candidates, personalization, now)
+        ;(window as unknown as { __ninetyHomeRanking?: unknown }).__ninetyHomeRanking = {
+          now,
+          hero: hero?.id ?? null,
+          isWatchableNow,
+          events: explained,
+        }
+        if (import.meta.env.MODE !== 'test') {
+          console.groupCollapsed(`[home] ranking — hero: ${hero?.title ?? 'none'} (watchable: ${isWatchableNow})`)
+          console.table(explained.slice(0, 12).map((row) => ({ title: row.title, timing: row.timing, ...row.breakdown })))
+          console.groupEnd()
+        }
+      }
 
       if (footballError) {
         setState({ status: 'partial', feed, message: `Football fixtures unavailable: ${footballError}`, eventsById, refresh: silentRefresh })
@@ -401,7 +528,21 @@ export function useHomeFeed(
     return () => {
       cancelled = true
     }
-  }, [fetchState, channels, xtream, identityIndex, silentRefresh])
+  }, [fetchState, personalization, channels, xtream, identityIndex, silentRefresh])
 
   return state
+}
+
+// Live, or kicking off within the next few hours — the band worth spending
+// a channel lookup on. Wider than the hero's own 60-minute window so a
+// scheduled card the viewer might select still resolves instantly, and
+// still far narrower than "every fixture today".
+const NEAR_TERM_WINDOW_MS = 4 * 60 * 60 * 1000
+
+function isNearTerm(event: SportEvent, now: number): boolean {
+  if (event.isLive) return true
+  if (!event.dateTimeUtc) return false
+  const start = new Date(event.dateTimeUtc).getTime()
+  if (Number.isNaN(start)) return false
+  return start > now && start - now <= NEAR_TERM_WINDOW_MS
 }

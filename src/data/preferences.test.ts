@@ -8,6 +8,7 @@ import {
   savePreferences,
   withCountryToggled,
   withPrimaryCountry,
+  withTeamToggled,
   type SportPreferences,
 } from './preferences'
 
@@ -60,6 +61,7 @@ describe('loadPreferences', () => {
       footballLeagueIds: ['4328', '4480', '4335'],
       favoriteCountries: [],
       streamType: 'auto',
+      favoriteTeamIds: [],
     }
     savePreferences(legacy)
 
@@ -71,7 +73,7 @@ describe('loadPreferences', () => {
   })
 
   it('is idempotent across repeated loads -- a second load after migration changes nothing further', () => {
-    savePreferences({ sports: ['football'], footballLeagueIds: ['4328'], favoriteCountries: [], streamType: 'auto' })
+    savePreferences({ sports: ['football'], footballLeagueIds: ['4328'], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [] })
 
     const first = loadPreferences()
     const second = loadPreferences()
@@ -80,7 +82,7 @@ describe('loadPreferences', () => {
   })
 
   it('preserves other preference fields untouched by migration', () => {
-    savePreferences({ sports: ['football', 'f1'], footballLeagueIds: ['4328'], favoriteCountries: ['Norway'], streamType: 'tv' })
+    savePreferences({ sports: ['football', 'f1'], footballLeagueIds: ['4328'], favoriteCountries: ['Norway'], streamType: 'tv', favoriteTeamIds: [] })
     const loaded = loadPreferences()
     expect(loaded.sports).toEqual(['football', 'f1'])
     expect(loaded.favoriteCountries).toEqual(['Norway'])
@@ -122,6 +124,7 @@ describe('loadPreferences', () => {
       footballLeagueIds: ['football_premier_league'],
       favoriteCountries: [],
       streamType: 'auto',
+      favoriteTeamIds: [],
     }
     savePreferences(alreadyCanonical)
     const loaded = loadPreferences()
@@ -129,7 +132,7 @@ describe('loadPreferences', () => {
   })
 
   it('does not crash on a preferences object containing only the dead Conference League id', () => {
-    savePreferences({ sports: ['football'], footballLeagueIds: ['5071'], favoriteCountries: [], streamType: 'auto' })
+    savePreferences({ sports: ['football'], footballLeagueIds: ['5071'], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [] })
     const loaded = loadPreferences()
     // Left in place, not stripped -- see migrateFootballLeagueIds's own
     // comment for why this is the intended, non-destructive behavior. The
@@ -137,6 +140,130 @@ describe('loadPreferences', () => {
     // becomes an inert selection downstream (see leagues.test.ts's
     // footballLeaguesForPreferences coverage of that case).
     expect(loaded.footballLeagueIds).toEqual(['5071'])
+  })
+})
+
+// TEST 13 — the mandatory backwards-compatibility case. favoriteTeamIds
+// arrived on 2026-08-26; every install that predates it has a stored
+// preferences object without the field, and must keep working untouched.
+describe('loadPreferences — favoriteTeamIds backwards compatibility', () => {
+  it('loads a pre-favoriteTeamIds install successfully, with an empty list', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({
+        sports: ['football', 'f1'],
+        footballLeagueIds: ['football_premier_league'],
+        favoriteCountries: ['Norway'],
+        streamType: 'tv',
+      }),
+    )
+    expect(loadPreferences().favoriteTeamIds).toEqual([])
+  })
+
+  it('preserves every other preference from that install — nothing is reset', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({
+        sports: ['football', 'f1'],
+        footballLeagueIds: ['football_premier_league', 'football_champions_league'],
+        favoriteCountries: ['Norway', 'Sweden'],
+        streamType: 'tv',
+      }),
+    )
+    const loaded = loadPreferences()
+    expect(loaded.sports).toEqual(['football', 'f1'])
+    expect(loaded.footballLeagueIds).toEqual(['football_premier_league', 'football_champions_league'])
+    expect(loaded.favoriteCountries).toEqual(['Norway', 'Sweden'])
+    expect(loaded.streamType).toBe('tv')
+  })
+
+  // Same rule as streamType: a viewer who has never followed a team must
+  // not have an empty list materialized into storage on their behalf.
+  it('does not write the field back just because it was absent', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({ sports: ['football'], footballLeagueIds: ['football_premier_league'], favoriteCountries: [] }),
+    )
+    loadPreferences()
+    const persisted = JSON.parse(localStorage.getItem('ninety.sportPreferences')!) as Record<string, unknown>
+    expect('favoriteTeamIds' in persisted).toBe(false)
+  })
+
+  it('round-trips a real selection of canonical team ids', () => {
+    savePreferences({
+      sports: ['football'],
+      footballLeagueIds: ['football_premier_league'],
+      favoriteCountries: [],
+      streamType: 'auto',
+      favoriteTeamIds: ['team_manutd', 'team_glimt'],
+    })
+    expect(loadPreferences().favoriteTeamIds).toEqual(['team_manutd', 'team_glimt'])
+  })
+
+  it('carries favoriteTeamIds through the legacy league-id migration untouched', () => {
+    savePreferences({
+      sports: ['football'],
+      footballLeagueIds: ['4328'],
+      favoriteCountries: [],
+      streamType: 'auto',
+      favoriteTeamIds: ['team_manutd'],
+    })
+    const loaded = loadPreferences()
+    expect(loaded.footballLeagueIds).toEqual(['football_premier_league'])
+    expect(loaded.favoriteTeamIds).toEqual(['team_manutd'])
+  })
+
+  it('discards a corrupted stored value rather than letting it reach ranking', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({ sports: [], footballLeagueIds: [], favoriteCountries: [], favoriteTeamIds: 'not-an-array' }),
+    )
+    expect(loadPreferences().favoriteTeamIds).toEqual([])
+  })
+
+  it('drops non-string and empty entries, and de-duplicates', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({
+        sports: [],
+        footballLeagueIds: [],
+        favoriteCountries: [],
+        favoriteTeamIds: ['team_a', '', null, 7, 'team_a', 'team_b'],
+      }),
+    )
+    expect(loadPreferences().favoriteTeamIds).toEqual(['team_a', 'team_b'])
+  })
+
+  it('survives a stored object missing footballLeagueIds entirely, rather than throwing at startup', () => {
+    localStorage.setItem('ninety.sportPreferences', JSON.stringify({ sports: ['football'] }))
+    expect(() => loadPreferences()).not.toThrow()
+    expect(loadPreferences().favoriteTeamIds).toEqual([])
+  })
+})
+
+describe('withTeamToggled', () => {
+  it('adds a team that is not followed', () => {
+    expect(withTeamToggled([], 'team_a')).toEqual(['team_a'])
+    expect(withTeamToggled(['team_a'], 'team_b')).toEqual(['team_a', 'team_b'])
+  })
+
+  it('removes a team that is', () => {
+    expect(withTeamToggled(['team_a', 'team_b'], 'team_a')).toEqual(['team_b'])
+  })
+
+  // Unlike countries, there is no cap: following a domestic club, a
+  // European giant and a couple of local sides is an ordinary selection.
+  it('has no cap — a football fan can follow as many clubs as they like', () => {
+    let selected: string[] = []
+    for (let i = 0; i < 25; i++) selected = withTeamToggled(selected, `team_${i}`)
+    expect(selected).toHaveLength(25)
+  })
+
+  it('never mutates its input', () => {
+    const input = ['team_a']
+    withTeamToggled(input, 'team_b')
+    withTeamToggled(input, 'team_a')
+    expect(input).toEqual(['team_a'])
   })
 })
 

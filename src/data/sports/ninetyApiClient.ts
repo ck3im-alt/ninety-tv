@@ -21,11 +21,34 @@ function getBaseUrl(): string | undefined {
   return import.meta.env.VITE_NINETY_API_URL as string | undefined
 }
 
+// Carries the HTTP status alongside the message so a caller can tell
+// "this deployment does not have that endpoint yet" (404) from "the request
+// failed" (anything else) — which matters while ninety-tv and ninety-api
+// are being extended in parallel: the TV must degrade to a recoverable
+// empty state against an older backend, not show a network error. Extends
+// Error so every existing `err instanceof Error ? err.message : ...`
+// handler keeps working unchanged.
+export class NinetyApiError extends Error {
+  readonly status: number
+  constructor(path: string, status: number) {
+    super(`ninety-api ${path} failed: ${status}`)
+    this.name = 'NinetyApiError'
+    this.status = status
+  }
+}
+
+// True when the failure was specifically "this backend build doesn't serve
+// that route" — the one case a caller should treat as a missing FEATURE
+// rather than an error worth showing.
+export function isEndpointUnavailable(err: unknown): boolean {
+  return err instanceof NinetyApiError && (err.status === 404 || err.status === 501)
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const baseUrl = getBaseUrl()
   if (!baseUrl) throw new Error('VITE_NINETY_API_URL is not set (see .env.example)')
   const res = await fetch(`${baseUrl}${path}`)
-  if (!res.ok) throw new Error(`ninety-api ${path} failed: ${res.status}`)
+  if (!res.ok) throw new NinetyApiError(path, res.status)
   return (await res.json()) as T
 }
 
@@ -63,6 +86,22 @@ export interface NinetyEvent {
   away_team_form: TeamFormResult[] | null
   venue_name: string | null
   broadcasts: NinetyBroadcast[]
+  // --- Personalization block (ninety-api 2026-08-26 onwards) ---
+  //
+  // Declared `?:` rather than `| null` on purpose: these are ABSENT, not
+  // null, from any deployment predating them, and ninety-tv is expected to
+  // run against exactly that while the two repos are extended in parallel.
+  // `| null` is included too because a present-but-unknown value (a team
+  // with no domestic league on record) is genuinely null in the payload.
+  // See mapEvent.ts's mapNinetyEvent for the normalization, and
+  // types.ts's SportEvent for what each one means.
+  home_team_id?: string | null
+  away_team_id?: string | null
+  home_team_domestic_competition_id?: string | null
+  away_team_domestic_competition_id?: string | null
+  home_team_prominence?: number | null
+  away_team_prominence?: number | null
+  rivalry_importance?: number | null
 }
 
 export interface NinetyExternalChannelId {
@@ -98,10 +137,11 @@ export interface GetEventsParams {
   // is broadcast-narrowing only, not event-eligibility -- see Phase 2B).
   // Same single-or-several convention as competitionId below.
   country?: string | string[]
-  // Accepts a single id (e.g. useCompetitionFixtures.ts) or several (e.g.
-  // useHomeFeed.ts narrowing to just the leagues a user follows, out of
-  // Ninety's full 50-competition catalog) -- ninety-api's /v1/events takes
-  // a comma-separated competition_id for the multi case.
+  // Accepts a single id or several (e.g. useHomeFeed.ts narrowing to just
+  // the leagues a user follows, out of Ninety's full 50-competition
+  // catalog) -- ninety-api's /v1/events takes a comma-separated
+  // competition_id for the multi case. OMITTED entirely means "every
+  // tracked competition", which is what useTodaysSchedule.ts relies on.
   competitionId?: string | string[]
   from?: string
   to?: string
@@ -177,4 +217,52 @@ export interface NinetyCompetition {
 
 export async function getCompetitions() {
   return getJson<{ competitions: NinetyCompetition[] }>('/v1/competitions')
+}
+
+// ninety-api's canonical TEAM registry (GET /v1/teams), added alongside the
+// events personalization block above so the TV can offer a real
+// "teams you follow" picker keyed on canonical ids rather than names.
+//
+// Every field except `id` is optional here, and the naming is deliberately
+// permissive (`name` OR `canonical_name`, `logo_url` OR `logo`): this
+// endpoint is being built in the other repo at the same time as this
+// client, so the mapping in teamCatalog.ts accepts either spelling rather
+// than hard-failing on a shape that turns out to differ by one word. The
+// alternative — guessing wrong and shipping a picker that renders blank
+// names — is much worse than a couple of extra `??`s.
+export interface NinetyTeam {
+  id: string
+  name?: string | null
+  canonical_name?: string | null
+  logo_url?: string | null
+  logo?: string | null
+  country_code?: string | null
+  // Which competition this club plays its league football in — the same id
+  // space as NinetyCompetition.id, so it can be compared straight against a
+  // user's followed competitions.
+  domestic_competition_id?: string | null
+  prominence?: number | null
+}
+
+export interface GetTeamsParams {
+  // Single id or several, same comma-separated convention as
+  // GetEventsParams.competitionId. Omitted means "no competition filter".
+  competitionId?: string | string[]
+  // Free-text lookup, when the backend supports it. A backend that ignores
+  // the parameter simply returns an unfiltered page, which the caller
+  // filters locally — see teamCatalog.ts.
+  search?: string
+  limit?: number
+}
+
+export async function getTeams(params: GetTeamsParams = {}) {
+  const query = new URLSearchParams()
+  if (params.competitionId) {
+    const value = Array.isArray(params.competitionId) ? params.competitionId.join(',') : params.competitionId
+    if (value) query.set('competition_id', value)
+  }
+  if (params.search) query.set('search', params.search)
+  if (params.limit != null) query.set('limit', String(params.limit))
+  const qs = query.toString()
+  return getJson<{ teams: NinetyTeam[] }>(`/v1/teams${qs ? `?${qs}` : ''}`)
 }

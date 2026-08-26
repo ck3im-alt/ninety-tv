@@ -144,28 +144,96 @@
   flex-basis: 48%;
 }
 
-/* 4 columns — + Preview. Countries stays the same width/row style as the
-   3-column state (not a further-collapsed flag-only state) — it's kept
-   narrow throughout already, so there's no separate "even narrower" state
-   once Preview shows up. Preview's width just follows its locked 16:9
-   aspect ratio rather than needing to be the widest pane, so Channels and
-   Categories get more room instead. */
+/* 4 columns — + Preview. This is the one state where four panes plus their
+   gaps genuinely run out of room, so Countries collapses to a FLAG-ONLY RAIL
+   (see isCompactCountryRail in cascadeNavigation.ts for the shared rule, and
+   .list-row-compact below for the row itself) and hands almost all of its
+   width to Channels.
+
+   Fixed pixel bases rather than percentages, because they have to add up
+   exactly against this app's fixed canvas and percentages here resolve
+   against the container's full inner width (gaps excluded), which made the
+   previous set overflow by ~245px and rely on proportional shrinking to land
+   anywhere sensible. The arithmetic at 1920×1080:
+
+     1920 − 2×96 page padding            = 1728 available
+     1728 − 3×24 column gaps (space-6)   = 1656 for the four panes
+     96 + 340 + 700 + 520                = 1656  ✓ no overflow, nothing clipped
+
+   Against the previous state's effective rendered widths (~301 / 391 / 512 /
+   452 after shrinking), Channels gains ~188px and Preview ~68px — the
+   majority of the ~205px reclaimed from Countries goes to Channels, Preview
+   grows only modestly, and Categories stays well above its 260px readable
+   minimum at 340px. */
 .cascade-columns[data-cols='4'] .cascade-col.country {
-  flex: 0 1 20%;
+  flex: 0 0 96px;
+  /* Overrides the shared .cascade-col.country min-width: 220px below, which
+     would otherwise pin the rail open at its text-column width. */
+  min-width: 96px;
+  /* The pane's own 24px inset would leave a 32px flag only ~22px of room
+     once the row's padding is counted — the rail needs a tighter inset, not
+     a smaller focus target (the row keeps its full 68px height and the full
+     rail width). */
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
 }
 .cascade-columns[data-cols='4'] .cascade-col.category {
-  flex-basis: 26%;
+  flex: 0 1 340px;
 }
 .cascade-columns[data-cols='4'] .cascade-col.channels {
-  flex-basis: 34%;
+  flex: 1 1 700px;
 }
 .cascade-columns[data-cols='4'] .cascade-preview {
-  flex-basis: 30%;
+  flex: 0 1 520px;
+}
+
+/* Flag centered, nothing else in the row (label/count/chevron aren't
+   rendered at all in compact mode — see ListRow's `compact` prop). The row
+   still fills the rail's full width and keeps the shared 68px height, so
+   it stays a comfortable remote target rather than shrinking to the flag. */
+.cascade-columns[data-cols='4'] .cascade-col.country .list-row-compact {
+  justify-content: center;
+  padding: 0 var(--space-2);
+  gap: 0;
+}
+
+/* Active vs focused must stay tellable apart in the rail exactly as they do
+   in the full-width list, and with the label gone the row's own background/
+   border is the only carrier left. The shared .cascade-col rules below
+   already give active a tinted fill + left accent rail and focused a full
+   accent outline, and both remain distinct from each other here; the flag
+   itself adds one more cue on top — dimmed at rest, fully bright when the
+   row is either active or focused — so the picked country stands out at a
+   glance in a column of otherwise identical-weight flags. */
+.cascade-columns[data-cols='4'] .cascade-col.country .list-row-compact .flag-icon {
+  opacity: 0.75;
+  transition: opacity var(--motion-duration) var(--motion-ease);
+}
+
+.cascade-columns[data-cols='4'] .cascade-col.country .list-row-compact.active .flag-icon,
+.cascade-columns[data-cols='4'] .cascade-col.country .list-row-compact.focused .flag-icon {
+  opacity: 1;
+}
+
+/* The header can't say "Countries" in a 70px rail — it becomes a centered
+   globe (CountriesRailIcon), which keeps this column's list starting on the
+   same line as every other column's instead of riding up by the header's
+   height. */
+.cascade-columns[data-cols='4'] .cascade-col.country .cascade-col-header {
+  display: flex;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.cascade-col-header-icon {
+  width: 22px;
+  height: 22px;
 }
 
 /* Countries/Categories keep the same row sizing as the classic screens at
    every column count — nothing shrinks to squeeze in more; the list just
-   scrolls (.cascade-list already does). */
+   scrolls (.cascade-list already does). Countries' 220px floor applies to
+   the 1-, 2- and 3-pane states only; the four-pane rail overrides it above. */
 .cascade-col.category {
   min-width: 260px;
 }

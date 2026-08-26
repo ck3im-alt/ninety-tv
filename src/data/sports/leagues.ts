@@ -115,6 +115,31 @@ export function footballLeaguesForPreferences(footballLeagueIds: string[], footb
   return footballLeagues.filter((l) => footballLeagueIds.includes(l.id))
 }
 
+// A LeagueDef for a competition that is in the events feed but NOT in the
+// fetched catalog — a competition ninety-api started tracking after this
+// session cached GET /v1/competitions, say. mapNinetyEvent needs a
+// LeagueDef, so one is synthesized from what the event itself carries
+// rather than the fixture being dropped: "every fixture Ninety knows about
+// stays reachable" outranks having complete competition metadata for it.
+//
+// No tier is invented. The competition simply scores at the neutral default
+// wherever prestige is consulted (see heroScoring.ts), which is the honest
+// answer for a competition we know nothing about — not a guess dressed up
+// as data.
+//
+// Shared by every all-competitions consumer (Home's candidate generation,
+// the Schedule screen) so the two can't disagree about what an unknown
+// competition looks like.
+export function fallbackFootballLeague(competitionId: string | null, competitionName: string | null): LeagueDef {
+  return {
+    id: competitionId ?? 'unknown',
+    sportKey: 'football',
+    sportLabel: 'FOOTBALL',
+    tsdbSport: 'Soccer',
+    name: competitionName ?? 'Other fixtures',
+  }
+}
+
 // Non-football sports (just F1 today) only ever have one league each in
 // STATIC_LEAGUES, so "selected sports" is the only filter needed -- no
 // per-league id list exists for these the way footballLeagueIds does.

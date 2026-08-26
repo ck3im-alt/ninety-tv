@@ -1,21 +1,18 @@
 import { formatKickoffTime } from './eventTimeFormat'
+import { StadiumIcon } from '../onboarding/sportIcons'
+import { competitionMatchHero } from '../../data/sports/competitionArtwork'
 import type { SportEvent } from '../../data/sports/types'
 
-// Small inline SVGs rather than an icon font/library dependency.
+// Venue is a STADIUM name, so it gets a stadium mark rather than the
+// map-pin this used to draw — shared with Home's own venue line (see
+// StadiumIcon in sportIcons.tsx) so the two screens speak the same visual
+// language instead of each inventing a venue glyph. Sized/coloured by
+// .event-header-meta-icon, same as ClockIcon below.
 function VenueIcon() {
-  return (
-    <svg className="event-header-meta-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 2C7.6 2 4 5.6 4 10c0 5.5 7 11.5 7.3 11.7a1 1 0 0 0 1.4 0C13 21.5 20 15.5 20 10c0-4.4-3.6-8-8-8Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="10" r="2.6" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  )
+  return <StadiumIcon className="event-header-meta-icon" />
 }
 
+// Small inline SVG rather than an icon font/library dependency.
 function ClockIcon() {
   return (
     <svg className="event-header-meta-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -25,17 +22,6 @@ function ClockIcon() {
   )
 }
 
-// Real footballdata.io/TheSportsDB league names for the competition — text
-// match rather than a leagueId lookup, since Champions League fixtures are
-// backend-fetched (see leagues.ts's own note: football competitions were
-// moved off the static STATIC_LEAGUES table in favor of ninety-api's
-// registry on 2026-08-20, so there's no local LeagueDef.staticBackground
-// wired up for any football competition yet) — "UEFA Champions League" /
-// "Champions League" both match.
-function isChampionsLeague(event: SportEvent): boolean {
-  return event.league?.toLowerCase().includes('champions league') ?? false
-}
-
 // Extremely subtle, purely decorative — thin arcs + a faint top vignette
 // behind the header, built entirely from Ninety's own existing dark/navy
 // tokens. Deliberately kept close to invisible (5-10% visual intensity,
@@ -43,13 +29,14 @@ function isChampionsLeague(event: SportEvent): boolean {
 // content, spans the full fixed 1920px canvas via plain pixel offsets (see
 // the CSS rule's own comment).
 //
-// One curated exception: Champions League fixtures get a real photo (a
-// dark stadium/floodlights shot, not the generic wash) — same idea as
-// leagues.ts's existing staticBackground override for F1's Home hero, just
-// scoped to this screen since football competitions don't have that
-// mechanism wired up yet (see isChampionsLeague's own comment). The arcs
-// are skipped in that case — the photo already carries its own visual
-// richness, and layering line-art on top of it would look cluttered.
+// Competitions with curated artwork get a real photo instead (see
+// data/sports/competitionArtwork.ts, which owns both WHICH competitions
+// have one and how each is framed) — same idea as leagues.ts's existing
+// staticBackground override for F1's Home hero, just scoped to this screen,
+// since football competitions have no such field on their LeagueDef (they
+// come from ninety-api's registry, not STATIC_LEAGUES). The arcs are
+// skipped in that case — the photo already carries its own visual richness,
+// and layering line-art on top of it would look cluttered.
 //
 // The gradient wash and the arc strokes are deliberately TWO separate
 // elements (a plain div for the CSS background, an inner SVG for just the
@@ -64,13 +51,45 @@ function isChampionsLeague(event: SportEvent): boolean {
 // fixed the row instantly. Splitting the gradient onto a plain div (a much
 // more boring, well-tested code path) avoids it entirely.
 function HeaderBackdrop({ event }: { event: SportEvent }) {
-  const cl = isChampionsLeague(event)
+  const hero = competitionMatchHero(event.leagueId)
   return (
     <div
-      className={`event-header-backdrop ${cl ? 'event-header-backdrop-cl' : ''}`}
-      style={cl ? { backgroundImage: `linear-gradient(180deg, transparent 0%, transparent 55%, var(--bg-primary) 100%), url(${import.meta.env.BASE_URL}backgrounds/UCL_Matchup.png)` } : undefined}
+      className={`event-header-backdrop ${hero ? 'event-header-backdrop-photo' : ''}`}
+      style={
+        hero
+          ? {
+              // Two layers: a fade that dissolves the photo's bottom into
+              // the page, then the photo itself. Only the URL is set here
+              // (it needs import.meta.env.BASE_URL); sizing and framing are
+              // shared by every banner and live in the CSS rule.
+              //
+              // These stops are tuned against the box --header-bleed
+              // produces, and the thing they are tuned FOR is the first
+              // country header in the stream list below: it is small muted
+              // uppercase text, and it lands on the outer left edge, which
+              // is exactly where these banners put their brightest content.
+              // The artwork has to be essentially gone by then or that label
+              // washes out.
+              //
+              // That row sits ~51% down the box on a fixture with no
+              // status line, and ~65% down on one that has a LIVE/FINISHED
+              // line. The stops target the EARLIER (tighter) case, so both
+              // are covered: the dissolve runs 18% -> 54%, leaving the
+              // artwork at roughly 9% where the label starts. Above it the
+              // ramp is ~160px long, so the matchup still sits on strong
+              // artwork and the venue/kickoff line on a soft remnant.
+              //
+              // Reaching the background colour BEFORE the box edge rather
+              // than at it is also what removes the hard horizontal border
+              // this used to draw above the stream list — interpolating
+              // right up to the edge left the image faintly visible on the
+              // last few pixels and then cut.
+              backgroundImage: `linear-gradient(180deg, transparent 0%, transparent 18%, var(--bg-primary) 54%, var(--bg-primary) 100%), url(${hero})`,
+            }
+          : undefined
+      }
     >
-      {!cl && (
+      {!hero && (
         <svg className="event-header-backdrop-arcs" viewBox="0 0 1920 420" preserveAspectRatio="none" aria-hidden="true">
           <path className="event-header-backdrop-arc event-header-backdrop-arc-1" d="M -80 320 Q 960 60 2000 320" />
           <path className="event-header-backdrop-arc event-header-backdrop-arc-2" d="M -80 380 Q 960 160 2000 380" />
@@ -105,8 +124,8 @@ function FinishedStatusLine() {
 // The one line beneath the matchup that carries LIVE/FINISHED status. This
 // is the ONLY place any of that text may appear; it must never be
 // concatenated into the team-matchup row itself. Scheduled/upcoming
-// fixtures get no status line at all here — the matchup row's own "—"
-// already reads correctly on its own ("Team — Team"), and the kickoff time
+// fixtures get no status line at all here — the matchup row's own "VS"
+// already reads correctly on its own ("Team VS Team"), and the kickoff time
 // is already shown in the stadium/kickoff row below, so a "Today"/
 // "Tomorrow" line here would be redundant. Returns its own full-span row
 // wrapper (or null for a scheduled fixture), so callers never render an
@@ -164,16 +183,28 @@ function AxisRow({ left, axis, right }: { left: React.ReactNode; axis: React.Rea
 }
 
 // Team-vs-team fixtures (currently football only — see SportEvent.sportKey).
-// The matchup row is SIX elements read left to right — home logo, home
-// team, home score, [center axis], away score, away team, away logo — laid
-// out as two flex groups (one per side, each pushed toward the shared
-// center grid column) rather than one flat row of concatenated text nodes,
-// so long team names truncate at the OUTER edge and never shift the
-// center point. The center column always shows the "—" separator,
-// regardless of whether a score exists yet — an upcoming fixture reads
-// "Team — Team", never a fabricated score and never any status/day text
-// inside this row. All status/day information lives in ONE separate line
-// below the matchup (see MatchStatusLine) — never here.
+// The matchup row reads strictly left to right as a real fixture would be
+// written — home crest, home team, home score, [VS], away score, away team,
+// away crest — laid out as two plain flex groups (one per side, each pushed
+// toward the shared center grid column) rather than one flat row of
+// concatenated text nodes, so each side grows OUTWARD from the fixed center
+// and a long team name can never shift the center point.
+//
+// Neither side is flex-reversed. The away group's DOM order (score, name,
+// crest) IS its visual order: crest outside the name, score innermost
+// against VS, mirroring the home side. It previously carried a
+// `row-reverse` class, which flipped exactly those three elements and made
+// the whole row read "[home crest] Home — [away crest] Away" — crests both
+// on the same side of their names, scores on the outside. Only the score's
+// margin still needs a side-aware rule (see .event-header-team-away in
+// EventDetailsScreen.css), since it sits after the name on one side and
+// before it on the other.
+//
+// The center column always shows "VS", regardless of whether a score exists
+// yet — an upcoming fixture reads "Team VS Team", never a fabricated score
+// and never any status/day text inside this row. All status/day information
+// lives in ONE separate line below the matchup (see MatchStatusLine) —
+// never here.
 export function FootballEventHeader({ event }: { event: SportEvent }) {
   const venue = venueText(event)
   const kickoff = formatKickoffTime(event.dateTimeUtc) || null
@@ -189,17 +220,17 @@ export function FootballEventHeader({ event }: { event: SportEvent }) {
         )}
 
         <div className="event-header-cell event-header-cell-left">
-          <div className="event-header-team">
+          <div className="event-header-team event-header-team-home">
             {event.homeBadge && <img className="event-header-team-badge" src={event.homeBadge} alt="" />}
             <span className="event-header-team-name">{event.homeTeam}</span>
             {event.homeScore != null && <span className="event-header-score">{event.homeScore}</span>}
           </div>
         </div>
         <div className="event-header-cell event-header-cell-center">
-          <span className="event-header-score-dash">—</span>
+          <span className="event-header-vs">VS</span>
         </div>
         <div className="event-header-cell event-header-cell-right">
-          <div className="event-header-team event-header-team-reverse">
+          <div className="event-header-team event-header-team-away">
             {event.awayScore != null && <span className="event-header-score">{event.awayScore}</span>}
             <span className="event-header-team-name">{event.awayTeam}</span>
             {event.awayBadge && <img className="event-header-team-badge" src={event.awayBadge} alt="" />}

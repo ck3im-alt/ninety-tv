@@ -79,3 +79,18 @@ export function ChevronUpIcon() {
     </svg>
   )
 }
+
+// Venue marker for anything showing SportEvent.venue — a stadium bowl
+// (pitch inside a stand ring), NOT a map pin: the field is a stadium name,
+// not a location on a map. Shared by Home's fixture meta line and Event
+// Details' match header so both read as the same idea; sizing/colour come
+// from the caller's own class (`meta-icon`, `event-header-meta-icon`),
+// same convention as every other icon in this file.
+export function StadiumIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <ellipse cx="8" cy="8" rx="6.8" ry="4.2" stroke="currentColor" strokeWidth="1.2" />
+      <ellipse cx="8" cy="8" rx="3.6" ry="2.1" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  )
+}

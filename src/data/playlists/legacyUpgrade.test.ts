@@ -71,6 +71,7 @@ function seedPreUpdateInstall() {
     footballLeagueIds: ['football_premier_league'],
     favoriteCountries: ['United Kingdom'],
     streamType: 'tv',
+    favoriteTeamIds: [],
   })
   markOnboardingComplete()
   saveFavoriteChannels(new Set(['ch0']))
@@ -121,6 +122,7 @@ describe('a pre-update install opening the new app', () => {
       footballLeagueIds: ['football_premier_league'],
       favoriteCountries: ['United Kingdom'],
       streamType: 'tv',
+      favoriteTeamIds: [],
     })
     expect(loadFavoriteChannels()).toEqual(new Set(['ch0']))
   })

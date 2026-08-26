@@ -14,7 +14,7 @@
 import { useMemo, useState } from 'react'
 import { FocusContext, getCurrentFocusKey, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useBackHandler } from '../../core/platform'
-import { loadPreferences, savePreferences, withCountryToggled, withPrimaryCountry } from '../../data/preferences'
+import { loadPreferences, savePreferences, withCountryToggled, withPrimaryCountry, withTeamToggled } from '../../data/preferences'
 import { SettingsRailItem } from './settingsPrimitives'
 import { PANE_ENTRY_FOCUS_KEY, useSettingsFocusable } from './useSettingsFocusable'
 import { INITIAL_SETTINGS_SECTION, SETTINGS_SECTIONS, adjacentSection, isRailFocusKey, railFocusKey } from './settingsSections'
@@ -25,6 +25,9 @@ import { PlaybackPane } from './PlaybackPane'
 import { ChannelVisibilityPane } from './ChannelVisibilityPane'
 import { SettingsConfirmDialog, SettingsPromptDialog } from './SettingsDialogs'
 import { PlaylistConnectDialog } from './PlaylistConnectDialog'
+import { TeamPickerDialog } from './TeamPickerDialog'
+import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
+import { footballLeaguesForPreferences } from '../../data/sports/leagues'
 import type { SettingsSectionId } from './settingsSections'
 import type { StreamTypePreference } from '../../data/preferences'
 import type { SportKey } from '../../data/sports/types'
@@ -45,6 +48,7 @@ type Dialog =
   | { kind: 'rename-playlist'; playlistId: string }
   | { kind: 'remove-playlist'; playlistId: string }
   | { kind: 'clear-recent' }
+  | { kind: 'manage-teams' }
 
 interface Props {
   library: PlaylistLibrary
@@ -125,7 +129,15 @@ export function SettingsScreen({
     // OnboardingFlow's finish() (footballLeagueIds is only meaningful while
     // football itself is selected), so re-selecting football later doesn't
     // resurrect a stale, unreviewed league list.
-    persist({ ...prefs, sports: [...sports], footballLeagueIds: sports.has('football') ? prefs.footballLeagueIds : [] })
+    persist({
+      ...prefs,
+      sports: [...sports],
+      footballLeagueIds: sports.has('football') ? prefs.footballLeagueIds : [],
+      // Favorite teams follow the same rule as leagues: they are only
+      // meaningful while football itself is on, and re-enabling it later
+      // must not resurrect an unreviewed list.
+      favoriteTeamIds: sports.has('football') ? prefs.favoriteTeamIds : [],
+    })
   }
 
   function toggleLeague(id: string) {
@@ -134,6 +146,27 @@ export function SettingsScreen({
     else leagues.add(id)
     persist({ ...prefs, footballLeagueIds: [...leagues] })
   }
+
+  // Shares withTeamToggled with onboarding, so the two surfaces cannot
+  // disagree about what following a team means. Persisted immediately, like
+  // every other lightweight preference on this screen — which is why the
+  // picker has no Cancel.
+  function toggleTeam(id: string) {
+    persist({ ...prefs, favoriteTeamIds: withTeamToggled(prefs.favoriteTeamIds, id) })
+  }
+
+  // The competition catalog is already cached for the session (see
+  // competitionsCatalog.ts), so reading it here costs nothing beyond what
+  // SportsLeaguesPane's own call already does — and the team picker needs
+  // real LeagueDefs (names, order) rather than bare ids for its rail.
+  const competitions = useFootballCompetitions()
+  const followedLeagues = useMemo(
+    () =>
+      competitions.status === 'ready'
+        ? footballLeaguesForPreferences(prefs.footballLeagueIds, competitions.leagues)
+        : [],
+    [competitions, prefs.footballLeagueIds],
+  )
 
   // Derived from the COMBINED channel set, so with several playlists
   // connected the options are the union of what they all carry. Comes from
@@ -212,6 +245,8 @@ export function SettingsScreen({
                 footballLeagueIds={prefs.footballLeagueIds}
                 onToggleSport={toggleSport}
                 onToggleLeague={toggleLeague}
+                favoriteTeamIds={prefs.favoriteTeamIds}
+                onManageTeams={() => setDialog({ kind: 'manage-teams' })}
                 onLeaveToRail={returnToRail}
               />
             )}
@@ -301,6 +336,15 @@ export function SettingsScreen({
               setDialog({ kind: 'none' })
             }}
             onCancel={() => setDialog({ kind: 'none' })}
+          />
+        )}
+
+        {dialog.kind === 'manage-teams' && (
+          <TeamPickerDialog
+            followedLeagues={followedLeagues}
+            selectedTeamIds={prefs.favoriteTeamIds}
+            onToggleTeam={toggleTeam}
+            onClose={() => setDialog({ kind: 'none' })}
           />
         )}
 
