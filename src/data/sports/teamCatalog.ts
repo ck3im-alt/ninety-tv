@@ -4,20 +4,21 @@
 // fetch() for a club list — same shape as competitionsCatalog.ts, which
 // does the same job for competitions.
 //
-// TOLERANT BY DESIGN. This client is being written while the endpoint it
-// calls is being written, in the other repo, in parallel. So:
+// TOLERANT BY DESIGN. The payload shape is now confirmed (see NinetyTeam),
+// but the route is NOT deployed everywhere yet, so:
 //
 //   - a 404/501 (a ninety-api deployment that predates the route) is
 //     reported as UNAVAILABLE, not as an error. The team picker shows a
 //     quiet "not available yet" state and onboarding continues; following
 //     teams is optional and must never be able to block first-run setup.
-//   - the payload's field names are accepted in either of the two plausible
-//     spellings (`name`/`canonical_name`, `logo_url`/`logo`). Guessing
-//     wrong here would ship a picker full of blank rows; two extra `??`s
-//     cost nothing.
+//     This is not vestigial: keep it until the backend is deployed.
+//   - the pre-release field spellings (`canonical_name`, `logo_url`) are
+//     still accepted below. A current backend never sends them; a dev one
+//     might, and two extra `??`s beat a picker full of blank rows.
 //   - a team with no prominence on record gets the same neutral value the
 //     ranking uses, so suggestion ordering degrades to "alphabetical-ish"
-//     rather than to nonsense.
+//     rather than to nonsense. The field is required in the contract, but
+//     this maps unvalidated JSON, so it is checked rather than trusted.
 import { getTeams, isEndpointUnavailable, type NinetyTeam } from './ninetyApiClient'
 import { NEUTRAL_PROMINENCE } from './homePersonalization'
 import { readStored, writeStored } from '../../core/storage/localStore'
@@ -33,6 +34,9 @@ export interface TeamDef {
   // Which competition this club plays its league football in. Used to group
   // the picker and to decide which clubs to suggest for a followed league.
   domesticCompetitionId?: string | null
+  // That competition's display name, so a club from a league the viewer
+  // does NOT follow can still be grouped under its real league name.
+  domesticCompetitionName?: string | null
   // 0..1. Never undefined here (unlike on SportEvent, where "absent" has to
   // stay distinguishable for scoring): a picker only needs an order, and a
   // neutral value gives it a defined one.
@@ -50,9 +54,10 @@ function toTeamDef(team: NinetyTeam): TeamDef {
   return {
     id: team.id,
     name: team.name ?? team.canonical_name ?? team.id,
-    logo: team.logo_url ?? team.logo ?? undefined,
+    logo: team.logo ?? team.logo_url ?? undefined,
     countryCode: team.country_code ?? null,
     domesticCompetitionId: team.domestic_competition_id ?? null,
+    domesticCompetitionName: team.domestic_competition_name ?? null,
     prominence: typeof team.prominence === 'number' && Number.isFinite(team.prominence) ? team.prominence : NEUTRAL_PROMINENCE,
   }
 }
@@ -126,16 +131,27 @@ export async function loadTeamsForCompetitions(competitionIds: readonly string[]
   return teams
 }
 
+// ninety-api rejects a one-character `q` with a 400, and a single letter is
+// not a query anyway. Exported so the UI can gate on the same number rather
+// than hard-coding its own and drifting from the backend's rule.
+export const MIN_TEAM_SEARCH_LENGTH = 2
+
 // Free-text lookup, for the picker's search field. Deliberately NOT cached:
 // a query is typed one character at a time and caching every prefix would
 // be pure waste.
 //
-// The local `filter` is a safety net, not the mechanism: if the backend
-// ignores `search` and returns an unfiltered page, the viewer still sees a
-// filtered list rather than a thousand unrelated clubs.
+// A query shorter than MIN_TEAM_SEARCH_LENGTH resolves empty WITHOUT a
+// request: the backend would answer 400, and "you typed one letter" must
+// never surface as an error.
+//
+// The backend does the real filtering (`q`, with its own case/accent
+// folding and prefix-first ordering). The local `filter` below is a safety
+// net for an older deployment that ignores the parameter and answers with
+// an unfiltered page — it can only ever narrow what came back, so it cannot
+// hide a club the backend did match.
 export async function searchTeams(query: string, limit = 60): Promise<TeamDef[]> {
   const trimmed = query.trim()
-  if (!trimmed) return []
+  if (trimmed.length < MIN_TEAM_SEARCH_LENGTH) return []
   const teams = await request({ search: trimmed, limit })
   const needle = trimmed.toLowerCase()
   return teams.filter((team) => team.name.toLowerCase().includes(needle)).slice(0, limit)

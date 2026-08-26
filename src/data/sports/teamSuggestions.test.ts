@@ -126,7 +126,30 @@ describe('groupTeamsByCompetition', () => {
     expect(groups).toHaveLength(1)
   })
 
-  it('labels a competition the catalogue does not name, rather than showing a raw id', () => {
+  // `names` only covers the viewer's followed leagues, so a club found by
+  // search from anywhere else would otherwise land under a generic heading
+  // — the payload names its own league (domestic_competition_name), so use
+  // it.
+  it('falls back to the league name the catalogue reports for an unfollowed competition', () => {
+    const bayern: TeamDef = {
+      id: 't_bayern',
+      name: 'Bayern München',
+      domesticCompetitionId: 'germany_bundesliga',
+      domesticCompetitionName: 'Bundesliga',
+      prominence: 0.94,
+    }
+    const groups = groupTeamsByCompetition([bayern], names, [])
+    expect(groups[0].label).toBe('Bundesliga')
+  })
+
+  // The viewer's own name for a league they follow still wins, so the rail
+  // reads the same as the leagues screen that named it.
+  it('prefers the followed-competition name over the payload’s', () => {
+    const city: TeamDef = { ...CITY, domesticCompetitionName: 'English Premier League' }
+    expect(groupTeamsByCompetition([city], names, [PL])[0].label).toBe('Premier League')
+  })
+
+  it('labels a competition nothing can name, rather than showing a raw id', () => {
     const mystery = team('t_x', 'Mystery FC', 'unlisted_league', 0.5)
     const groups = groupTeamsByCompetition([mystery], names, [])
     expect(groups[0].label).toBe('Other competitions')

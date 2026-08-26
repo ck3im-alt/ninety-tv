@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getAllEvents, getCompetitions, getEvents } from './ninetyApiClient'
+import { getAllEvents, getCompetitions, getEvents, getTeams } from './ninetyApiClient'
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return {
@@ -92,6 +92,47 @@ describe('ninetyApiClient', () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({ competitions: [] }))
     const result = await getCompetitions()
     expect(result.competitions).toEqual([])
+  })
+
+  // THE HTTP CONTRACT, not the local filtering on top of it. ninety-api's
+  // /v1/teams parses `q`; it does not know the word `search`. Sending the
+  // wrong name is quietly survivable — the backend answers with an
+  // unfiltered page and teamCatalog.ts filters it locally, so search
+  // "works" — right up until the club the viewer wanted is not on the first
+  // page, at which point it is simply unfindable. Hence a test on the URL
+  // rather than on the results.
+  describe('getTeams query parameters', () => {
+    beforeEach(() => {
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({ teams: [] }))
+    })
+
+    const queryOf = () => new URLSearchParams((vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1])
+
+    it('sends a free-text search as q=, never as search=', async () => {
+      await getTeams({ search: 'manchester' })
+      const query = queryOf()
+      expect(query.get('q')).toBe('manchester')
+      expect(query.has('search')).toBe(false)
+    })
+
+    it('combines competition_id, q and limit in one request', async () => {
+      await getTeams({ competitionId: 'football_premier_league', search: 'manchester', limit: 60 })
+      const query = queryOf()
+      expect(query.get('competition_id')).toBe('football_premier_league')
+      expect(query.get('q')).toBe('manchester')
+      expect(query.get('limit')).toBe('60')
+      expect(query.has('search')).toBe(false)
+    })
+
+    it('joins several competition ids the same comma-separated way /v1/events does', async () => {
+      await getTeams({ competitionId: ['football_premier_league', 'norway-eliteserien'] })
+      expect(queryOf().get('competition_id')).toBe('football_premier_league,norway-eliteserien')
+    })
+
+    it('calls GET /v1/teams with no query string at all when unfiltered', async () => {
+      await getTeams()
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith('https://api.example/v1/teams')
+    })
   })
 
   // getJson (the shared fetch wrapper behind every ninetyApiClient call,

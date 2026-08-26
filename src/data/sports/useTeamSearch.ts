@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TeamCatalogUnavailableError, rememberTeams, searchTeams, type TeamDef } from './teamCatalog'
+import { MIN_TEAM_SEARCH_LENGTH, TeamCatalogUnavailableError, rememberTeams, searchTeams, type TeamDef } from './teamCatalog'
 
 // Free-text team lookup for the Settings picker's search field.
 //
@@ -25,12 +25,17 @@ const IDLE: TeamSearchState = { status: 'idle' }
 // `query` is expected to be ALREADY debounced by the caller — the field
 // owns its own typing cadence (see TeamPickerDialog's useDebouncedValue),
 // this hook just runs whatever it is handed.
+//
+// Anything shorter than MIN_TEAM_SEARCH_LENGTH stays 'idle' rather than
+// becoming 'loading' or 'error': the backend answers a one-character `q`
+// with a 400, and typing the first letter of a club's name is not a
+// mistake to be reported back to the viewer.
 export function useTeamSearch(query: string): TeamSearchState {
   const [state, setState] = useState<TeamSearchState>(IDLE)
 
   useEffect(() => {
     const trimmed = query.trim()
-    if (!trimmed) {
+    if (trimmed.length < MIN_TEAM_SEARCH_LENGTH) {
       setState(IDLE)
       return
     }

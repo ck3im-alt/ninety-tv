@@ -113,7 +113,13 @@ export function groupTeamsByCompetition(
     if (!group) {
       group = {
         competitionId,
-        label: competitionId ? (competitionNames.get(competitionId) ?? 'Other competitions') : 'Other teams',
+        // `competitionNames` only covers the viewer's followed leagues, so a
+        // club from anywhere else falls back to the league name the
+        // catalogue itself reports (GET /v1/teams'
+        // domestic_competition_name) before the catch-all heading.
+        label: competitionId
+          ? (competitionNames.get(competitionId) ?? team.domesticCompetitionName ?? 'Other competitions')
+          : 'Other teams',
         teams: [],
       }
       groups.set(competitionId, group)

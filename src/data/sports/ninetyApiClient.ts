@@ -102,6 +102,16 @@ export interface NinetyEvent {
   home_team_prominence?: number | null
   away_team_prominence?: number | null
   rivalry_importance?: number | null
+  // Sent by the same backend commit, and DELIBERATELY not mapped onto
+  // SportEvent or fed into ranking. A raw league position does not model
+  // sporting stakes: "1st" is only interesting next to who else is close,
+  // how many games are left, and what is being fought over. Prominence
+  // (how big a club is) and position (how it is doing right now) are kept
+  // as separate concepts precisely so a future title-race / relegation /
+  // qualification calculation can use this properly. Declared here so the
+  // payload is documented in one place — not so it can be scored.
+  home_team_table_position?: number | null
+  away_team_table_position?: number | null
 }
 
 export interface NinetyExternalChannelId {
@@ -223,35 +233,52 @@ export async function getCompetitions() {
 // events personalization block above so the TV can offer a real
 // "teams you follow" picker keyed on canonical ids rather than names.
 //
-// Every field except `id` is optional here, and the naming is deliberately
-// permissive (`name` OR `canonical_name`, `logo_url` OR `logo`): this
-// endpoint is being built in the other repo at the same time as this
-// client, so the mapping in teamCatalog.ts accepts either spelling rather
-// than hard-failing on a shape that turns out to differ by one word. The
-// alternative — guessing wrong and shipping a picker that renders blank
-// names — is much worse than a couple of extra `??`s.
+// This is ninety-api's CONFIRMED payload (its /v1/teams route, 2026-08-26):
+// `id`, `name` and `prominence` are always sent, the remaining fields are
+// sent as null when the backend has nothing on record. It was written
+// against a spec that had not shipped yet, hence the two deprecated aliases
+// at the bottom — the real contract never uses them, but a dev deployment
+// predating the route's final shape can, and tolerating them costs
+// teamCatalog.ts two `??`s rather than a picker full of blank rows.
 export interface NinetyTeam {
   id: string
-  name?: string | null
+  name: string
+  logo: string | null
+  country_code: string | null
+  // Which competition this club plays its league football in — the SAME id
+  // space as NinetyCompetition.id / GET /v1/competitions (e.g.
+  // 'football_premier_league', 'norway-eliteserien'), so it is compared
+  // straight against a viewer's followed competitions with no normalization
+  // or name matching. See homePersonalization.ts's hasDomesticAffinity.
+  domestic_competition_id: string | null
+  // Display name for the id above. Lets a club from outside the viewer's
+  // followed leagues still be labelled with its real league instead of a
+  // catch-all heading — see teamSuggestions.ts's groupTeamsByCompetition.
+  domestic_competition_name: string | null
+  // 0..1, ninety-api's club-prominence signal.
+  prominence: number
+  /** @deprecated Pre-release spelling of `name`; tolerated, never sent by a current backend. */
   canonical_name?: string | null
+  /** @deprecated Pre-release spelling of `logo`; tolerated, never sent by a current backend. */
   logo_url?: string | null
-  logo?: string | null
-  country_code?: string | null
-  // Which competition this club plays its league football in — the same id
-  // space as NinetyCompetition.id, so it can be compared straight against a
-  // user's followed competitions.
-  domestic_competition_id?: string | null
-  prominence?: number | null
 }
 
 export interface GetTeamsParams {
   // Single id or several, same comma-separated convention as
   // GetEventsParams.competitionId. Omitted means "no competition filter".
   competitionId?: string | string[]
-  // Free-text lookup, when the backend supports it. A backend that ignores
-  // the parameter simply returns an unfiltered page, which the caller
-  // filters locally — see teamCatalog.ts.
+  // Free-text lookup. Named `search` here because that is what it does;
+  // it goes ON THE WIRE as `q`, which is the parameter ninety-api's route
+  // actually parses — sending `search` means sending an unfiltered page
+  // request, which the caller then has to filter locally and which can make
+  // a club past the first page unreachable.
+  //
+  // The backend needs at least 2 characters (it 400s below that) and does
+  // its own case/accent folding, prefix-before-substring ordering. Callers
+  // gate on teamCatalog.ts's MIN_TEAM_SEARCH_LENGTH rather than firing a
+  // request that is going to be rejected.
   search?: string
+  // Backend default 100, max 500.
   limit?: number
 }
 
@@ -261,7 +288,7 @@ export async function getTeams(params: GetTeamsParams = {}) {
     const value = Array.isArray(params.competitionId) ? params.competitionId.join(',') : params.competitionId
     if (value) query.set('competition_id', value)
   }
-  if (params.search) query.set('search', params.search)
+  if (params.search) query.set('q', params.search)
   if (params.limit != null) query.set('limit', String(params.limit))
   const qs = query.toString()
   return getJson<{ teams: NinetyTeam[] }>(`/v1/teams${qs ? `?${qs}` : ''}`)

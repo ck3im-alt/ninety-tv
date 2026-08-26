@@ -26,7 +26,7 @@ import { groupTeamsByCompetition } from '../../data/sports/teamSuggestions'
 import { gridNeighborIndex } from './settingsGrid'
 import { SettingsAction, SettingsColumnHeader, SettingsRow } from './settingsPrimitives'
 import { useSettingsFocusable } from './useSettingsFocusable'
-import type { TeamDef } from '../../data/sports/teamCatalog'
+import { MIN_TEAM_SEARCH_LENGTH, type TeamDef } from '../../data/sports/teamCatalog'
 import type { LeagueDef } from '../../data/sports/leagues'
 
 const DIALOG_FOCUS_KEY = 'settings-team-picker'
@@ -70,7 +70,14 @@ export function TeamPickerDialog({
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const activeGroup = groups.find((group) => group.competitionId === activeGroupId) ?? groups[0] ?? null
 
-  const searching = debouncedQuery.trim().length > 0
+  // One letter is not a search: the backend rejects a shorter `q` outright,
+  // and blanking the browse grid the moment the viewer presses the first
+  // key would read as "no such club". Below the minimum the dialog keeps
+  // showing the competition it was already showing and just says what it is
+  // waiting for.
+  const trimmedQuery = debouncedQuery.trim()
+  const searching = trimmedQuery.length >= MIN_TEAM_SEARCH_LENGTH
+  const queryTooShort = trimmedQuery.length > 0 && !searching
   // Search results REPLACE the grid rather than filtering the rail: the two
   // are different questions ("show me this competition" vs "find this
   // club"), and quietly narrowing a competition to two clubs would look
@@ -175,6 +182,7 @@ export function TeamPickerDialog({
                 title={searching ? 'Search results' : (activeGroup?.label ?? 'Teams')}
                 meta={searching && searchState.status === 'loading' ? 'Searching…' : undefined}
               />
+              {queryTooShort && <p className="settings-pane-hint">Keep typing to search for a team.</p>}
               {searching && searchState.status === 'unavailable' && (
                 <p className="settings-status">Search isn't available from your Ninety server yet — browse by competition instead.</p>
               )}

@@ -1,10 +1,11 @@
-// The team catalogue client, and specifically its tolerance: it is written
-// against an endpoint that is being built in the other repo at the same
-// time, so "the route isn't there yet" and "the field is spelled the other
-// way" both have to degrade rather than break.
+// The team catalogue client: the confirmed /v1/teams contract, the wire
+// parameter names it has to get exactly right, and its tolerance for a
+// deployment that does not serve the route yet — "the route isn't there"
+// has to degrade to a quiet unavailable state rather than break onboarding.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeFakeLocalStorage } from '../../core/storage/testFakeLocalStorage'
 import {
+  MIN_TEAM_SEARCH_LENGTH,
   TeamCatalogUnavailableError,
   __resetTeamCatalogForTests,
   describeSavedTeams,
@@ -30,6 +31,7 @@ afterEach(() => {
 })
 
 describe('loadTeamsForCompetition', () => {
+  // Exactly the payload ninety-api's /v1/teams sends, field for field.
   it('requests the competition and maps the canonical payload', async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({
@@ -37,33 +39,65 @@ describe('loadTeamsForCompetition', () => {
           {
             id: 't1',
             name: 'Bodø/Glimt',
-            logo_url: 'https://cdn/glimt.png',
+            logo: 'https://cdn/glimt.png',
             country_code: 'NO',
-            domestic_competition_id: 'norway_eliteserien',
+            domestic_competition_id: 'norway-eliteserien',
+            domestic_competition_name: 'Eliteserien',
             prominence: 0.4,
           },
         ],
       }),
     )
-    const teams = await loadTeamsForCompetition('norway_eliteserien')
+    const teams = await loadTeamsForCompetition('norway-eliteserien')
     expect(teams).toEqual([
       {
         id: 't1',
         name: 'Bodø/Glimt',
         logo: 'https://cdn/glimt.png',
         countryCode: 'NO',
-        domesticCompetitionId: 'norway_eliteserien',
+        domesticCompetitionId: 'norway-eliteserien',
+        domesticCompetitionName: 'Eliteserien',
         prominence: 0.4,
       },
     ])
     const url = vi.mocked(fetch).mock.calls[0][0] as string
-    expect(new URLSearchParams(url.split('?')[1]).get('competition_id')).toBe('norway_eliteserien')
+    expect(new URLSearchParams(url.split('?')[1]).get('competition_id')).toBe('norway-eliteserien')
   })
 
-  // Written against a spec that had not shipped — accepting both spellings
-  // costs two `??`s and avoids a picker full of blank rows.
-  it('accepts canonical_name/logo as alternative field spellings', async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ teams: [{ id: 't1', canonical_name: 'Rosenborg', logo: 'x.png' }] }))
+  // The backend sends null, not an omitted key, for what it has no record
+  // of — which must not become the string "null" or an undefined name.
+  it('maps the nulls a real payload carries without inventing values', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        teams: [
+          {
+            id: 't1',
+            name: 'Some Club',
+            logo: null,
+            country_code: null,
+            domestic_competition_id: null,
+            domestic_competition_name: null,
+            prominence: 0.1,
+          },
+        ],
+      }),
+    )
+    const [team] = await loadTeamsForCompetition('c1')
+    expect(team).toEqual({
+      id: 't1',
+      name: 'Some Club',
+      logo: undefined,
+      countryCode: null,
+      domesticCompetitionId: null,
+      domesticCompetitionName: null,
+      prominence: 0.1,
+    })
+  })
+
+  // Pre-release spellings. A current backend never sends these; a dev
+  // deployment can, and two `??`s beat a picker full of blank rows.
+  it('still accepts the pre-release canonical_name/logo_url spellings', async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ teams: [{ id: 't1', canonical_name: 'Rosenborg', logo_url: 'x.png' }] }))
     const [team] = await loadTeamsForCompetition('c1')
     expect(team.name).toBe('Rosenborg')
     expect(team.logo).toBe('x.png')
@@ -145,14 +179,28 @@ describe('loadTeamsForCompetitions', () => {
 })
 
 describe('searchTeams', () => {
-  it('forwards the query and returns matches', async () => {
+  // The parameter ninety-api actually parses is `q`. Sending `search`
+  // instead does not fail loudly — an unfiltered page comes back and the
+  // local filter below makes it look like search works — so this asserts
+  // the URL, not the results.
+  it('sends the query as q=, not as search=', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({ teams: [{ id: 't1', name: 'Arsenal' }] }))
     expect((await searchTeams('arse')).map((t) => t.name)).toEqual(['Arsenal'])
-    const url = vi.mocked(fetch).mock.calls[0][0] as string
-    expect(new URLSearchParams(url.split('?')[1]).get('search')).toBe('arse')
+    const query = new URLSearchParams((vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1])
+    expect(query.get('q')).toBe('arse')
+    expect(query.has('search')).toBe(false)
   })
 
-  // The local filter is a safety net for a backend that ignores `search`.
+  it('passes the result limit through', async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ teams: [] }))
+    await searchTeams('manchester', 60)
+    const query = new URLSearchParams((vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1])
+    expect(query.get('q')).toBe('manchester')
+    expect(query.get('limit')).toBe('60')
+  })
+
+  // The local filter is a safety net for an older backend that ignores the
+  // parameter, not the mechanism — the backend does the real matching.
   it('filters locally too, so an unfiltered response still looks filtered', async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({ teams: [{ id: 't1', name: 'Arsenal' }, { id: 't2', name: 'Chelsea' }] }),
@@ -163,6 +211,21 @@ describe('searchTeams', () => {
   it('makes no request for an empty query', async () => {
     expect(await searchTeams('   ')).toEqual([])
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  // ninety-api 400s a one-character q. Firing it anyway would turn "typed
+  // the first letter" into an error state on screen.
+  it('makes no request below the backend minimum query length', async () => {
+    expect(MIN_TEAM_SEARCH_LENGTH).toBe(2)
+    expect(await searchTeams('m')).toEqual([])
+    expect(await searchTeams(' m ')).toEqual([])
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+
+  it('does request as soon as the query reaches the minimum', async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ teams: [] }))
+    await searchTeams('ma')
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 })
 
