@@ -5,13 +5,15 @@ import { StreamRow } from './StreamRow'
 import { groupOptionsByCountry } from './buildEventStreamOptions'
 import type { CountryGroupSection, PartitionedStreamOptions, RankedEventStreamOption } from './buildEventStreamOptions'
 import { flagSrc } from '../../data/countryCodes'
-import type { EventStreamDisplayParts } from './ppvDisplayName'
-import type { Channel, ChannelSource } from '../../data/channel'
+import type { EventPlaybackGroup } from './eventPlaybackGroup'
 
 interface SharedRowProps {
   favoriteChannels: ReadonlySet<string>
-  onToggleFavoriteChannel: (channelId: string) => void
-  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
+  // Whole-row favorite semantics — see StreamRow's own prop comment.
+  onToggleFavoriteChannels: (channelIds: string[]) => void
+  // Playback receives the entire logical stream group (every quality
+  // variant), not a single channel/source pair — see eventPlaybackGroup.ts.
+  onWatch: (group: EventPlaybackGroup) => void
 }
 
 // Subtle section header above a contiguous run of same-country rows: flag +

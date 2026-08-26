@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { toEventPlaybackGroup } from './eventPlaybackGroup'
 import type { RankedEventStreamOption } from './buildEventStreamOptions'
-import type { EventStreamDisplayParts } from './ppvDisplayName'
-import type { Channel, ChannelSource } from '../../data/channel'
+import type { EventPlaybackGroup } from './eventPlaybackGroup'
 
 // 'default' — an ordinary trusted stream row, shown at full (compact)
 // density inside a country group. 'candidate' — a loose/fuzzy match (see
@@ -28,13 +28,17 @@ interface StreamRowProps {
   // star updates immediately without re-ranking/reshuffling the list the
   // user is actively navigating — see EventDetailsScreen.tsx's ranking memo.
   favoriteChannels: ReadonlySet<string>
-  onToggleFavoriteChannel: (channelId: string) => void
-  // The optional third argument carries this row's contextual event-stream
-  // display identity through to playback (see App.tsx's watchChannel /
-  // ChannelPlayerScreen) — see Part V of the redesign task. Ordinary
-  // channel-browsing screens' own onWatch handlers simply never read a
-  // third argument, so this is additive, not a behavior change for them.
-  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
+  // Takes the row's WHOLE channel set (option.channelIds), not one id: one
+  // logical row can span several playlist Channel objects (see
+  // groupChannelMatches.ts), and a star that only ever toggled one of them
+  // would leave the same row reading as favorited or not depending on which
+  // playlist spelling happened to be first. See App.tsx's
+  // toggleFavoriteChannels for the all-or-nothing semantics.
+  onToggleFavoriteChannels: (channelIds: string[]) => void
+  // Playback receives the entire logical stream group — every quality
+  // variant this row collapsed, best-first — not just the one source the
+  // row happens to display. See eventPlaybackGroup.ts.
+  onWatch: (group: EventPlaybackGroup) => void
   // Stable identity (option.key, the same value already used as this row's
   // React `key`) — lets EventDetailsScreen's root container target this
   // exact row via preferredChildFocusKey/setFocus once matches are ready,
@@ -83,46 +87,42 @@ const EMPTY_METADATA = '—'
 // star; the star has its own onEnterPress) — only the visual container
 // changed, not the interaction model.
 //
-// Quality selection deliberately isn't its own set of focusable pills —
-// that turned every extra quality tier into another remote press just to
-// reach Watch/Favorite. Left/Right while the row itself is focused cycles
-// the selected variant in place (Enter always plays the currently selected
-// one, which starts as the best available); Right falls through to normal
-// spatial search (reaching the favorite star) once already at the lowest
-// tier, same for Left at the highest. The quality column shows ‹ › cues
-// while focused whenever more than one variant exists.
+// Quality is NOT selectable here. A row is one logical broadcaster / event
+// feed, and quality is a characteristic of playing it, not a separate
+// viewing choice: the row always shows (and Enter always starts) the best
+// available variant, and every other variant travels with it into the
+// player, where the user can change quality without leaving playback. The
+// old Left/Right variant cycling on this row is deliberately gone — it made
+// the user answer a question ("8K or 720p?") before they'd even seen the
+// stream, and Left/Right now falls through to ordinary spatial navigation.
 export function StreamRow({
   option,
   variant,
   primary,
   favoriteChannels,
-  onToggleFavoriteChannel,
+  onToggleFavoriteChannels,
   onWatch,
   focusKey,
   onArrowUp,
 }: StreamRowProps) {
-  const [sourceIndex, setSourceIndex] = useState(0)
-  const selected = option.sourceOptions[sourceIndex] ?? option.sourceOptions[0]
-  const favorited = selected ? favoriteChannels.has(selected.channel.id) : false
-  // Reflects whichever variant the user actually has selected right now
-  // (they may have cycled Left/Right through quality tiers before pressing
-  // Watch) rather than always the group's single best tier baked into
-  // option.displayParts at build time — see Part W of the redesign task.
-  const selectedDisplayParts = selected ? { ...option.displayParts, quality: selected.qualityLabel } : option.displayParts
-  const hasVariants = option.sourceOptions.length > 1
+  // Always the best available quality (qualityVariants is sorted best-tier
+  // first — see groupSourcesByTier), never a user-selected index. Extra
+  // same-tier candidates behind it are a playback detail the row
+  // deliberately says nothing about.
+  const best = option.qualityVariants[0]
+  // One favorite state for the whole logical row: filled when ANY of its
+  // playlist channels is favorited, matching option.isFavorite's own
+  // any-of semantics used for ranking.
+  const favorited = option.channelIds.some((id) => favoriteChannels.has(id))
+
+  const watch = () => {
+    if (best) onWatch(toEventPlaybackGroup(option))
+  }
 
   const { ref, focused } = useFocusable({
     focusKey,
-    onEnterPress: () => selected && onWatch(selected.channel, selected.source, selectedDisplayParts),
+    onEnterPress: watch,
     onArrowPress: (direction) => {
-      if (direction === 'right' && sourceIndex < option.sourceOptions.length - 1) {
-        setSourceIndex((i) => i + 1)
-        return false
-      }
-      if (direction === 'left' && sourceIndex > 0) {
-        setSourceIndex((i) => i - 1)
-        return false
-      }
       if (direction === 'up' && onArrowUp) {
         onArrowUp()
         return false
@@ -131,7 +131,7 @@ export function StreamRow({
     },
   })
   const { ref: starRef, focused: starFocused } = useFocusable({
-    onEnterPress: () => selected && onToggleFavoriteChannel(selected.channel.id),
+    onEnterPress: () => onToggleFavoriteChannels(option.channelIds),
   })
 
   useEffect(() => {
@@ -141,15 +141,11 @@ export function StreamRow({
     if (starFocused) starRef.current?.scrollIntoView({ block: 'nearest' })
   }, [starFocused, starRef])
 
-  const qualityLabel = selected?.qualityLabel ?? EMPTY_METADATA
+  const qualityLabel = best?.qualityLabel ?? EMPTY_METADATA
 
   return (
     <div className={`stream-row stream-row-${variant} ${primary ? 'top-pick' : ''} ${focused ? 'focused' : ''}`}>
-      <button
-        ref={ref}
-        className="stream-row-play"
-        onClick={() => selected && onWatch(selected.channel, selected.source, selectedDisplayParts)}
-      >
+      <button ref={ref} className="stream-row-play" onClick={watch}>
         <LogoTile logo={option.logo} displayName={option.displayName} />
         <span className="stream-row-name">{option.displayName}</span>
         {/* Consumer wording: "TV" / "Event" — never the IPTV-internal "PPV".
@@ -157,12 +153,8 @@ export function StreamRow({
             option.matchSource/sourceType for debug. Small outlined badge,
             not a filled status pill. */}
         <span className={`stream-row-badge stream-row-type ${option.sourceType}`}>{option.sourceType === 'event' ? 'EVENT' : 'TV'}</span>
-        <span className={`stream-row-badge stream-row-quality-col ${selected?.qualityLabel == null ? 'unknown' : ''}`}>
-          {hasVariants && <span className={`stream-row-quality-cue ${focused && sourceIndex > 0 ? 'active' : ''}`}>‹</span>}
+        <span className={`stream-row-badge stream-row-quality-col ${best?.qualityLabel == null ? 'unknown' : ''}`}>
           <span className="stream-row-quality-value">{qualityLabel}</span>
-          {hasVariants && (
-            <span className={`stream-row-quality-cue ${focused && sourceIndex < option.sourceOptions.length - 1 ? 'active' : ''}`}>›</span>
-          )}
         </span>
         <span className="stream-row-watch">
           <PlayIcon /> Watch now
@@ -174,7 +166,7 @@ export function StreamRow({
           className={`stream-row-favorite ${favorited ? 'active' : ''} ${starFocused ? 'focused' : ''}`}
           onClick={(e) => {
             e.stopPropagation()
-            if (selected) onToggleFavoriteChannel(selected.channel.id)
+            onToggleFavoriteChannels(option.channelIds)
           }}
           aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
         >

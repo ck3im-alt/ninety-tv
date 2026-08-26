@@ -30,7 +30,7 @@ import { DEBUG_FORCE_SCREEN_KEY } from './core/debugForceScreen'
 import { SCREEN_AFTER_ONBOARDING, resolveInitialScreen, type Screen } from './core/appScreens'
 import type { Channel } from './data/channel'
 import type { SportEvent } from './data/sports/types'
-import type { EventStreamDisplayParts } from './features/eventDetails/ppvDisplayName'
+import type { EventPlaybackGroup } from './features/eventDetails/eventPlaybackGroup'
 import { createMultiviewSession } from './features/multiview/multiviewSession'
 import type { MultiviewSession, PaneAssignment } from './features/multiview/multiviewSession'
 import type { ChannelSource } from './data/channel'
@@ -208,13 +208,13 @@ function App() {
   // Multiview pane gets real event metadata/ranked candidates instead of
   // just a bare channel.
   const [playingEvent, setPlayingEvent] = useState<SportEvent | null>(null)
-  // Contextual event-stream display identity (provider/event title/start
-  // time/quality) carried from Event Details' StreamRow through to the
-  // player overlay — see Part V of the redesign task. Undefined for every
-  // OTHER watch path (Home, Browse, Favorites, Recent), which never pass a
-  // third argument to watchChannel at all — the player falls back to its
-  // existing selected?.name behavior for those, completely unchanged.
-  const [playingDisplayParts, setPlayingDisplayParts] = useState<EventStreamDisplayParts | undefined>(undefined)
+  // The whole logical stream group Event Details handed to playback — every
+  // quality variant of ONE broadcaster/event feed, best-first, plus its
+  // contextual display identity (see eventPlaybackGroup.ts). Undefined for
+  // every OTHER watch path (Home, Browse, Favorites, Recent), which play a
+  // single channel's own sources and keep the player's existing
+  // channel-name/Source-menu behavior completely unchanged.
+  const [playingGroup, setPlayingGroup] = useState<EventPlaybackGroup | undefined>(undefined)
   // Where the player's Back button should return to — whichever list screen
   // (the cascade browser, favorites, or recently-watched) the user watched
   // from. Non-persisted, same as the rest of this in-memory nav state.
@@ -365,21 +365,58 @@ function App() {
     return recentlyWatched.map((id) => channelIndex.getChannelById(id)).filter((c): c is Channel => c != null)
   }, [channelIndex, recentlyWatched])
 
-  function watchChannel(
-    channel: Channel,
-    source: { label: string },
-    fromScreen: Screen,
-    displayParts?: EventStreamDisplayParts,
-  ) {
+  function watchChannel(channel: Channel, source: { label: string }, fromScreen: Screen) {
     recordWatched(channel.id)
     setPlayingChannel(channel)
     setPlayingSourceLabel(source.label)
-    setPlayingDisplayParts(displayParts)
+    setPlayingGroup(undefined)
     // See playingEvent's own comment above — selectedEvent is only the
     // right event when this watch actually came from Event Details.
     setPlayingEvent(fromScreen === 'event-details' ? selectedEvent : null)
     setPlayerReturnScreen(fromScreen)
     setScreen('player')
+  }
+
+  // Event Details' own watch path. It hands over the whole logical stream
+  // GROUP rather than one (channel, source) pair, so the player can offer
+  // every quality the row collapsed, and fail over between the candidates
+  // behind each one — see eventPlaybackGroup.ts. The best quality's primary
+  // candidate is what actually starts playing, and is also what the rest of
+  // this state cares about: which channel to record as watched, and which
+  // channel a later "Add to Multiview" falls back to.
+  function watchEventStream(group: EventPlaybackGroup) {
+    // The best quality's PRIMARY candidate — what playback actually opens
+    // with (see eventPlaybackGroup.ts's two levels: qualities the viewer
+    // picks from, candidates the player fails over between).
+    const best = group.variants[0]?.candidates[0]
+    if (!best) return
+    recordWatched(best.channel.id)
+    setPlayingChannel(best.channel)
+    setPlayingSourceLabel(best.source.label)
+    setPlayingGroup(group)
+    setPlayingEvent(selectedEvent)
+    setPlayerReturnScreen('event-details')
+    setScreen('player')
+  }
+
+  // A whole logical stream row's favorite star (see StreamRow) — one row can
+  // span several playlist Channel objects that Ninety resolved to the same
+  // broadcaster, so the star has to move them together or the row's own
+  // state becomes ambiguous ("favorited" via one spelling, not via the
+  // other). All-or-nothing: if ANY of them is currently favorited the whole
+  // set is cleared, otherwise the whole set is added. Uses the functional
+  // setter because it writes several ids in one go — toggleInSet's
+  // closed-over snapshot would only see the pre-update set.
+  function toggleFavoriteChannels(channelIds: string[]) {
+    setFavoriteChannels((prev) => {
+      const next = new Set(prev)
+      const anyFavorited = channelIds.some((id) => next.has(id))
+      for (const id of channelIds) {
+        if (anyFavorited) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
   }
 
   // "Add to Multiview" (ChannelPlayerScreen's toolbar). Uses the CHANNEL the
@@ -501,8 +538,8 @@ function App() {
           xtream={library.xtream}
           identityIndex={identityIndex}
           favoriteChannels={favoriteChannels}
-          onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
-          onWatch={(channel, source, displayParts) => watchChannel(channel, source, 'event-details', displayParts)}
+          onToggleFavoriteChannels={toggleFavoriteChannels}
+          onWatch={watchEventStream}
           onBack={() => setScreen(eventDetailsReturnScreen)}
           onBrowseChannels={() => setScreen('browse-cascade')}
         />
@@ -631,7 +668,7 @@ function App() {
         <ChannelPlayerScreen
           channels={playerChannels}
           initialSourceLabel={playingSourceLabel}
-          initialDisplayParts={playingDisplayParts}
+          playbackGroup={playingGroup}
           onBack={() => {
             setScreen(playerReturnScreen)
             // Immediate silent refresh on Player exit — the primary

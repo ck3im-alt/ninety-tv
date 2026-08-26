@@ -25,6 +25,30 @@ export interface EventStreamSourceOption {
   qualityLabel: string | null
 }
 
+// One playable stream behind a user-facing quality choice. Several of these
+// can sit under the SAME tier — two providers' 1080p feeds of the same
+// broadcaster, or the same channel listed in two playlists — which is a
+// real playback asset (a mirror to fail over to) but NOT a choice worth
+// putting in front of a viewer: "1080p" and "1080p" are the same answer to
+// the only question they're being asked.
+export interface PlaybackCandidate {
+  channel: Channel
+  source: ChannelSource
+}
+
+// One row in the quality picker, with every interchangeable way to play it.
+// This is the distinction the flat one-source-per-tier list couldn't make:
+// it deduplicated the DISPLAY correctly but threw the extra candidates away
+// entirely, so a perfectly good same-quality mirror could never be used for
+// failover.
+export interface EventStreamQualityVariant {
+  qualityTier: QualityTier
+  qualityLabel: string | null
+  // Deterministic order; candidates[0] is the primary (first seen in the
+  // group's own source order — see groupSourcesByTier).
+  candidates: PlaybackCandidate[]
+}
+
 // Consumer-facing source-type classification (see the stream-groups task,
 // sections 7-9): 'tv' is a real linear broadcast channel, 'event' is an
 // event-specific feed (what IPTV panels label "PPV" — that word stays
@@ -48,6 +72,10 @@ export interface EventStreamOption {
   // Which matching stage produced this — see groupChannelMatches.ts's
   // MatchGroup.matchSource. Display/debug metadata only.
   matchSource: ChannelMatch['source']
+  // The authoritative Ninety logical broadcaster this row represents, when
+  // it has one — the identity that collapsed several differently-spelled
+  // playlist channels into this single row. Display/debug metadata only.
+  logicalChannelId?: string
   // Structured contextual identity (provider/event title/start time/best
   // quality) — see ppvDisplayName.ts's EventStreamDisplayParts. `displayName`
   // above is already the right single-line text for Event Details' own
@@ -59,47 +87,84 @@ export interface EventStreamOption {
   // underlying parts instead of re-deriving them or duplicating quality UI.
   displayParts: EventStreamDisplayParts
   // Best quality tier first, one entry per distinct quality tier (see
-  // dedupeSourcesByTier) — sourceOptions[0] is always the correct default
-  // selection ("select the best one initially").
-  sourceOptions: EventStreamSourceOption[]
+  // groupSourcesByTier) — qualityVariants[0] is always the correct default
+  // selection ("select the best one initially"), and each entry keeps every
+  // playable candidate at that tier for failover.
+  qualityVariants: EventStreamQualityVariant[]
   bestQualityTier: QualityTier
+  // EVERY distinct playlist Channel behind this one logical row, including
+  // channels whose sources didn't survive the per-tier dedup above. One
+  // display row can now span several playlist Channel objects (see
+  // groupChannelMatches.ts's logical-identity layer), and favorite state is
+  // stored per Channel id (see App.tsx's favoriteChannels) — so a row's star
+  // has to read/write the whole set, not whichever variant happens to be
+  // first, or one logical broadcaster would show as "favorited" or not
+  // depending on which playlist spelling won the tier race.
+  channelIds: string[]
   isFavorite: boolean
 }
 
-// Collapses same-tier duplicate source options down to one deterministic
-// pick per tier (first occurrence in the group's existing source order),
-// so the quality picker never shows "1080p 1080p 1080p" — see the redesign
-// task's quality-options section. A group whose sources are all
-// unrecognized quality (tier 0) reduces to exactly one entry, which the UI
-// renders with no quality pill at all rather than a fabricated one.
-// Exported for reuse by Multiview's channel-only pane path (no event, so
-// there's no MatchGroup to run through buildEventStreamOptions at all) —
-// see multiview/multiviewCandidates.ts — rather than reimplementing the
-// same tier-dedup/best-first-sort logic.
-export function dedupeSourcesByTier(sourceOptions: SourceOption[]): EventStreamSourceOption[] {
-  const byTier = new Map<QualityTier, EventStreamSourceOption>()
+// Collects the group's sources into ONE entry per distinct quality tier,
+// best tier first, keeping every source that landed in a tier as a
+// selectable playback candidate in the group's own source order. So the
+// quality picker never shows "1080p 1080p 1080p" (one entry per tier), and
+// nothing playable is discarded (the extra 1080p feeds stay reachable as
+// mirrors). A group whose sources are all unrecognized quality (tier 0)
+// reduces to exactly one entry, which the UI renders with no quality pill
+// at all rather than a fabricated one.
+export function groupSourcesByTier(sourceOptions: SourceOption[]): EventStreamQualityVariant[] {
+  const byTier = new Map<QualityTier, EventStreamQualityVariant>()
   for (const option of sourceOptions) {
     const tier = estimateQualityTier(option)
-    if (!byTier.has(tier)) {
-      byTier.set(tier, { channel: option.channel, source: option.source, qualityTier: tier, qualityLabel: qualityTierLabel(tier) })
+    let variant = byTier.get(tier)
+    if (!variant) {
+      variant = { qualityTier: tier, qualityLabel: qualityTierLabel(tier), candidates: [] }
+      byTier.set(tier, variant)
     }
+    variant.candidates.push({ channel: option.channel, source: option.source })
   }
   return [...byTier.values()].sort((a, b) => b.qualityTier - a.qualityTier)
 }
 
-// Every source option within one MatchGroup shares the same parsed
-// playlist country by construction (groupKey scopes grouping to
-// country + canonical name — see groupChannelMatches.ts), so the first
-// option's own groupTitle is a safe representative to parse. Falls back to
-// ninety-api's own reported broadcast country (see channelMatch.ts's
-// matchViaNinetyApi) when the playlist category itself has no parseable
-// country prefix — converted through the same COUNTRY_NAMES vocabulary
-// parseCategory itself uses, never a separately-maintained label.
+// The same tiers as one flat "best candidate per tier" list. Multiview's
+// channel-only pane path (no event, so no MatchGroup to run through
+// buildEventStreamOptions at all — see multiview/multiviewCandidates.ts)
+// wants exactly one entry per tier: it flattens several broadcasters into a
+// single ordered list and picks by a pane-count quality ceiling, where a
+// same-tier mirror would just be a duplicate row. Kept as a thin projection
+// of groupSourcesByTier rather than a second tier-dedup implementation.
+export function dedupeSourcesByTier(sourceOptions: SourceOption[]): EventStreamSourceOption[] {
+  return groupSourcesByTier(sourceOptions).map((variant) => ({
+    channel: variant.candidates[0].channel,
+    source: variant.candidates[0].source,
+    qualityTier: variant.qualityTier,
+    qualityLabel: variant.qualityLabel,
+  }))
+}
+
+// Every source option within one MatchGroup belongs to the same country by
+// construction (both grouping layers scope on country — see
+// groupChannelMatches.ts), so the first option with a parseable country
+// prefix is a safe representative. The CODE, though, is taken from the
+// first source that spells it as a real 2-letter one: the same market is
+// routinely written several ways in one playlist ("NO| ..." and "NOR -
+// ..."), those now legitimately share a group, and only the 2-letter form
+// has a flag asset (see countryCodes.ts's flagSrc) — so preferring it keeps
+// the country header's flag rendering regardless of which spelling happened
+// to sort first. Falls back to ninety-api's own reported broadcast country
+// (see channelMatch.ts's matchViaNinetyApi) when no playlist category has a
+// parseable country prefix at all — converted through the same
+// COUNTRY_NAMES vocabulary parseCategory itself uses, never a
+// separately-maintained label.
 function resolveCountry(group: MatchGroup): { countryName: string | null; countryCode: string | null } {
+  let fallback: { countryName: string; countryCode: string | null } | null = null
   for (const { channel } of group.sourceOptions) {
     const { countryName, countryCode } = parseCategory(channel.groupTitle ?? '')
-    if (countryName) return { countryName, countryCode }
+    if (!countryName) continue
+    if (countryCode && countryCode.length === 2) return { countryName, countryCode }
+    fallback ??= { countryName, countryCode }
   }
+  if (fallback) return fallback
   if (group.broadcastCountry) {
     const code = group.broadcastCountry.toUpperCase()
     const name = COUNTRY_NAMES[code] ?? null
@@ -129,7 +194,8 @@ export function buildEventStreamOptions(
   eventContext?: PpvDisplayNameContext,
 ): EventStreamOption[] {
   return groupChannelMatches(matches, eventContext).map((group) => {
-    const sourceOptions = dedupeSourcesByTier(group.sourceOptions)
+    const qualityVariants = groupSourcesByTier(group.sourceOptions)
+    const channelIds = [...new Set(group.sourceOptions.map((option) => option.channel.id))]
     return {
       key: group.key,
       displayName: getChannelDisplayName(group, eventContext),
@@ -138,10 +204,12 @@ export function buildEventStreamOptions(
       sourceType: resolveSourceType(group),
       matchConfidence: group.confidence,
       matchSource: group.matchSource,
-      displayParts: buildEventStreamDisplayParts(group.name, eventContext, sourceOptions[0]?.qualityLabel ?? null),
-      sourceOptions,
-      bestQualityTier: sourceOptions[0]?.qualityTier ?? 0,
-      isFavorite: group.sourceOptions.some((option) => favoriteChannels.has(option.channel.id)),
+      logicalChannelId: group.logicalChannelId,
+      displayParts: buildEventStreamDisplayParts(group.name, eventContext, qualityVariants[0]?.qualityLabel ?? null),
+      qualityVariants,
+      bestQualityTier: qualityVariants[0]?.qualityTier ?? 0,
+      channelIds,
+      isFavorite: channelIds.some((id) => favoriteChannels.has(id)),
     }
   })
 }
@@ -165,7 +233,7 @@ export interface RankedEventStreamOption extends EventStreamOption {
 }
 
 // One additive score per stream GROUP (a group already collapsed its
-// quality-variant duplicates — see groupChannelMatches/dedupeSourcesByTier
+// quality-variant duplicates — see groupChannelMatches/groupSourcesByTier
 // — so identical FHD/HD/SD entries can never occupy several ranking
 // positions). Correctness/safety is enforced by partitionStreamOptions and
 // isRecommendable, NOT by this score: a 'candidate' group is excluded from

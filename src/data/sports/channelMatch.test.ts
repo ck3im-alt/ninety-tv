@@ -488,6 +488,39 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     expect(result.matches[0]).toMatchObject({ channel: playlist[0], identityClassification: 'CONFIRMED' })
   })
 
+  // The authoritative broadcaster identity has to survive onto the match
+  // itself — Event Details groups rows by it, and without it two playlist
+  // spellings of one resolved channel become two identical rows (see
+  // features/eventDetails/groupChannelMatches.ts).
+  it('carries the resolved logicalChannelId onto every match it produced', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', network_name: 'TNT Sports' })]
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
+
+    expect(result.matches[0].logicalChannelId).toBe('gb_tnt_sports_1')
+  })
+
+  it('gives every playlist channel resolved to ONE logical channel the SAME logicalChannelId', async () => {
+    // Two real provider spellings of one Norwegian channel, exactly the
+    // reported duplicate-row case.
+    const catalog = [logicalChannel({ id: 'no_tv2_sport_1', name: 'TV 2 Sport 1', country: 'NO', network_name: 'TV 2' })]
+    const playlist = [
+      testChannel({ id: 'p1', name: 'TV2 SPORT 1', groupTitle: 'NO| SPORT' }),
+      testChannel({ id: 'p2', name: 'TV 2 SPORT 1', groupTitle: 'NO| SPORT' }),
+    ]
+    const index = buildIndex(catalog, playlist)
+    expect(index.getPlaylistChannels('no_tv2_sport_1')).toHaveLength(2) // sanity-check the fixture
+    const event = eventWithBroadcasts([{ logicalChannelId: 'no_tv2_sport_1', name: 'TV 2 Sport 1', country: 'NO', confidence: 1, classification: 'CONFIRMED' }])
+
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
+
+    expect(result.matches).toHaveLength(2)
+    expect(result.matches.map((m) => m.logicalChannelId)).toEqual(['no_tv2_sport_1', 'no_tv2_sport_1'])
+  })
+
   it('reports apiHasData=true and the full apiStations list even when the reported broadcaster is not found in the playlist', async () => {
     const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
     const playlist: Channel[] = [] // nothing in the playlist at all

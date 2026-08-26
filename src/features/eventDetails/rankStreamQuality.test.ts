@@ -94,6 +94,28 @@ describe('estimateQualityTier', () => {
     expect(estimateQualityTier(makeSourceOption('ᵁᴴᴰ'))).toBe(4)
   })
 
+  // Regression: channel.rawNames is the union across EVERY merged variant,
+  // so folding it in unconditionally gave each source of a channel the
+  // channel's BEST tier. A real "UK: TNT SPORTS 1 SD" + "UK: TNT SPORTS 1
+  // UHD" pair both estimated UHD, which then collapsed to ONE option in
+  // dedupeSourcesByTier — the row advertised UHD while pointing at the SD
+  // stream, and the genuine UHD variant vanished from the quality list.
+  it('reads THIS source\'s own quality tag rather than the merged channel\'s best', () => {
+    const rawNames = ['UK: TNT SPORTS 1 SD', 'UK: TNT SPORTS 1 UHD']
+    const sd: SourceOption = { channel: makeChannel('TNT Sports 1', rawNames), source: { label: 'SD', url: 'http://x/sd', originalName: 'UK: TNT SPORTS 1 SD' } }
+    const uhd: SourceOption = { channel: makeChannel('TNT Sports 1', rawNames), source: { label: 'UHD', url: 'http://x/uhd', originalName: 'UK: TNT SPORTS 1 UHD' } }
+    expect(estimateQualityTier(sd)).toBe(1)
+    expect(estimateQualityTier(uhd)).toBe(4)
+  })
+
+  it('does not let a sibling variant\'s raw name upgrade an untagged source past its own label', () => {
+    const option: SourceOption = {
+      channel: makeChannel('TV 2 Sport 1', ['NO: TV2 SPORT 1 HD', 'NO: TV2 SPORT 1 8K']),
+      source: { label: 'HD', url: 'http://x/hd', originalName: 'NO: TV2 SPORT 1 HD' },
+    }
+    expect(estimateQualityTier(option)).toBe(2)
+  })
+
   // Real-sanitized playlist names from fixtures/channel-identity/cases.json
   // — confirms detection still works against actual observed provider
   // naming, not just synthetic strings.

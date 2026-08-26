@@ -61,6 +61,23 @@ export interface PlayerSessionOptions {
   // the module header.
   stallRetryCooldownMs?: number
   now?: () => number
+  // Optional grouping over `sourceUrls`, one entry per source: candidates
+  // that are interchangeable mirrors of the SAME user-facing choice share a
+  // group id, and groups are ordered by preference (0 = most preferred).
+  //
+  // This exists because a "source" and a "choice the user made" stopped
+  // being the same thing: Event Details resolves one logical broadcaster to
+  // a handful of quality tiers, and a tier can legitimately have several
+  // playable candidates behind it (two providers' 1080p feeds — see
+  // features/eventDetails/buildEventStreamOptions.ts). If 1080p-A dies, the
+  // right next attempt is 1080p-B, NOT the 8K feed the user (or ranking)
+  // already moved away from. So failover exhausts the current group before
+  // leaving it — see nextFailoverIndex.
+  //
+  // Omitted (or shorter than sourceUrls — unlisted sources fall into group
+  // 0) means "one group", which reduces nextFailoverIndex to exactly the
+  // previous first-untried-ascending behavior.
+  sourceGroups?: readonly number[]
 }
 
 const DEFAULT_STALL_RETRY_COOLDOWN_MS = 15000
@@ -76,7 +93,12 @@ export function createPlayerSessionController(
   initialIndex = 0,
   options: PlayerSessionOptions = {},
 ): PlayerSessionController {
-  const { getActivePaneCount = () => 1, stallRetryCooldownMs = DEFAULT_STALL_RETRY_COOLDOWN_MS, now = () => Date.now() } = options
+  const {
+    getActivePaneCount = () => 1,
+    stallRetryCooldownMs = DEFAULT_STALL_RETRY_COOLDOWN_MS,
+    now = () => Date.now(),
+    sourceGroups = [],
+  } = options
 
   let sourceIndex = clampIndex(initialIndex, sourceUrls.length)
   let allSourcesFailed = false
@@ -107,9 +129,41 @@ export function createPlayerSessionController(
     void player.load(url).then(() => player.play())
   }
 
+  function groupOf(index: number): number {
+    return sourceGroups[index] ?? 0
+  }
+
+  function firstUntried(predicate: (index: number) => boolean): number {
+    for (let i = 0; i < sourceUrls.length; i++) {
+      if (!triedIndices.has(i) && predicate(i)) return i
+    }
+    return -1
+  }
+
+  // Preference order for the next attempt after the current source failed:
+  // 1. Another untried candidate for the SAME choice (e.g. the other 1080p
+  //    mirror) — switching provider must not silently change the quality
+  //    the user is watching.
+  // 2. The best untried candidate of a LESS preferred group (the next
+  //    quality tier down), ascending.
+  // 3. Anything untried at all, as a last resort — reachable only when the
+  //    session started somewhere other than the first group (a manual pick,
+  //    or a non-zero initialIndex). Trying a MORE preferred candidate that
+  //    was never attempted beats declaring everything failed.
+  // With no groups configured, step 1 already matches every index, so this
+  // is exactly the previous "first untried, ascending" policy.
+  function nextFailoverIndex(): number {
+    const currentGroup = groupOf(sourceIndex)
+    const sameGroup = firstUntried((i) => groupOf(i) === currentGroup)
+    if (sameGroup !== -1) return sameGroup
+    const laterGroup = firstUntried((i) => groupOf(i) > currentGroup)
+    if (laterGroup !== -1) return laterGroup
+    return firstUntried(() => true)
+  }
+
   function advanceToNextUntriedOrFail(): void {
     triedIndices.add(sourceIndex)
-    const nextIndex = sourceUrls.findIndex((_, i) => !triedIndices.has(i))
+    const nextIndex = nextFailoverIndex()
     if (nextIndex !== -1) {
       sourceIndex = nextIndex
       loadCurrent()

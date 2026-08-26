@@ -7,17 +7,19 @@ import { useBackHandler, useFocusScrollIntoView, useModalFocusScope } from '../.
 import type { Channel } from '../../data/channel'
 import { estimateQualityTier, qualityTierLabel } from '../eventDetails/rankStreamQuality'
 import { formatEventStreamDisplayLine } from '../eventDetails/ppvDisplayName'
-import type { EventStreamDisplayParts } from '../eventDetails/ppvDisplayName'
+import type { EventPlaybackGroup } from '../eventDetails/eventPlaybackGroup'
+import type { PlaybackCandidate } from '../eventDetails/buildEventStreamOptions'
 import './ChannelPlayerScreen.css'
 
 interface Props {
   channels: Channel[]
   initialSourceLabel?: string
-  // Contextual event-stream display identity from Event Details' StreamRow
-  // (see App.tsx's watchChannel) — undefined for every other watch path
-  // (Home, Browse, Favorites, Recent), which keep today's exact
-  // selected?.name behavior untouched. See Part V/W of the redesign task.
-  initialDisplayParts?: EventStreamDisplayParts
+  // The whole logical stream group Event Details handed over — every
+  // quality variant of ONE broadcaster/event feed, best-first, possibly
+  // spanning more than one playlist Channel (see eventPlaybackGroup.ts).
+  // Undefined for every other watch path (Home, Browse, Favorites, Recent),
+  // which still play a single Channel's own sources exactly as before.
+  playbackGroup?: EventPlaybackGroup
   onBack: () => void
   // "Add to Multiview" — undefined on any path that shouldn't offer it
   // (there currently is none, but kept optional so a future restricted
@@ -40,6 +42,69 @@ function sourceIndexFor(channel: Channel | null, label?: string): number {
   if (!channel || !label) return 0
   const index = channel.sources.findIndex((s) => s.label === label)
   return index === -1 ? 0 : index
+}
+
+// ONE row in the Quality/Source menu — i.e. one thing the viewer can
+// actually choose — together with every stream that can serve it. The two
+// levels are deliberately separate:
+//
+// - `label`/`qualityLabel` are what the viewer sees and picks. Two 1080p
+//   feeds are ONE choice: "1080p" twice is the same answer to the only
+//   question being asked.
+// - `candidates` are interchangeable ways to deliver that choice (a second
+//   provider's feed, the same channel from another playlist). They are real
+//   playback assets — failover material — and must never be discarded just
+//   because they'd be redundant on screen.
+//
+// The channel is carried per-CANDIDATE, not once for the whole screen: a
+// stream group from Event Details can span several playlist Channel objects
+// that Ninety resolved to the SAME logical broadcaster (see
+// eventPlaybackGroup.ts), so "which channel is playing" is a property of
+// the active candidate.
+interface PlaybackChoice {
+  label: string
+  qualityLabel: string | null
+  candidates: PlaybackCandidate[]
+}
+
+// One flattened entry per candidate, in choice order — the shape the
+// session controller works in (it addresses sources by a flat index).
+// `choiceIndex` is what maps a playing source back to the menu row it
+// belongs to, and doubles as the controller's failover GROUP id (see
+// PlayerSessionOptions.sourceGroups): failover exhausts a choice's own
+// candidates before moving to a different choice, so switching to a mirror
+// never silently changes the quality the viewer selected.
+interface PlaybackEntry extends PlaybackCandidate {
+  choiceIndex: number
+}
+
+// An ordinary channel watch (Home/Browse/Favorites/Recent): that channel's
+// own sources, in the playlist's own order, each its own choice — unchanged
+// from before, including the source-label wording and the initial-source
+// lookup. These genuinely are separate picks (provider mirrors the user
+// chooses between), not tiers of one stream. Quality labels still come from
+// the same metadata-only estimator Event Details uses (never a probe).
+function choicesForChannel(channel: Channel | null): PlaybackChoice[] {
+  if (!channel) return []
+  return channel.sources.map((source) => ({
+    label: source.label,
+    qualityLabel: qualityTierLabel(estimateQualityTier({ channel, source })),
+    candidates: [{ channel, source }],
+  }))
+}
+
+// A stream group from Event Details: one choice per QUALITY, every
+// same-tier candidate kept behind it.
+function choicesForGroup(group: EventPlaybackGroup): PlaybackChoice[] {
+  return group.variants.map((variant) => ({
+    label: variant.qualityLabel ?? 'Unknown quality',
+    qualityLabel: variant.qualityLabel,
+    candidates: variant.candidates.map((candidate) => ({ channel: candidate.channel, source: candidate.source })),
+  }))
+}
+
+function flattenChoices(choices: PlaybackChoice[]): PlaybackEntry[] {
+  return choices.flatMap((choice, choiceIndex) => choice.candidates.map((candidate) => ({ ...candidate, choiceIndex })))
 }
 
 function ToolbarButton({
@@ -95,36 +160,52 @@ function OptionRow({
 // registered focusable component (with a null DOM node while closed) even
 // when never rendered. useModalFocusScope's capture/restore lifecycle also
 // depends on a real mount/unmount boundary to fire at the right time.
-function SourcePopup({
-  sources,
-  sourceIndex,
-  onSelectSource,
+//
+// One popup for both meanings of "another way to play this", because
+// mechanically they're the same list of candidate URLs — only the label
+// differs (see variantMenuLabel): for a stream group handed over from
+// Event Details the entries ARE the quality tiers of one logical stream, so
+// it presents as Quality; for an ordinary channel they're the provider's
+// own interchangeable source mirrors, which stay Source.
+function VariantPopup({
+  choices,
+  activeIndex,
+  isQualityMenu,
+  onSelectChoice,
   onClose,
 }: {
-  sources: ChannelSource[]
-  sourceIndex: number
-  onSelectSource: (index: number) => void
+  choices: PlaybackChoice[]
+  activeIndex: number
+  isQualityMenu: boolean
+  onSelectChoice: (choiceIndex: number) => void
   onClose: () => void
 }) {
-  // Focus the currently selected source if it exists, otherwise the first
+  // Focus the currently selected choice if it exists, otherwise the first
   // one — never just "the popup container" (which would fall back to
   // norigin's geometry-based child search rather than the deliberate
   // choice this popup actually wants).
-  const preferredChildFocusKey = sources[sourceIndex] ? `player-source-option-${sourceIndex}` : sources[0] ? 'player-source-option-0' : undefined
+  const preferredChildFocusKey = choices[activeIndex] ? `player-source-option-${activeIndex}` : choices[0] ? 'player-source-option-0' : undefined
   const { ref, focusKey } = useModalFocusScope({ focusKey: SOURCE_POPUP_FOCUS_KEY, onClose, preferredChildFocusKey })
   return (
     <FocusContext.Provider value={focusKey}>
       <div ref={ref} className="options-popup">
         <div className="options-group">
-          {sources.length > 0 ? (
-            sources.map((source, index) => (
+          {choices.length > 0 ? (
+            // Strictly one row per CHOICE — however many candidates sit
+            // behind it. Mirrors are failover material, not a decision to
+            // hand the viewer.
+            choices.map((choice, index) => (
               <OptionRow
-                key={source.label + index}
+                key={`${choice.label}-${index}`}
                 focusKey={`player-source-option-${index}`}
-                chip={source.label}
-                label={source.label}
-                active={index === sourceIndex}
-                onSelect={() => onSelectSource(index)}
+                // A quality menu names tiers ("8K", "1080p"), with an
+                // honest dash for an unrecognized one rather than a
+                // fabricated tier; a source menu keeps the provider's own
+                // source label, exactly as before.
+                chip={isQualityMenu ? (choice.qualityLabel ?? '—') : choice.label}
+                label={choice.label}
+                active={index === activeIndex}
+                onSelect={() => onSelectChoice(index)}
               />
             ))
           ) : (
@@ -176,11 +257,27 @@ function SubtitlesPopup({
   )
 }
 
-export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDisplayParts, onBack, onAddToMultiview }: Props) {
-  const [selected] = useState<Channel | null>(channels[0] ?? null)
+export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGroup, onBack, onAddToMultiview }: Props) {
+  // Resolved ONCE at mount, like the `selected` channel it replaces: the
+  // underlying session reads its URL list only at construction (see
+  // usePlayerSession), and a genuinely different stream is a fresh mount,
+  // not a prop change.
+  const [choices] = useState<PlaybackChoice[]>(() => (playbackGroup ? choicesForGroup(playbackGroup) : choicesForChannel(channels[0] ?? null)))
+  const [entries] = useState<PlaybackEntry[]>(() => flattenChoices(choices))
+  // A stream group arrives already sorted best-quality-first, so entry 0 is
+  // the best quality's primary candidate — the viewer picked a broadcaster,
+  // not a tier (see StreamRow). An ordinary channel watch keeps starting on
+  // whichever source the originating row played: with exactly one candidate
+  // per choice there, the flat entry index and the source index coincide.
+  const [initialEntryIndex] = useState(() => (playbackGroup ? 0 : sourceIndexFor(channels[0] ?? null, initialSourceLabel)))
   const { videoRef, state: session, controller } = usePlayerSession(
-    selected?.sources.map((s) => s.url) ?? [],
-    sourceIndexFor(channels[0] ?? null, initialSourceLabel),
+    entries.map((entry) => entry.source.url),
+    initialEntryIndex,
+    // Failover order: exhaust the current choice's own candidates before
+    // dropping to the next choice down. All of that policy lives in the
+    // session controller already — this only tells it which entries belong
+    // together (see PlayerSessionOptions.sourceGroups).
+    { sourceGroups: entries.map((entry) => entry.choiceIndex) },
   )
   const playerState = session.playerState
   const sourceIndex = session.sourceIndex
@@ -331,29 +428,45 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
     }
   }, [playerState.status, playerState.muted, controller])
 
-  const activeSource = selected?.sources[sourceIndex] ?? selected?.sources[0]
+  // Everything below reads the ACTIVE entry, never a frozen selection:
+  // sourceIndex moves both when the user picks another quality and when the
+  // session fails over on its own, and both must be reflected identically.
+  // The menu and the overlay follow the active entry's CHOICE, so failing
+  // over between two candidates of one quality leaves both showing that
+  // same quality — while a drop to the next choice down updates them.
+  const activeEntry = entries[sourceIndex] ?? entries[0]
+  const activeChoiceIndex = activeEntry?.choiceIndex ?? 0
+  const activeChoice = choices[activeChoiceIndex]
+  const selected = activeEntry?.channel ?? channels[0] ?? null
+  const activeSource = activeEntry?.source
 
   // Full contextual line (provider | event | time | quality — see Part Y's
-  // regression example) for the overlay header, recomputed from the
-  // CURRENTLY ACTIVE source every render rather than the tier baked in at
+  // regression example) for the overlay header, recomposed from the
+  // CURRENTLY ACTIVE variant every render rather than the tier baked in at
   // watch-time — see Part W ("active source quality in player"): if the
-  // user switches from 8K to 1080p mid-session, the overlay must not keep
-  // claiming 8K. null (not initialDisplayParts's own possibly-stale
-  // quality) when there's no active source to measure yet. Only used when
-  // initialDisplayParts actually carries a real provider identity (i.e.
-  // this playback came from Event Details with usable event context) --
-  // every other watch path falls through to the existing selected?.name
-  // rendering below, completely unchanged.
-  const liveDisplayLine =
-    initialDisplayParts?.provider && selected && activeSource
-      ? formatEventStreamDisplayLine({
-          ...initialDisplayParts,
-          quality: qualityTierLabel(estimateQualityTier({ channel: selected, source: activeSource })),
-        })
-      : null
+  // user switches from 8K to 1080p, or the session fails over to another
+  // variant, the overlay must not keep claiming 8K. Only rendered for
+  // playback that came from Event Details (a stream group); every other
+  // watch path falls through to the existing selected?.name rendering
+  // below, completely unchanged. `provider` falls back to the group's own
+  // display name so a linear broadcaster with no extractable provider
+  // segment still gets a named line (and therefore a visible live quality)
+  // rather than dropping back to the bare playlist channel name.
+  const liveDisplayLine = playbackGroup
+    ? formatEventStreamDisplayLine({
+        ...playbackGroup.displayParts,
+        provider: playbackGroup.displayParts.provider ?? playbackGroup.displayName,
+        quality: activeChoice?.qualityLabel ?? null,
+      })
+    : null
 
   const isPaused = playerState.status === 'paused'
   const hasSubtitles = playerState.subtitleTracks.length > 0
+  // Choices handed over by Event Details are the quality tiers of a single
+  // logical stream, so the control that switches between them is a Quality
+  // picker. An ordinary channel's choices are genuine source mirrors the
+  // viewer picks between, which keeps the existing Source wording.
+  const isQualityMenu = playbackGroup != null
 
   return (
     <main className="channel-player">
@@ -376,8 +489,8 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
           {playerState.error && (
             <p className="player-error">
               {allSourcesFailed
-                ? selected && selected.sources.length > 1
-                  ? `All ${selected.sources.length} sources for this channel failed to play.`
+                ? entries.length > 1
+                  ? `All ${entries.length} sources for this channel failed to play.`
                   : 'This channel failed to play.'
                 : `${playerState.error.message} — trying another source…`}
             </p>
@@ -409,20 +522,27 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, initialDispl
               <div className="toolbar-item">
                 <ToolbarButton
                   focusKey={SOURCE_TOGGLE_FOCUS_KEY}
-                  icon="🖥"
-                  label="Source"
+                  icon={isQualityMenu ? '◍' : '🖥'}
+                  label={isQualityMenu ? 'Quality' : 'Source'}
                   active={sourcePopupOpen}
                   onSelect={() => {
                     setSubtitlesPopupOpen(false)
                     setSourcePopupOpen((open) => !open)
                   }}
                 />
-                {sourcePopupOpen && selected && (
-                  <SourcePopup
-                    sources={selected.sources}
-                    sourceIndex={sourceIndex}
-                    onSelectSource={(index) => {
-                      controller.selectSource(index)
+                {sourcePopupOpen && (
+                  <VariantPopup
+                    choices={choices}
+                    activeIndex={activeChoiceIndex}
+                    isQualityMenu={isQualityMenu}
+                    onSelectChoice={(choiceIndex) => {
+                      // Always that choice's PRIMARY candidate — a
+                      // deliberate pick opens the preferred stream for the
+                      // quality asked for, and any later failure works
+                      // through the rest of that same quality's candidates
+                      // first (the controller's grouped failover).
+                      const primary = entries.findIndex((entry) => entry.choiceIndex === choiceIndex)
+                      if (primary !== -1) controller.selectSource(primary)
                       showMenu()
                     }}
                     onClose={closeSourcePopup}

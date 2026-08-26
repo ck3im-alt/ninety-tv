@@ -614,22 +614,12 @@
   background: transparent;
 }
 
+/* Reports the group's BEST available variant, nothing selectable — quality
+   is chosen inside the player now, not on this row (see StreamRow.tsx), so
+   the old ‹ › cycle cues are gone along with the interaction. */
 .stream-row-quality-value {
   min-width: 40px;
   text-align: center;
-}
-
-/* Value + optional ‹ › cycle cues in one fixed-width badge — the cues are
-   always laid out (visibility toggles, not display) so the value never
-   shifts when focus arrives or the selection reaches an end stop. */
-.stream-row-quality-cue {
-  color: var(--text-muted);
-  visibility: hidden;
-}
-
-.stream-row-quality-cue.active {
-  visibility: visible;
-  color: var(--accent);
 }
 
 /* The clearest action on the row — quiet enough at rest to stay secondary

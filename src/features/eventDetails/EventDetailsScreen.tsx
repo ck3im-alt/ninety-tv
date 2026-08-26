@@ -9,8 +9,8 @@ import { FootballEventHeader, GenericEventHeader } from './EventHeader'
 import { StreamList } from './StreamSections'
 import { loadPreferences } from '../../data/preferences'
 import type { SportEvent } from '../../data/sports/types'
-import type { EventStreamDisplayParts } from './ppvDisplayName'
-import type { Channel, ChannelSource } from '../../data/channel'
+import type { EventPlaybackGroup } from './eventPlaybackGroup'
+import type { Channel } from '../../data/channel'
 import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
 import type { ChannelIdentityIndex } from '../../data/sports/channelIdentityIndex'
 import './EventDetailsScreen.css'
@@ -24,11 +24,14 @@ interface Props {
   // the app (see App.tsx's favoriteChannels/toggleInSet) — this screen
   // doesn't own or persist favorite state itself.
   favoriteChannels: ReadonlySet<string>
-  onToggleFavoriteChannel: (channelId: string) => void
-  // The optional third argument carries the row's contextual event-stream
-  // display identity through to App.tsx's watchChannel — see Part V of the
-  // redesign task ("Event Details → Player propagation").
-  onWatch: (channel: Channel, source: ChannelSource, displayParts?: EventStreamDisplayParts) => void
+  // Takes every playlist channel behind one display row (see StreamRow) —
+  // a logical row can span several of them now that Ninety's own channel
+  // identity, not playlist text, decides what counts as one broadcaster.
+  onToggleFavoriteChannels: (channelIds: string[]) => void
+  // Playback receives the whole logical stream group — every quality
+  // variant the row collapsed, best-first — so the player can offer them as
+  // a quality menu and fail over across them. See eventPlaybackGroup.ts.
+  onWatch: (group: EventPlaybackGroup) => void
   onBack: () => void
   onBrowseChannels: () => void
 }
@@ -50,7 +53,7 @@ export function EventDetailsScreen({
   xtream,
   identityIndex,
   favoriteChannels,
-  onToggleFavoriteChannel,
+  onToggleFavoriteChannels,
   onWatch,
   onBack,
   onBrowseChannels,
@@ -190,7 +193,7 @@ export function EventDetailsScreen({
               favoriteCountries={favoriteCountries}
               topPickKey={topPickFocusKey}
               favoriteChannels={favoriteChannels}
-              onToggleFavoriteChannel={onToggleFavoriteChannel}
+              onToggleFavoriteChannels={onToggleFavoriteChannels}
               onWatch={onWatch}
             />
           )}
@@ -302,7 +305,8 @@ function DevBroadcastDebug({
     // name deliberately hides them (task section 16: keep the raw M3U
     // titles reachable for diagnostics without exposing them in normal
     // rows).
-    const rawNames = [...new Set(option.sourceOptions.flatMap((s) => [s.source.originalName ?? '', s.channel.name]))].filter(Boolean)
+    const candidates = option.qualityVariants.flatMap((variant) => variant.candidates)
+    const rawNames = [...new Set(candidates.flatMap((c) => [c.source.originalName ?? '', c.channel.name]))].filter(Boolean)
     return (
       <li key={option.key}>
         [{tier}] {option.displayName}
@@ -315,8 +319,14 @@ function DevBroadcastDebug({
         {option.matchConfidence}
         {' · '}
         {MATCH_SOURCE_LABELS[option.matchSource]}
+        {option.logicalChannelId && ` · identity ${option.logicalChannelId}`}
+        {option.channelIds.length > 1 && ` · ${option.channelIds.length} playlist channels merged`}
         {' · quality '}
         {option.bestQualityTier}
+        {' · variants '}
+        {/* "UHD×2" = one user-facing quality with two playback candidates
+            behind it (failover mirrors, never separate rows). */}
+        {option.qualityVariants.map((v) => `${v.qualityLabel ?? '—'}${v.candidates.length > 1 ? `×${v.candidates.length}` : ''}`).join('/')}
         {option.isFavorite && ' · ★ favorite'}
         {' · raw: '}
         {rawNames.join(' / ')}

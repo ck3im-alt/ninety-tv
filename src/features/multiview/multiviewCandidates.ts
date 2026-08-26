@@ -33,11 +33,16 @@ export interface MultiviewSourceCandidate {
 // Event Details screen, not duplicated into Multiview.
 export function flattenTrustedCandidates(partitioned: PartitionedStreamOptions): MultiviewSourceCandidate[] {
   return partitioned.trusted.flatMap((option) =>
-    option.sourceOptions.map((sourceOption) => ({
-      channel: sourceOption.channel,
-      source: sourceOption.source,
-      qualityTier: sourceOption.qualityTier,
-      qualityLabel: sourceOption.qualityLabel,
+    // One entry per quality tier — a pane picks by a quality CEILING (see
+    // selectMultiviewSource), so a same-tier mirror would only ever be a
+    // duplicate row in the pane's "Change source" list. The primary
+    // candidate is the deterministic representative, exactly what this
+    // consumed before quality variants gained candidate lists.
+    option.qualityVariants.map((variant) => ({
+      channel: variant.candidates[0].channel,
+      source: variant.candidates[0].source,
+      qualityTier: variant.qualityTier,
+      qualityLabel: variant.qualityLabel,
       displayName: option.displayName,
       displayParts: option.displayParts,
     })),

@@ -66,6 +66,19 @@ export interface ChannelMatch {
   // channelIdentityIndex.ts's getPlaylistChannels), so this field is only
   // ever 'CONFIRMED' or 'STRONG' when present.
   identityClassification?: Extract<IdentityClassification, 'CONFIRMED' | 'STRONG'>
+  // Only present for source: 'ninety' — the AUTHORITATIVE logical broadcaster
+  // this playlist channel was resolved to (event.broadcasts[].logicalChannelId,
+  // i.e. a Ninety channel-catalog id like "gb_tnt_sports_1"). This is the
+  // strongest broadcaster identity that exists anywhere in the pipeline: one
+  // logical channel routinely resolves to SEVERAL playlist Channel objects
+  // (different provider spellings/categories — "TV2 SPORT 1" and "TV 2 SPORT
+  // 1", "TNT SPORTS 1" and "TNT SPORTS 1 HD ◉"), and without carrying it here
+  // the display layer had nothing but playlist text to group by, which is
+  // exactly how one real broadcaster ended up as two Event Details rows.
+  // Carried as plain metadata — matching truth is unchanged, this only lets
+  // downstream grouping key on identity instead of re-guessing from names
+  // (see features/eventDetails/groupChannelMatches.ts).
+  logicalChannelId?: string
   // ninety-api's own reported broadcast country (event.broadcasts[].country,
   // an ISO-ish short code like "GB") — only present for source: 'ninety'.
   // Display-layer metadata only (Event Details' country column, when the
@@ -157,6 +170,9 @@ function matchViaNinetyApi(event: SportEvent, identityIndex: ChannelIdentityInde
           // canonical/alias/source-name) may claim isExactMatch.
           isExactMatch: classification === 'CONFIRMED',
           identityClassification: classification,
+          // The identity that produced this match, kept intact for the
+          // display layer — see ChannelMatch.logicalChannelId.
+          logicalChannelId: b.logicalChannelId,
           broadcastCountry: b.country,
         })
       }

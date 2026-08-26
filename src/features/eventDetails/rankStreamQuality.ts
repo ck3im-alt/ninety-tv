@@ -31,29 +31,42 @@ const TIER_PATTERNS: Array<{ tier: QualityTier; pattern: RegExp }> = [
   { tier: 1, pattern: /\bSD\b/ },
 ]
 
-// The richest evidence available, checked together rather than stopping at
-// the first field that happens to be non-empty — a quality tag can survive
-// in one field and not another depending on exactly where ingest-time
-// display normalization (mergeChannels.ts's normalizeChannelName, or this
-// feature's own PPV display cleanup — see ppvDisplayName.ts) happened to
-// strip it. source.originalName/channel.rawNames carry the pre-normalization
-// raw provider text, which is often the ONLY place a mid-string tag (e.g.
-// "... | 8K EXCLUSIVE | NO: TV2 PLAY PPV 9") still survives once the
-// cleaned display name has dropped it — see the redesign task's explicit
-// "raw metadata must remain quality evidence" requirement. Concatenated so
-// a tier found in ANY field counts, since we want the best real signal
-// available, not just whichever field happens to be checked first.
-function evidenceText(option: SourceOption): string {
-  const parts = [option.source.label, option.source.originalName, option.channel.name, ...(option.channel.rawNames ?? [])]
-  return foldForMatching(parts.filter((p): p is string => Boolean(p)).join(' '))
-}
-
-export function estimateQualityTier(option: SourceOption): QualityTier {
-  const text = evidenceText(option)
+function tierFromText(parts: Array<string | undefined>): QualityTier {
+  const text = foldForMatching(parts.filter((p): p is string => Boolean(p)).join(' '))
   for (const { tier, pattern } of TIER_PATTERNS) {
     if (pattern.test(text)) return tier
   }
   return 0
+}
+
+// Evidence is checked in two layers, THIS SOURCE first, because a quality
+// tag can survive in one field and not another depending on exactly where
+// ingest-time display normalization (mergeChannels.ts's normalizeChannelName,
+// or this feature's own PPV display cleanup — see ppvDisplayName.ts) happened
+// to strip it:
+//
+// 1. Source-level: source.label (the quality tag mergeChannelSources
+//    extracted for THIS variant) and source.originalName (the
+//    pre-normalization raw provider text, often the ONLY place a mid-string
+//    tag like "... | 8K EXCLUSIVE | NO: TV2 PLAY PPV 9" still survives —
+//    the redesign task's explicit "raw metadata must remain quality
+//    evidence" requirement).
+// 2. Channel-level: the merged channel's own display name and rawNames,
+//    used ONLY when this specific source says nothing about its own quality.
+//
+// The layering matters. channel.rawNames is the union across EVERY merged
+// variant, so folding it into one flat string (as this used to) gave every
+// source of a channel the channel's BEST tier: a real "UK: TNT SPORTS 1 SD"
+// + "UK: TNT SPORTS 1 UHD" pair both estimated UHD, which then collapsed to
+// a single option in dedupeSourcesByTier — the row advertised UHD while
+// pointing at the SD stream, and the genuine UHD variant disappeared from
+// the player's quality list entirely. Per-source evidence wins over shared
+// channel text; the channel fallback still covers the common
+// single-source/untagged case (see the "Sky Sports UHD"/rawNames tests).
+export function estimateQualityTier(option: SourceOption): QualityTier {
+  const sourceTier = tierFromText([option.source.label, option.source.originalName])
+  if (sourceTier > 0) return sourceTier
+  return tierFromText([option.channel.name, ...(option.channel.rawNames ?? [])])
 }
 
 // A group can contain several source options (e.g. the same channel listed

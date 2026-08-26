@@ -8,6 +8,7 @@ import {
   groupOptionsByCountry,
   availableStreamFilters,
   optionsForFilter,
+  dedupeSourcesByTier,
 } from './buildEventStreamOptions'
 import type { EventStreamOption, RankedEventStreamOption, StreamRankingPreferences } from './buildEventStreamOptions'
 import type { ChannelMatch } from '../../data/sports/channelMatch'
@@ -78,14 +79,14 @@ describe('buildEventStreamOptions', () => {
     ]
     const channel = makeChannel('TV 2 Sport', 'NO| Sports', sources)
     const [option] = buildEventStreamOptions([ninetyMatch({ channel, isExactMatch: true })], NO_FAVORITES)
-    expect(option.sourceOptions.map((s) => s.qualityLabel)).toEqual(['UHD', '720p'])
+    expect(option.qualityVariants.map((s) => s.qualityLabel)).toEqual(['UHD', '720p'])
   })
 
   it('does not fabricate a quality label for a group with no recognizable quality hints', () => {
     const channel = makeChannel('TV 2 Sport', 'NO| Sports', [{ label: 'Default', url: 'http://x/1' }])
     const [option] = buildEventStreamOptions([ninetyMatch({ channel, isExactMatch: true })], NO_FAVORITES)
-    expect(option.sourceOptions).toHaveLength(1)
-    expect(option.sourceOptions[0].qualityLabel).toBeNull()
+    expect(option.qualityVariants).toHaveLength(1)
+    expect(option.qualityVariants[0].qualityLabel).toBeNull()
   })
 
   it('sorts source options best-quality first, so index 0 is the correct default selection', () => {
@@ -96,7 +97,7 @@ describe('buildEventStreamOptions', () => {
     ]
     const channel = makeChannel('TV 2 Sport', 'NO| Sports', sources)
     const [option] = buildEventStreamOptions([ninetyMatch({ channel, isExactMatch: true })], NO_FAVORITES)
-    expect(option.sourceOptions[0].qualityLabel).toBe('UHD')
+    expect(option.qualityVariants[0].qualityLabel).toBe('UHD')
     expect(option.bestQualityTier).toBe(4)
   })
 
@@ -108,7 +109,7 @@ describe('buildEventStreamOptions', () => {
     )
     const options = buildEventStreamOptions(matches, NO_FAVORITES)
     expect(options).toHaveLength(1)
-    expect(options[0].sourceOptions.map((s) => s.qualityLabel)).toEqual(['1080p', '720p', 'SD'])
+    expect(options[0].qualityVariants.map((s) => s.qualityLabel)).toEqual(['1080p', '720p', 'SD'])
   })
 
   it('two different numbered broadcast channels stay separate (TNT safety)', () => {
@@ -157,9 +158,9 @@ describe('PPV stream-group identity (task sections 3-8, 12-13)', () => {
 
     expect(options).toHaveLength(1)
     expect(options[0].displayName).toBe('Viaplay | Málaga CF - Deportivo La Coruña | 21:25')
-    expect(options[0].sourceOptions).toHaveLength(2)
-    expect(options[0].sourceOptions[0].qualityLabel).toBe('8K') // the default variant
-    expect(options[0].sourceOptions[1].qualityLabel).toBeNull() // retained as an alternate/fallback source, not discarded
+    expect(options[0].qualityVariants).toHaveLength(2)
+    expect(options[0].qualityVariants[0].qualityLabel).toBe('8K') // the default variant
+    expect(options[0].qualityVariants[1].qualityLabel).toBeNull() // retained as an alternate/fallback source, not discarded
   })
 
   it('same provider/event confirmed via three raw entries at three different qualities — still one group', () => {
@@ -170,7 +171,7 @@ describe('PPV stream-group identity (task sections 3-8, 12-13)', () => {
     ]
     const options = buildEventStreamOptions(matches, NO_FAVORITES, MALAGA_CONTEXT)
     expect(options).toHaveLength(1)
-    expect(options[0].sourceOptions.map((s) => s.qualityLabel)).toEqual(['8K', '1080p', null])
+    expect(options[0].qualityVariants.map((s) => s.qualityLabel)).toEqual(['8K', '1080p', null])
   })
 
   it('same event, different providers — two groups', () => {
@@ -194,6 +195,205 @@ describe('PPV stream-group identity (task sections 3-8, 12-13)', () => {
   })
 })
 
+// ---------------------------------------------------------------------
+// Logical-broadcaster rows (stream-dedupe task, Parts 1/3/4): one resolved
+// broadcaster = one row = one automatically-chosen best quality, with every
+// other variant kept behind it for the player.
+// ---------------------------------------------------------------------
+describe('buildEventStreamOptions logical-broadcaster rows', () => {
+  function resolvedMatch(name: string, groupTitle: string, logicalChannelId: string, sources: ChannelSource[] = [{ label: 'Default', url: 'http://x/1' }]): ChannelMatch {
+    return {
+      channel: makeChannel(name, groupTitle, sources),
+      source: 'ninety',
+      label: 'TV 2 Sport 1',
+      isExactMatch: true,
+      identityClassification: 'CONFIRMED',
+      logicalChannelId,
+    }
+  }
+
+  it('shows ONE row for two differently-spelled playlist channels resolved to the same logical channel', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('TV2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1', [{ label: 'HD', url: 'http://x/a' }]),
+        resolvedMatch('TV 2 SPORT 1', 'NOR | Sports', 'no_tv2_sport_1', [{ label: 'HD', url: 'http://x/b' }]),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options).toHaveLength(1)
+    expect(options[0].displayName).toBe('TV 2 Sport 1')
+    expect(options[0].countryName).toBe('Norway')
+    // The 2-letter spelling is preferred so the country header keeps a flag.
+    expect(options[0].countryCode).toBe('NO')
+    expect(options[0].channelIds).toHaveLength(2)
+  })
+
+  it('defaults the merged row to the best quality across BOTH playlist channels', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('TNT SPORTS 1 UHD', 'UK| Sports', 'gb_tnt_sports_1', [{ label: 'UHD', url: 'http://x/uhd' }]),
+        resolvedMatch('TNT Sport 1 HD', 'UK| Sports', 'gb_tnt_sports_1', [{ label: 'HD', url: 'http://x/hd' }]),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options).toHaveLength(1)
+    expect(options[0].qualityVariants[0].qualityLabel).toBe('UHD')
+    expect(options[0].qualityVariants[0].candidates[0].source.url).toBe('http://x/uhd')
+    expect(options[0].bestQualityTier).toBe(4)
+  })
+
+  it('keeps every quality variant of one logical channel, best-first, with 8K as the default', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('TV 2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1', [
+          { label: 'HD', url: 'http://x/hd' },
+          { label: '8K', url: 'http://x/8k' },
+          { label: 'SD', url: 'http://x/sd' },
+        ]),
+        resolvedMatch('TV2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1', [
+          { label: 'UHD', url: 'http://x/uhd' },
+          { label: 'FHD', url: 'http://x/fhd' },
+        ]),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options).toHaveLength(1)
+    expect(options[0].qualityVariants.map((s) => s.qualityLabel)).toEqual(['8K', 'UHD', '1080p', '720p', 'SD'])
+    expect(options[0].qualityVariants[0].candidates[0].source.url).toBe('http://x/8k')
+  })
+
+  it('keeps one entry per tier, so identical tiers never produce a duplicate quality choice', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('TV2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1', [{ label: 'UHD', url: 'http://x/uhd-a' }]),
+        resolvedMatch('TV 2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1', [{ label: 'UHD', url: 'http://x/uhd-b' }]),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options[0].qualityVariants).toHaveLength(1)
+    expect(options[0].qualityVariants[0].candidates[0].source.url).toBe('http://x/uhd-a')
+  })
+
+  it('splits a merged channel\'s own SD/UHD sources into two real variants (no shared-rawNames upgrade)', () => {
+    const channel = makeChannel('TNT Sports 1', 'UK| Sports', [
+      { label: 'SD', url: 'http://x/sd', originalName: 'UK: TNT SPORTS 1 SD' },
+      { label: 'UHD', url: 'http://x/uhd', originalName: 'UK: TNT SPORTS 1 UHD' },
+    ])
+    channel.rawNames = ['UK: TNT SPORTS 1 SD', 'UK: TNT SPORTS 1 UHD']
+    const [option] = buildEventStreamOptions([ninetyMatch({ channel, isExactMatch: true })], NO_FAVORITES)
+
+    expect(option.qualityVariants.map((s) => s.qualityLabel)).toEqual(['UHD', 'SD'])
+    expect(option.qualityVariants[0].candidates[0].source.url).toBe('http://x/uhd')
+  })
+
+  it('keeps two rows for different logical channels (TNT Sports 1 vs TNT Sports 2)', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('TNT SPORTS 1', 'UK| Sports', 'gb_tnt_sports_1'),
+        resolvedMatch('TNT SPORTS 2', 'UK| Sports', 'gb_tnt_sports_2'),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options).toHaveLength(2)
+  })
+
+  it('keeps two rows for the same broadcaster text in two genuinely different countries', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('EUROSPORT 1', 'NO| Sports', 'eurosport_1'),
+        resolvedMatch('EUROSPORT 1', 'SE| Sports', 'eurosport_1'),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options).toHaveLength(2)
+    expect(options.map((o) => o.countryName)).toEqual(['Norway', 'Sweden'])
+  })
+
+  it('reports the merged row as favorited when ANY of its playlist channels is', () => {
+    const a = resolvedMatch('TV2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1')
+    const b = resolvedMatch('TV 2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1')
+    const [option] = buildEventStreamOptions([a, b], new Set([b.channel.id]))
+
+    expect(option.isFavorite).toBe(true)
+    expect(option.channelIds).toContain(b.channel.id)
+  })
+
+  // Same-quality mirrors are a PLAYBACK asset, not a viewing choice: the
+  // user-facing list stays one entry per tier, while every playable source
+  // at that tier survives behind it for failover.
+  it('keeps two same-tier sources as ONE user-facing quality with TWO playback candidates', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('TV2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1', [
+          { label: 'UHD', url: 'http://x/uhd-a' },
+          { label: 'FHD', url: 'http://x/fhd-a' },
+        ]),
+        resolvedMatch('TV 2 SPORT 1', 'NO| Sports', 'no_tv2_sport_1', [{ label: 'UHD', url: 'http://x/uhd-b' }]),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options).toHaveLength(1)
+    // What the viewer is offered: two qualities, no duplicate rows.
+    expect(options[0].qualityVariants.map((v) => v.qualityLabel)).toEqual(['UHD', '1080p'])
+    // What playback can actually use: both UHD feeds, primary first.
+    expect(options[0].qualityVariants[0].candidates.map((c) => c.source.url)).toEqual(['http://x/uhd-a', 'http://x/uhd-b'])
+    expect(options[0].qualityVariants[1].candidates.map((c) => c.source.url)).toEqual(['http://x/fhd-a'])
+  })
+
+  it('keeps same-tier mirrors that came from different playlist channels', () => {
+    const options = buildEventStreamOptions(
+      [
+        resolvedMatch('TNT SPORTS 1', 'UK| Sports', 'gb_tnt_sports_1', [{ label: 'FHD', url: 'http://x/fhd-a' }]),
+        resolvedMatch('TNT SPORTS 1 HD ◉', 'UK| Sports', 'gb_tnt_sports_1', [{ label: 'FHD', url: 'http://x/fhd-b' }]),
+      ],
+      NO_FAVORITES,
+    )
+
+    expect(options[0].qualityVariants).toHaveLength(1)
+    expect(options[0].qualityVariants[0].candidates.map((c) => c.channel.id)).toHaveLength(2)
+  })
+
+  // Multiview deliberately wants the flat one-per-tier view (it picks by a
+  // quality ceiling across broadcasters) — that projection must not start
+  // emitting mirror duplicates now that the candidates are retained.
+  it('still exposes exactly one flat source per tier for the tier-ceiling consumers', () => {
+    const flat = dedupeSourcesByTier([
+      { channel: makeChannel('A', 'NO| Sports'), source: { label: 'UHD', url: 'http://x/uhd-a' } },
+      { channel: makeChannel('B', 'NO| Sports'), source: { label: 'UHD', url: 'http://x/uhd-b' } },
+      { channel: makeChannel('C', 'NO| Sports'), source: { label: 'HD', url: 'http://x/hd' } },
+    ])
+
+    expect(flat.map((s) => s.qualityLabel)).toEqual(['UHD', '720p'])
+    expect(flat[0].source.url).toBe('http://x/uhd-a')
+  })
+
+  // Part 2 protection, end to end through the option builder: same provider
+  // + same fixture collapses; same provider + different fixture, and
+  // different provider + same fixture, both stay separate.
+  it('collapses same-provider quality mirrors of one fixture but keeps different providers and different fixtures apart', () => {
+    const context = { homeTeam: 'Valencia CF', awayTeam: 'Real Betis' }
+    const ppv = (raw: string): ChannelMatch => ({ channel: makeChannel(raw, 'NO| PPV'), source: 'ppvName', label: raw, isExactMatch: false })
+    const matches = [
+      ppv('NEXT | VALENCIA - REAL BETIS | Tue 25 Aug 20:55 CEST (NO) | 8K EXCLUSIVE | NO: VIAPLAY PPV 13'),
+      ppv('NEXT | VALENCIA - REAL BETIS | Tue 25 Aug 20:55 CEST (NO) | FHD | NO: VIAPLAY PPV 14'),
+      ppv('NEXT | VALENCIA - REAL BETIS | Tue 25 Aug 20:55 CEST (NO) | 8K EXCLUSIVE | NO: TV2 PLAY PPV 13'),
+      ppv('NEXT | ARSENAL - COVENTRY | Tue 25 Aug 20:55 CEST (NO) | 8K EXCLUSIVE | NO: VIAPLAY PPV 15'),
+    ]
+
+    const options = buildEventStreamOptions(matches, NO_FAVORITES, context)
+
+    expect(options).toHaveLength(3)
+    expect(options[0].qualityVariants.map((s) => s.qualityLabel)).toEqual(['8K', '1080p'])
+  })
+})
+
 function makeOption(overrides: Partial<EventStreamOption>): EventStreamOption {
   channelCounter += 1
   return {
@@ -205,8 +405,9 @@ function makeOption(overrides: Partial<EventStreamOption>): EventStreamOption {
     matchConfidence: 'likely',
     matchSource: 'ninety',
     displayParts: { provider: null, eventTitle: null, startTime: null, quality: null },
-    sourceOptions: [],
+    qualityVariants: [],
     bestQualityTier: 0,
+    channelIds: [],
     isFavorite: false,
     ...overrides,
   }

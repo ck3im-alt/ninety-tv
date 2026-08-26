@@ -180,6 +180,92 @@ describe('createPlayerSessionController', () => {
     expect(player.loadedUrls).toEqual([])
   })
 
+  // Candidate mirrors of one user-facing choice (see PlayerSessionOptions'
+  // sourceGroups): a quality tier can have several playable sources behind
+  // it, and failover must exhaust the tier the viewer is actually watching
+  // before dropping them to a different one.
+  describe('grouped failover (candidate mirrors within one choice)', () => {
+    // Two UHD candidates, two 1080p candidates, one 720p.
+    const GROUPED_URLS = ['http://x/uhd-a', 'http://x/uhd-b', 'http://x/fhd-a', 'http://x/fhd-b', 'http://x/hd-a']
+    const GROUPS = [0, 0, 1, 1, 2]
+
+    function groupedController(initialIndex = 0) {
+      const player = createFakePlayer()
+      const controller = createPlayerSessionController(player, GROUPED_URLS, initialIndex, { sourceGroups: GROUPS })
+      controller.attach({} as HTMLVideoElement)
+      return { player, controller }
+    }
+
+    it('tries the other candidate in the SAME group before dropping to the next one', () => {
+      const { player, controller } = groupedController()
+      player.fail()
+      expect(player.loadedUrls).toEqual(['http://x/uhd-a', 'http://x/uhd-b'])
+      expect(controller.getState().sourceIndex).toBe(1)
+    })
+
+    it('drops to the next group only once every candidate in the current one has failed', () => {
+      const { player, controller } = groupedController()
+      player.fail()
+      player.fail()
+      expect(player.loadedUrls).toEqual(['http://x/uhd-a', 'http://x/uhd-b', 'http://x/fhd-a'])
+      expect(controller.getState().sourceIndex).toBe(2)
+    })
+
+    it('exhausts the manually selected group first, never jumping back to a better one', () => {
+      const { player, controller } = groupedController()
+      controller.selectSource(2) // the user picks 1080p
+      player.fail()
+      expect(player.loadedUrls).toEqual(['http://x/uhd-a', 'http://x/fhd-a', 'http://x/fhd-b'])
+      expect(controller.getState().sourceIndex).toBe(3)
+    })
+
+    it('falls through past the manually selected group to LOWER groups, not back up', () => {
+      const { player, controller } = groupedController()
+      controller.selectSource(2)
+      player.fail()
+      player.fail()
+      expect(player.loadedUrls.at(-1)).toBe('http://x/hd-a')
+      expect(controller.getState().sourceIndex).toBe(4)
+    })
+
+    it('only reaches a never-tried BETTER group as a last resort, rather than giving up', () => {
+      const { player, controller } = groupedController()
+      // The manual pick moves off uhd-a without it ever erroring, so both
+      // UHD candidates are still untried once everything below fails.
+      controller.selectSource(2)
+      player.fail() // fhd-a -> fhd-b
+      player.fail() // fhd-b -> hd-a
+      player.fail() // hd-a  -> nothing below is left, so back up to the best untried
+      expect(player.loadedUrls.at(-1)).toBe('http://x/uhd-a')
+      expect(controller.getState().allSourcesFailed).toBe(false)
+    })
+
+    it('still reports allSourcesFailed once every candidate in every group has errored', () => {
+      const { player, controller } = groupedController()
+      for (let i = 0; i < GROUPED_URLS.length + 2; i++) player.fail()
+      expect(controller.getState().allSourcesFailed).toBe(true)
+      expect(new Set(player.loadedUrls)).toEqual(new Set(GROUPED_URLS))
+    })
+
+    it('applies the same grouping to stall-driven failover', () => {
+      const { player } = groupedController()
+      player.stall() // bounded same-source reload first
+      expect(player.loadedUrls).toEqual(['http://x/uhd-a', 'http://x/uhd-a'])
+      player.stall() // reload did not help -> next candidate, same tier
+      expect(player.loadedUrls.at(-1)).toBe('http://x/uhd-b')
+    })
+
+    it('is unchanged from ungrouped behavior when every source is its own group', () => {
+      const player = createFakePlayer()
+      const controller = createPlayerSessionController(player, URLS, 0, { sourceGroups: [0, 1, 2] })
+      controller.attach({} as HTMLVideoElement)
+      player.fail()
+      player.fail()
+      expect(player.loadedUrls).toEqual(URLS)
+      expect(controller.getState().sourceIndex).toBe(2)
+    })
+  })
+
   describe('bounded stall recovery', () => {
     it('a stall reloads the SAME source once, without advancing to the next one', () => {
       const player = createFakePlayer()
