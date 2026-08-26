@@ -9,6 +9,7 @@
 // works both in `vite dev` and the packaged Tizen widget.
 
 import type { TeamFormResult } from './types'
+import type { BroadcastAvailability } from './broadcastAvailability'
 
 // Read lazily (not as a module-level const) so `vi.stubEnv` in tests can
 // override it per-test -- a top-level const freezes whatever
@@ -112,6 +113,22 @@ export interface NinetyEvent {
   // payload is documented in one place — not so it can be scored.
   home_team_table_position?: number | null
   away_team_table_position?: number | null
+  // --- Objective broadcast availability (ninety-api 2026-08-26 onwards) ---
+  //
+  // "Is this fixture expected to be on TV anywhere?", answered server-side
+  // out of evidence the TV has no access to. Optional for the same reason
+  // as the block above and one more: this build is expected to ship BEFORE
+  // the backend half does, so absent is the normal case for a while. Absent
+  // means UNKNOWN — never "not broadcast". Typed as the shared union but
+  // read through normalizeBroadcastAvailability (broadcastAvailability.ts),
+  // which also catches a value this build has never heard of; the union is
+  // documentation of today's vocabulary, not a runtime guarantee.
+  //
+  // `broadcast_availability_reason` is a short backend-authored explanation
+  // ("no listings found in any tracked market"), for diagnostics and at most
+  // a subdued line in Event Details — never parsed, never a ranking input.
+  broadcast_availability?: BroadcastAvailability | null
+  broadcast_availability_reason?: string | null
 }
 
 export interface NinetyExternalChannelId {

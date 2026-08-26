@@ -415,3 +415,207 @@ describe('useHomeFeed candidate generation', () => {
     expect(getAllEventsMock.mock.calls).toHaveLength(1)
   })
 })
+
+// ===========================================================================
+// OBJECTIVE BROADCAST AVAILABILITY
+// ===========================================================================
+//
+// The wiring, end to end: what reaches the feed, what reaches the hero, and
+// — the efficiency half of the feature — which events cost a local
+// channel-match attempt at all. matchChannelsForEvent is already mocked at
+// the module boundary above, so "was this event matched?" is directly
+// observable.
+//
+// A fixed system time is used throughout so "30 minutes from now" is a real
+// near-term, starting-soon fixture rather than the far-future default the
+// tests above use.
+describe('useHomeFeed — objective broadcast availability', () => {
+  const NOW = Date.parse('2026-08-26T19:00:00Z')
+  const inMinutes = (n: number) => new Date(NOW + n * 60_000).toISOString()
+
+  // The scenario observed in the real UI, as data.
+  const TOTTENHAM_CHARLTON = () =>
+    ninetyEvent({
+      id: 'tottenham-charlton',
+      start_time_utc: inMinutes(30),
+      home_team_name: 'Tottenham',
+      away_team_name: 'Charlton',
+      broadcast_availability: 'CONFIRMED_BROADCAST',
+    })
+  const BOOTLE_NORTHWICH = (overrides: Partial<NinetyEvent> = {}) =>
+    ninetyEvent({
+      id: 'bootle-northwich',
+      start_time_utc: inMinutes(30),
+      home_team_name: 'Bootle',
+      away_team_name: 'Northwich Victoria',
+      home_team_id: 'team_bootle',
+      away_team_id: 'team_northwich',
+      broadcast_availability: 'LIKELY_NOT_BROADCAST',
+      broadcast_availability_reason: 'no listings found in any tracked market',
+      ...overrides,
+    })
+
+  const BOOTLE_FAN: SportPreferences = { ...PREFERENCES, favoriteTeamIds: ['team_bootle'] }
+
+  // Which events actually cost a local channel lookup.
+  const matchedIds = () => matchChannelsForEventMock.mock.calls.map((call) => (call[0] as { id: string }).id)
+
+  async function renderWith(events: NinetyEvent[], preferences: SportPreferences = PREFERENCES) {
+    getAllEventsMock.mockResolvedValueOnce(events)
+    const { result } = renderHook(() => useHomeFeed(preferences, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null))
+    await flush()
+    expect(result.current.status).toBe('ready')
+    return result
+  }
+
+  beforeEach(() => {
+    vi.setSystemTime(NOW)
+  })
+
+  const feedIds = (result: { current: { feed: { items: { event: { id: string } }[] } } }) =>
+    result.current.feed.items.map((item) => item.event.id)
+
+  // TEST 6
+  it('drops a LIKELY_NOT_BROADCAST fixture from the feed when no favorite club is playing', async () => {
+    const result = await renderWith([TOTTENHAM_CHARLTON(), BOOTLE_NORTHWICH()])
+    expect(feedIds(result)).toEqual(['ninety:tottenham-charlton'])
+    // Still fetched and still resolvable by id — it was removed from ONE
+    // row, not erased from the app (Event Details can still open it).
+    expect(result.current.eventsById.get('ninety:bootle-northwich')).toBeDefined()
+  })
+
+  // TEST 7
+  it('keeps that same fixture in the feed when an explicit favorite club is playing', async () => {
+    const result = await renderWith([TOTTENHAM_CHARLTON(), BOOTLE_NORTHWICH()], BOOTLE_FAN)
+    expect(feedIds(result)).toContain('ninety:bootle-northwich')
+  })
+
+  // TEST 8 — the favorite-club exception buys a feed card, never the hero.
+  it('never makes that favorite-club fixture the hero', async () => {
+    const result = await renderWith([TOTTENHAM_CHARLTON(), BOOTLE_NORTHWICH()], BOOTLE_FAN)
+    expect(result.current.feed.hero?.id).toBe('ninety:tottenham-charlton')
+  })
+
+  it('leaves the hero empty rather than featuring it when it is the only fixture', async () => {
+    const result = await renderWith([BOOTLE_NORTHWICH()], BOOTLE_FAN)
+    expect(result.current.feed.hero).toBeNull()
+    expect(result.current.feed.heroIsWatchableNow).toBe(false)
+  })
+
+  // TEST 9 — the efficiency win, observed at the matching boundary.
+  it('never calls matchChannelsForEvent for a LIKELY_NOT_BROADCAST fixture, favorite club or not', async () => {
+    await renderWith([TOTTENHAM_CHARLTON(), BOOTLE_NORTHWICH()], BOOTLE_FAN)
+    expect(matchedIds()).toEqual(['ninety:tottenham-charlton'])
+    expect(matchedIds()).not.toContain('ninety:bootle-northwich')
+  })
+
+  // TEST 10 / TEST 11 / TEST 12
+  it('excludes a CONFIRMED_NOT_BROADCAST fixture from the feed and never matches it, favorite club or not', async () => {
+    const confirmedNot = BOOTLE_NORTHWICH({ broadcast_availability: 'CONFIRMED_NOT_BROADCAST' })
+    for (const preferences of [PREFERENCES, BOOTLE_FAN]) {
+      matchChannelsForEventMock.mockClear()
+      // eslint-disable-next-line no-await-in-loop
+      const result = await renderWith([TOTTENHAM_CHARLTON(), confirmedNot], preferences)
+      expect(feedIds(result)).toEqual(['ninety:tottenham-charlton'])
+      expect(matchedIds()).not.toContain('ninety:bootle-northwich')
+      cleanup()
+    }
+  })
+
+  // TEST 3 / TEST 4 / TEST 5 — everything that is not a stated negative is
+  // matched exactly as before. The UNKNOWN case is the one that matters:
+  // absence of evidence must not become a silent short-circuit.
+  it.each(['CONFIRMED_BROADCAST', 'LIKELY_BROADCAST', 'UNKNOWN'] as const)(
+    'still runs channel matching, and still feeds/heroes, for %s',
+    async (availability) => {
+      const result = await renderWith([BOOTLE_NORTHWICH({ broadcast_availability: availability })])
+      expect(feedIds(result)).toEqual(['ninety:bootle-northwich'])
+      expect(result.current.feed.hero?.id).toBe('ninety:bootle-northwich')
+      expect(matchedIds()).toEqual(['ninety:bootle-northwich'])
+    },
+  )
+
+  // TEST 1 — the backwards-compatibility case, which is what this build
+  // actually runs against until ninety-api ships its half. No mass
+  // disappearance, no skipped matching.
+  it('behaves exactly as before against an API that sends no availability field at all', async () => {
+    const oldPayload = ninetyEvent({ id: 'old-api', start_time_utc: inMinutes(30) })
+    expect('broadcast_availability' in oldPayload).toBe(false)
+    const result = await renderWith([oldPayload])
+    expect(feedIds(result)).toEqual(['ninety:old-api'])
+    expect(result.current.feed.hero?.id).toBe('ninety:old-api')
+    expect(matchedIds()).toEqual(['ninety:old-api'])
+  })
+
+  // TEST 2 — a classification this build predates must not delete anything.
+  it('treats an unrecognized availability value as UNKNOWN rather than hiding the event', async () => {
+    const result = await renderWith([
+      ninetyEvent({ id: 'future-value', start_time_utc: inMinutes(30), broadcast_availability: 'NOT_A_REAL_STATUS' as never }),
+    ])
+    expect(feedIds(result)).toEqual(['ninety:future-value'])
+    expect(matchedIds()).toEqual(['ninety:future-value'])
+  })
+
+  // TEST 19 — the feed's chronological structure survives the new filter.
+  it('still groups the surviving events live, then starting soon, then coming up', async () => {
+    const result = await renderWith([
+      ninetyEvent({ id: 'later', start_time_utc: inMinutes(180) }),
+      ninetyEvent({ id: 'soon', start_time_utc: inMinutes(30) }),
+      ninetyEvent({ id: 'live', start_time_utc: inMinutes(-35), status: 'live' }),
+      BOOTLE_NORTHWICH(),
+    ])
+    expect(result.current.feed.items.map((item) => [item.event.id, item.group])).toEqual([
+      ['ninety:live', 'live'],
+      ['ninety:soon', 'starting-soon'],
+      ['ninety:later', 'coming-up'],
+    ])
+  })
+
+  // The observed screenshot, end to end.
+  it('produces the expected 20:45-slot feed: the three broadcastable fixtures, and no wasted matching', async () => {
+    const result = await renderWith([
+      TOTTENHAM_CHARLTON(),
+      ninetyEvent({ id: 'newcastle-wba', start_time_utc: inMinutes(30), broadcast_availability: 'LIKELY_BROADCAST' }),
+      ninetyEvent({ id: 'longlevens-winslow', start_time_utc: inMinutes(30), broadcast_availability: 'LIKELY_NOT_BROADCAST' }),
+      BOOTLE_NORTHWICH(),
+      ninetyEvent({ id: 'bradford-burnley', start_time_utc: inMinutes(30) }),
+    ])
+    expect(feedIds(result).sort()).toEqual(['ninety:bradford-burnley', 'ninety:newcastle-wba', 'ninety:tottenham-charlton'])
+    expect(matchedIds().sort()).toEqual(['ninety:bradford-burnley', 'ninety:newcastle-wba', 'ninety:tottenham-charlton'])
+  })
+
+  // SECTION 13 — live events. Existing live-feed behaviour is preserved:
+  // a live football card with nowhere to watch it stays out of the row. The
+  // new layer only decides whether the lookup runs at all.
+  it('does not match a LIVE fixture the backend does not expect to be broadcast, so no dead card reaches the row', async () => {
+    const result = await renderWith(
+      [ninetyEvent({ id: 'live-untelevised', start_time_utc: inMinutes(-35), status: 'live', broadcast_availability: 'LIKELY_NOT_BROADCAST' })],
+      BOOTLE_FAN,
+    )
+    expect(matchedIds()).toEqual([])
+    expect(feedIds(result)).toEqual([])
+  })
+
+  it('still matches a LIVE fixture with an UNKNOWN verdict and keeps it in the live row', async () => {
+    const result = await renderWith([ninetyEvent({ id: 'live-unknown', start_time_utc: inMinutes(-35), status: 'live' })])
+    expect(matchedIds()).toEqual(['ninety:live-unknown'])
+    expect(result.current.feed.items.map((item) => item.group)).toEqual(['live'])
+  })
+
+  // TEST 15 — the country preference narrows which broadcasters come back.
+  // It is not an input to the objective verdict, and must not change any of
+  // these decisions.
+  it('reaches the same decisions with a country preference set as without one', async () => {
+    const withCountry: SportPreferences = { ...PREFERENCES, favoriteCountries: ['GB'] }
+    const events = [TOTTENHAM_CHARLTON(), BOOTLE_NORTHWICH()]
+    const plain = await renderWith(events)
+    const plainFeed = feedIds(plain)
+    const plainMatched = matchedIds()
+    cleanup()
+    matchChannelsForEventMock.mockClear()
+
+    const narrowed = await renderWith(events, withCountry)
+    expect(feedIds(narrowed)).toEqual(plainFeed)
+    expect(matchedIds()).toEqual(plainMatched)
+  })
+})

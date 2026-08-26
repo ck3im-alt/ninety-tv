@@ -554,3 +554,117 @@ describe('a viewer with no preferences at all', () => {
     expect(selectHero([ordinary, clFinal], PL_FAN, NOW).hero?.id).toBe('cl-final')
   })
 })
+
+// ===========================================================================
+// HERO — the second gate: objective broadcast availability
+// ===========================================================================
+//
+// Structural, exactly like the 60-minute wall above it: an event the backend
+// does not expect to be televised is not in the pool, so no score can lift
+// it in. These tests are deliberately written against the SAME scenario as
+// the time-wall tests, so what changes between them is only the verdict.
+describe('selectHero — the broadcast wall', () => {
+  // TEST 16 — the accepted hero behaviour, restated with explicit positive
+  // verdicts so the next test isolates one variable.
+  it('still lets a 20-minutes-away Manchester United - Liverpool beat a mediocre live match', () => {
+    const live = TROMSO_MOLDE({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const big = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    expect(selectHero([live, big], MU_FAN, NOW).hero?.id).toBe('mu-liverpool')
+  })
+
+  // TEST 17 — the same fixture, the same favorite club, the same +100. It
+  // cannot buy its way past a verdict; the mediocre live match wins.
+  it('cannot make that same fixture the hero once it is LIKELY_NOT_BROADCAST', () => {
+    const live = TROMSO_MOLDE({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const big = MU_LIVERPOOL({ broadcastAvailability: 'LIKELY_NOT_BROADCAST' })
+    expect(selectHero([live, big], MU_FAN, NOW).hero?.id).toBe('tromso-molde')
+  })
+
+  it('cannot make it the hero when it is CONFIRMED_NOT_BROADCAST either', () => {
+    const live = TROMSO_MOLDE({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const big = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_NOT_BROADCAST' })
+    expect(selectHero([live, big], MU_FAN, NOW).hero?.id).toBe('tromso-molde')
+  })
+
+  it('leaves the hero empty rather than featuring an untelevised match when nothing else is on', () => {
+    const only = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_NOT_BROADCAST' })
+    expect(selectHero([only], MU_FAN, NOW)).toEqual({ hero: null, isWatchableNow: false })
+  })
+
+  // UNKNOWN is not a negative — this is the case that keeps the whole feature
+  // safe to ship before the backend does.
+  it('happily makes an UNKNOWN event the hero, and an event with no verdict at all', () => {
+    expect(selectHero([MU_LIVERPOOL({ broadcastAvailability: 'UNKNOWN' })], MU_FAN, NOW).hero?.id).toBe('mu-liverpool')
+    expect(selectHero([MU_LIVERPOOL()], MU_FAN, NOW).hero?.id).toBe('mu-liverpool')
+  })
+
+  // TEST 18 — the time wall is untouched by any of this. Both events carry
+  // the same positive verdict, so only the clock can decide.
+  it('leaves the 60/61-minute boundary exactly where it was', () => {
+    const live = TROMSO_MOLDE({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const exactly = MU_LIVERPOOL({ dateTimeUtc: at(60), broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const justOver = MU_LIVERPOOL({
+      dateTimeUtc: new Date(NOW + minutes(60) + 1).toISOString(),
+      broadcastAvailability: 'CONFIRMED_BROADCAST',
+    })
+    expect(selectHero([live, exactly], MU_FAN, NOW).hero?.id).toBe('mu-liverpool')
+    expect(selectHero([live, justOver], MU_FAN, NOW).hero?.id).toBe('tromso-molde')
+  })
+
+  // The gate has to cover BOTH hero paths. This is the "nothing is watchable
+  // yet, so the earliest kickoff leads" fallback (see Home's own late-evening
+  // fallback fetch): a small untelevised cup tie must not become the hero
+  // purely by being chronologically next.
+  it('does not let an untelevised fixture win the earliest-kickoff fallback', () => {
+    const seventeen = Date.parse('2026-08-26T17:00:00Z')
+    const smallCupTie = event('bootle-northwich', {
+      league: 'FA Cup',
+      leagueId: 'england_fa_cup',
+      dateTimeUtc: clock('19:45'),
+      broadcastAvailability: 'LIKELY_NOT_BROADCAST',
+    })
+    const later = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    expect(selectHero([smallCupTie, later], NO_PREFERENCES, seventeen).hero?.id).toBe('mu-liverpool')
+  })
+
+  it('still lets an UNKNOWN fixture win that same fallback', () => {
+    const seventeen = Date.parse('2026-08-26T17:00:00Z')
+    const early = event('bootle-northwich', { dateTimeUtc: clock('19:45'), broadcastAvailability: 'UNKNOWN' })
+    const later = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    expect(selectHero([early, later], NO_PREFERENCES, seventeen).hero?.id).toBe('bootle-northwich')
+  })
+})
+
+// The feed's ORDER is a chronological statement and must stay one. Broadcast
+// availability decides what reaches rankHomeFeed (in useHomeFeed), never how
+// what reaches it is sorted.
+describe('rankHomeFeed — broadcast availability is not a ranking input', () => {
+  it('does not reorder live / starting soon / coming up by availability', () => {
+    const live = TROMSO_MOLDE({ broadcastAvailability: 'LIKELY_NOT_BROADCAST' })
+    const soon = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const later = BRIGHTON_NEWCASTLE({ dateTimeUtc: at(180), broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const feed = rankHomeFeed([later, soon, live], MU_FAN, NOW)
+    expect(feed.map((i) => i.event.id)).toEqual(['tromso-molde', 'mu-liverpool', 'brighton-newcastle'])
+    expect(feed.map((i) => i.group)).toEqual(['live', 'starting-soon', 'coming-up'])
+  })
+
+  it('scores an event identically no matter what its availability says', () => {
+    const base = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_BROADCAST' })
+    const negative = MU_LIVERPOOL({ broadcastAvailability: 'CONFIRMED_NOT_BROADCAST' })
+    expect(scoreFeedCandidate(negative, MU_FAN)).toBe(scoreFeedCandidate(base, MU_FAN))
+  })
+})
+
+describe('describeRanking — broadcast diagnostics', () => {
+  it('reports each event’s verdict alongside its score breakdown', () => {
+    const rows = describeRanking(
+      [TROMSO_MOLDE({ broadcastAvailability: 'LIKELY_NOT_BROADCAST' }), MU_LIVERPOOL()],
+      MU_FAN,
+      NOW,
+    )
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    expect(byId.get('tromso-molde')?.broadcastAvailability).toBe('LIKELY_NOT_BROADCAST')
+    // Absent on the event -> reported as UNKNOWN, never as undefined.
+    expect(byId.get('mu-liverpool')?.broadcastAvailability).toBe('UNKNOWN')
+  })
+})

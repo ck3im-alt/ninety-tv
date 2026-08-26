@@ -321,3 +321,84 @@ describe('mapNinetyEvent personalization fields', () => {
     expect(result.homeTeamProminence).toBeUndefined()
   })
 })
+
+// ===========================================================================
+// OBJECTIVE BROADCAST AVAILABILITY — the API mapping
+// ===========================================================================
+//
+// This build is expected to run against a ninety-api that does not send
+// these fields yet, so "what happens when the field isn't there" is the
+// primary case, not the edge case.
+describe('mapNinetyEvent broadcast availability', () => {
+  const bare = () => event([])
+
+  // TEST 1 — missing broadcast_availability from an older API.
+  it('maps an absent broadcast_availability to UNKNOWN, never to a negative', () => {
+    const result = mapNinetyEvent(bare(), league)
+    expect(result.broadcastAvailability).toBe('UNKNOWN')
+    expect(result.broadcastAvailabilityReason).toBeUndefined()
+  })
+
+  it('maps an explicit null the same way an absent field is mapped', () => {
+    const result = mapNinetyEvent({ ...bare(), broadcast_availability: null, broadcast_availability_reason: null }, league)
+    expect(result.broadcastAvailability).toBe('UNKNOWN')
+    expect(result.broadcastAvailabilityReason).toBeUndefined()
+  })
+
+  // TEST 2 — an unrecognized status must never reach Home as itself.
+  it('normalizes an unrecognized status to UNKNOWN rather than propagating it', () => {
+    const result = mapNinetyEvent(
+      // A future backend classification this build predates — cast because
+      // the point is precisely that the runtime value is off-union.
+      { ...bare(), broadcast_availability: 'PROBABLY_ON_THE_RADIO' as never },
+      league,
+    )
+    expect(result.broadcastAvailability).toBe('UNKNOWN')
+  })
+
+  it('carries every recognized status through unchanged, with its reason', () => {
+    for (const status of ['CONFIRMED_BROADCAST', 'LIKELY_BROADCAST', 'UNKNOWN', 'LIKELY_NOT_BROADCAST', 'CONFIRMED_NOT_BROADCAST'] as const) {
+      const result = mapNinetyEvent(
+        { ...bare(), broadcast_availability: status, broadcast_availability_reason: 'no listings in any tracked market' },
+        league,
+      )
+      expect(result.broadcastAvailability).toBe(status)
+      expect(result.broadcastAvailabilityReason).toBe('no listings in any tracked market')
+    }
+  })
+
+  // TEST 14 — the two questions are independent, and this is the direction
+  // that is easy to get wrong: an empty broadcasts array is routine (it is
+  // country-narrowed, and EPG coverage is incomplete) and says nothing at
+  // all about whether the match is televised.
+  it('keeps CONFIRMED_BROADCAST even when the event carries no broadcasts at all', () => {
+    const result = mapNinetyEvent({ ...bare(), broadcast_availability: 'CONFIRMED_BROADCAST' }, league)
+    expect(result.broadcasts).toEqual([])
+    expect(result.broadcastAvailability).toBe('CONFIRMED_BROADCAST')
+  })
+
+  // TEST 15 — `country` narrows which broadcasters come back; it is not an
+  // input to the objective verdict, and a narrowed-to-nothing payload must
+  // not read as a different status than the same event unnarrowed.
+  it('reports the same availability whether or not the country filter removed every broadcaster', () => {
+    const unnarrowed = mapNinetyEvent(
+      { ...event([broadcast({ name: 'Sky Sports', country: 'GB' })]), broadcast_availability: 'CONFIRMED_BROADCAST' },
+      league,
+    )
+    const narrowedAway = mapNinetyEvent({ ...event([]), broadcast_availability: 'CONFIRMED_BROADCAST' }, league)
+    expect(unnarrowed.broadcastAvailability).toBe(narrowedAway.broadcastAvailability)
+    expect(unnarrowed.broadcasts).toHaveLength(1)
+    expect(narrowedAway.broadcasts).toHaveLength(0)
+  })
+
+  // F1 comes from TheSportsDB, which has no such concept — it must read as
+  // UNKNOWN (i.e. behave exactly as it always has), not as missing data
+  // anything treats as a negative.
+  it('leaves a TheSportsDB event with no availability at all, which reads as UNKNOWN', () => {
+    const result = mapEvent(
+      { idEvent: 'f1-1', strEvent: 'Monza Grand Prix', strLeague: 'Formula 1', dateEvent: '2026-08-18', strTime: '13:00:00' } as RawSportsDbEvent,
+      { ...league, id: 'f1', sportKey: 'f1', sportLabel: 'FORMULA 1' },
+    )
+    expect(result.broadcastAvailability).toBeUndefined()
+  })
+})

@@ -247,7 +247,15 @@ function hasDomesticAffinity(event: SportEvent, context: PersonalizationContext)
   )
 }
 
-function isFavoriteTeamPlaying(event: SportEvent, context: PersonalizationContext): boolean {
+// Is one of the viewer's EXPLICITLY favorited clubs playing in this event?
+//
+// Canonical ids only, never display names (see SportEvent.homeTeamId). It
+// is exported because it is no longer only a scoring signal: the Home
+// broadcast-eligibility layer uses this exact test — and only this one,
+// never "the competition is a favorite" — to decide whether an event the
+// backend does not expect to be televised is still worth telling the viewer
+// about. Two callers, one definition, so they can never drift apart.
+export function isFavoriteTeamEvent(event: SportEvent, context: PersonalizationContext): boolean {
   if (context.favoriteTeamIds.size === 0) return false
   return (
     (event.homeTeamId != null && context.favoriteTeamIds.has(event.homeTeamId)) ||
@@ -334,7 +342,7 @@ function temporalPoints(event: SportEvent, now: number): number {
 // difference between the two rankings' scores is whether time is allowed to
 // contribute points at all.
 function scoreEvent(event: SportEvent, context: PersonalizationContext, temporalWeight: 0 | 1, now = 0): ScoreBreakdown {
-  const favoriteTeam = isFavoriteTeamPlaying(event, context) ? HOME_WEIGHTS.favoriteTeam : 0
+  const favoriteTeam = isFavoriteTeamEvent(event, context) ? HOME_WEIGHTS.favoriteTeam : 0
   const favoriteCompetition = isFavoriteCompetition(event, context) ? HOME_WEIGHTS.favoriteCompetition : 0
   const domesticAffinity = hasDomesticAffinity(event, context) ? HOME_WEIGHTS.domesticAffinity : 0
 

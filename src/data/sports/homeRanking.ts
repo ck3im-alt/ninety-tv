@@ -24,6 +24,16 @@
 // relevance — a favorite team, a Champions League final, both — can lift it
 // over something live. A single blended score cannot express that, which is
 // why this file gates first and scores second.
+//
+// THERE ARE NOW TWO SUCH GATES, and the second works exactly like the
+// first: an event ninety-api does not expect to be broadcast anywhere
+// (LIKELY_NOT_BROADCAST / CONFIRMED_NOT_BROADCAST) is not in the hero pool
+// at all — see homeBroadcastEligibility.ts. Also not a score, and for the
+// same reason: the hero is "what should I put on right now", and no amount
+// of personal relevance makes an untelevised match a good answer to that.
+// Note what it is NOT: it does not touch the feed (which has its own,
+// looser rule, including a favorite-club exception) and it does not touch
+// the time architecture above it.
 import {
   EMPTY_PERSONALIZATION_CONTEXT,
   eventTiming,
@@ -35,6 +45,8 @@ import {
   type PersonalizationContext,
   type ScoreBreakdown,
 } from './homePersonalization'
+import { isHeroBroadcastEligible } from './homeBroadcastEligibility'
+import { broadcastAvailabilityOf, type BroadcastAvailability } from './broadcastAvailability'
 import type { SportEvent } from './types'
 
 // Re-exported so callers have one import for "the Home ranking", and so the
@@ -249,7 +261,13 @@ export function selectHero(
   now: number = Date.now(),
   isPlayable: PlayabilityCheck = ALWAYS_PLAYABLE,
 ): HeroSelection {
-  const candidates = getWatchableNowCandidates(events, now)
+  // THE BROADCAST GATE, applied ahead of the time window so it governs BOTH
+  // paths below: the watchable-now pool AND the earliest-kickoff fallback.
+  // A small cup tie with no expected TV production must not become the
+  // fallback hero merely by being chronologically next, which is exactly
+  // what filtering only the first path would allow.
+  const eligible = events.filter(isHeroBroadcastEligible)
+  const candidates = getWatchableNowCandidates(eligible, now)
 
   if (candidates.length > 0) {
     const ranked = [...candidates].sort((a, b) => {
@@ -274,7 +292,7 @@ export function selectHero(
   // stays the hero over a 21:30 blockbuster — the blockbuster is not
   // something you can put on at 17:00, and the hero's job is to answer
   // "what now", not "what is the best match in my week".
-  const upcoming = events.filter((event) => eventTiming(event, now) === 'upcoming')
+  const upcoming = eligible.filter((event) => eventTiming(event, now) === 'upcoming')
   if (upcoming.length === 0) return { hero: null, isWatchableNow: false }
   const [earliestSlot] = clusterByKickoff(upcoming)
   const hero = [...earliestSlot].sort((a, b) => {
@@ -292,6 +310,11 @@ export interface RankingExplanation {
   id: string
   title: string
   timing: EventTiming
+  // The backend's objective verdict, carried alongside the score so a row
+  // that scores highly but never appears is self-explanatory: a hero that
+  // "should have won" and did not is answered by this column, not by the
+  // breakdown. Never a score input — see the hero gate above.
+  broadcastAvailability: BroadcastAvailability
   breakdown: ScoreBreakdown
 }
 
@@ -312,6 +335,7 @@ export function describeRanking(
       id: event.id,
       title: event.title,
       timing: eventTiming(event, now),
+      broadcastAvailability: broadcastAvailabilityOf(event),
       breakdown: getScoreBreakdown(event, context, { now, includeTemporal: true }),
     }))
     .sort((a, b) => b.breakdown.total - a.breakdown.total)

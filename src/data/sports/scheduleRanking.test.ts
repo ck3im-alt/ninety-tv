@@ -205,3 +205,91 @@ describe('league filter', () => {
     expect(groups).toHaveLength(2)
   })
 })
+
+// ===========================================================================
+// SCHEDULE IS NOT HOME
+// ===========================================================================
+//
+// Home gained an objective broadcast-availability filter (see
+// homeBroadcastEligibility.ts). Schedule must never inherit it. Schedule
+// answers "what football is on today" — a fixture being untelevised does not
+// mean it isn't being played, and a viewer looking up whether their club
+// kicks off at 19:45 is asking a sporting question, not a TV one.
+//
+// Both files consume the same mapNinetyEvent output, which is exactly why
+// this is worth a regression test: the event objects Schedule receives now
+// carry a broadcastAvailability, and nothing here may start reading it.
+describe('buildScheduleGroups — untelevised fixtures stay in the schedule', () => {
+  // TEST 13
+  it('keeps a LIKELY_NOT_BROADCAST fixture visible', () => {
+    const fixtures = [
+      fixture({ id: 'longlevens-winslow', leagueId: 'england_fa_cup', broadcastAvailability: 'LIKELY_NOT_BROADCAST' }),
+      fixture({ id: 'bootle-northwich', leagueId: 'england_fa_cup', broadcastAvailability: 'LIKELY_NOT_BROADCAST' }),
+    ]
+    const groups = buildScheduleGroups(fixtures, [])
+    expect(groups.flatMap((g) => g.fixtures.map((f) => f.id))).toEqual(['bootle-northwich', 'longlevens-winslow'])
+  })
+
+  it('keeps a CONFIRMED_NOT_BROADCAST fixture visible too — Home excludes it, Schedule does not', () => {
+    const fixtures = [fixture({ id: 'definitely-not-on-tv', leagueId: 'england_fa_cup', broadcastAvailability: 'CONFIRMED_NOT_BROADCAST' })]
+    const groups = buildScheduleGroups(fixtures, [])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].fixtures.map((f) => f.id)).toEqual(['definitely-not-on-tv'])
+  })
+
+  // The exact screenshot scenario: five fixtures in the same 20:45 slot, two
+  // of which Home drops. Schedule shows all five.
+  it('shows all five fixtures of the observed 20:45 slot regardless of availability', () => {
+    const fixtures = [
+      fixture({ id: 'tottenham-charlton', leagueId: 'england_efl_cup', broadcastAvailability: 'CONFIRMED_BROADCAST' }),
+      fixture({ id: 'newcastle-wba', leagueId: 'england_efl_cup', broadcastAvailability: 'LIKELY_BROADCAST' }),
+      fixture({ id: 'longlevens-winslow', leagueId: 'england_fa_cup', broadcastAvailability: 'LIKELY_NOT_BROADCAST' }),
+      fixture({ id: 'bootle-northwich', leagueId: 'england_fa_cup', broadcastAvailability: 'LIKELY_NOT_BROADCAST' }),
+      fixture({ id: 'bradford-burnley', leagueId: 'england_efl_cup' }),
+    ]
+    const groups = buildScheduleGroups(fixtures, [])
+    expect(groups.flatMap((g) => g.fixtures.map((f) => f.id)).sort()).toEqual([
+      'bootle-northwich',
+      'bradford-burnley',
+      'longlevens-winslow',
+      'newcastle-wba',
+      'tottenham-charlton',
+    ])
+  })
+
+  it('does not let availability change the order of a competition group', () => {
+    const withVerdicts = buildScheduleGroups(
+      [
+        fixture({ id: 'a', leagueId: 'cup', dateTimeUtc: '2026-08-26T19:45:00Z', broadcastAvailability: 'CONFIRMED_NOT_BROADCAST' }),
+        fixture({ id: 'b', leagueId: 'cup', dateTimeUtc: '2026-08-26T20:45:00Z', broadcastAvailability: 'CONFIRMED_BROADCAST' }),
+      ],
+      [],
+    )
+    const withoutVerdicts = buildScheduleGroups(
+      [
+        fixture({ id: 'a', leagueId: 'cup', dateTimeUtc: '2026-08-26T19:45:00Z' }),
+        fixture({ id: 'b', leagueId: 'cup', dateTimeUtc: '2026-08-26T20:45:00Z' }),
+      ],
+      [],
+    )
+    // Chronological either way — the untelevised 19:45 fixture stays first.
+    expect(withVerdicts[0].fixtures.map((f) => f.id)).toEqual(['a', 'b'])
+    expect(withVerdicts[0].fixtures.map((f) => f.id)).toEqual(withoutVerdicts[0].fixtures.map((f) => f.id))
+  })
+})
+
+describe('applyScheduleFilter — the league pills are still the only narrowing', () => {
+  it('keeps untelevised fixtures under the "All" pill', () => {
+    const groups = buildScheduleGroups(
+      [
+        fixture({ id: 'televised', leagueId: 'a_cup', broadcastAvailability: 'CONFIRMED_BROADCAST' }),
+        fixture({ id: 'untelevised', leagueId: 'b_cup', broadcastAvailability: 'CONFIRMED_NOT_BROADCAST' }),
+      ],
+      [],
+    )
+    expect(applyScheduleFilter(groups, null).flatMap((g) => g.fixtures.map((f) => f.id)).sort()).toEqual([
+      'televised',
+      'untelevised',
+    ])
+  })
+})

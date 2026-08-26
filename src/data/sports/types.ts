@@ -1,3 +1,5 @@
+import type { BroadcastAvailability } from './broadcastAvailability'
+
 // Golf/tennis/MMA/basketball were dropped (2026-08-13): no broadcast-data
 // provider exists for them (see channelMatch.ts's history — Sportmonks
 // only covers football/cricket/F1, and the golf-specific APIs researched
@@ -132,4 +134,21 @@ export interface SportEvent {
     confidence: number
     classification: 'CONFIRMED' | 'PROBABLE' | 'AMBIGUOUS' | 'UNKNOWN' | 'REJECTED'
   }[]
+  // --- Objective broadcast availability ---
+  //
+  // Whether the event is expected to be televised ANYWHERE, as decided by
+  // ninety-api. A completely different question from `broadcasts` above,
+  // which is "who is airing it in the viewer's markets, as far as our EPG
+  // data goes" — an empty `broadcasts` array is routine for events that are
+  // definitely on TV, and is never evidence of a negative here (see
+  // broadcastAvailability.ts).
+  //
+  // Optional and frequently absent: F1 events have no such evidence at all,
+  // and no ninety-api deployment older than 2026-08-26 sends it. Absent
+  // means UNKNOWN, which is treated exactly like today's behaviour — read
+  // it through broadcastAvailabilityOf() rather than touching it directly.
+  broadcastAvailability?: BroadcastAvailability
+  // The backend's own short explanation of that verdict, for diagnostics
+  // and Event Details' empty state. Never parsed and never scored.
+  broadcastAvailabilityReason?: string
 }

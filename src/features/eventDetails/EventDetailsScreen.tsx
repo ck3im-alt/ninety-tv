@@ -8,6 +8,7 @@ import type { PartitionedStreamOptions, RankedEventStreamOption } from './buildE
 import { FootballEventHeader, GenericEventHeader } from './EventHeader'
 import { StreamList } from './StreamSections'
 import { loadPreferences } from '../../data/preferences'
+import { broadcastAvailabilityOf, isNegativeBroadcastAvailability } from '../../data/sports/broadcastAvailability'
 import type { SportEvent } from '../../data/sports/types'
 import type { EventPlaybackGroup } from './eventPlaybackGroup'
 import type { Channel } from '../../data/channel'
@@ -186,7 +187,9 @@ export function EventDetailsScreen({
 
         <section className="stream-area">
           {state.status === 'loading' && <StreamAreaLoading />}
-          {state.status === 'not-found' && <NoMatchState apiStations={state.apiStations} onBrowseChannels={onBrowseChannels} />}
+          {state.status === 'not-found' && (
+            <NoMatchState event={event} apiStations={state.apiStations} onBrowseChannels={onBrowseChannels} />
+          )}
           {state.status === 'ready' && partitioned && (
             <StreamList
               partitioned={partitioned}
@@ -223,7 +226,24 @@ function StreamAreaLoading() {
   )
 }
 
-function NoMatchState({ apiStations, onBrowseChannels }: { apiStations: BroadcastStationInfo[]; onBrowseChannels: () => void }) {
+function NoMatchState({
+  event,
+  apiStations,
+  onBrowseChannels,
+}: {
+  event: SportEvent
+  apiStations: BroadcastStationInfo[]
+  onBrowseChannels: () => void
+}) {
+  // The one place the objective broadcast verdict is worth saying out loud.
+  // "No TV channel has been reported for this event YET" implies data we are
+  // still waiting on; when ninety-api has actually concluded that nobody is
+  // expected to televise the fixture, that sentence is simply wrong, and the
+  // honest version stops the viewer re-checking a screen that will never
+  // change. Only ever shown in the already-empty state, and only for a
+  // verdict the backend genuinely stated — UNKNOWN (which includes every
+  // event from a backend predating the field) keeps the original wording.
+  const notExpected = isNegativeBroadcastAvailability(broadcastAvailabilityOf(event))
   return (
     <div className="stream-area-empty">
       {apiStations.length > 0 ? (
@@ -239,6 +259,8 @@ function NoMatchState({ apiStations, onBrowseChannels }: { apiStations: Broadcas
           </ul>
           <p>None of these channels were found in your connected playlist.</p>
         </>
+      ) : notExpected ? (
+        <p>No TV coverage is expected for this event.</p>
       ) : (
         <p>No TV channel has been reported for this event yet.</p>
       )}

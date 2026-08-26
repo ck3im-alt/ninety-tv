@@ -11,6 +11,11 @@ import { buildPersonalizationContext } from './homePersonalization'
 import { describeRanking, eventTiming, rankHomeFeed, selectHero, type EventTiming, type HomeFeedItem } from './homeRanking'
 import { loadWatchAffinity } from './watchAffinity'
 import { matchChannelsForEvent } from './channelMatch'
+import {
+  homeBroadcastEligibility,
+  isChannelMatchBroadcastEligible,
+  isHomeFeedBroadcastEligible,
+} from './homeBroadcastEligibility'
 import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import type { SportEvent } from './types'
 import type { SportPreferences } from '../preferences'
@@ -444,7 +449,18 @@ export function useHomeFeed(
       // channelMatch.ts) and only for events near enough to matter, which
       // keeps this bounded to a few dozen local lookups rather than the
       // whole day's fixture list.
-      const nearTerm = candidates.filter((ev) => ev.sportKey === 'football' && isNearTerm(ev, now))
+      //
+      // The broadcast gate comes FIRST, before the near-term window and
+      // before any matching runs — that ordering is the efficiency half of
+      // the objective-availability feature. An early-round cup tie the
+      // backend says nobody is expected to televise costs zero channel-match
+      // attempts, rather than being matched and then discarded. UNKNOWN is
+      // matched exactly as before: absence of evidence is not a negative,
+      // and short-circuiting it would make every event from a
+      // not-yet-upgraded backend unplayable.
+      const nearTerm = candidates.filter(
+        (ev) => ev.sportKey === 'football' && isChannelMatchBroadcastEligible(ev) && isNearTerm(ev, now),
+      )
       const playableIds = new Set<string>(
         (
           await Promise.all(
@@ -465,20 +481,41 @@ export function useHomeFeed(
       // with a stale one that just finished.
       if (cancelled) return
 
-      // A LIVE football card with nowhere to watch it defeats the point of
-      // the row, so those stay out of the feed — the long-standing
-      // behaviour, unchanged. Note what this does NOT do: the event is
-      // still in `candidates` (so the hero can consider it, and
+      // TWO INDEPENDENT REASONS A CANDIDATE MAY NOT REACH THE FEED, applied
+      // in this order and answering different questions.
+      //
+      // First, objectively: is this expected to be on TV anywhere? Anything
+      // the backend positively rules out is dropped, with one exception —
+      // a LIKELY_NOT_BROADCAST fixture involving an explicit favorite club
+      // stays, as an informational card (see homeBroadcastEligibility.ts).
+      // Absent/UNKNOWN keeps everything, so against a backend that does not
+      // send the field this line removes precisely nothing.
+      const broadcastEligible = candidates.filter((ev) => isHomeFeedBroadcastEligible(ev, personalization))
+
+      // Second, personally: a LIVE football card with nowhere to watch it
+      // defeats the point of the row, so those stay out of the feed — the
+      // long-standing behaviour, unchanged. Note what this does NOT do: the
+      // event is still in `candidates` (so the hero can consider it, and
       // `eventsById` can still resolve it), and scheduled events are never
       // filtered this way. "We can't play it" is a presentation decision
       // about one row, not a reason to pretend the match isn't happening.
-      const feedEvents = candidates.filter((ev) => !(ev.isLive && ev.sportKey === 'football' && !playableIds.has(ev.id)))
+      //
+      // Where the two meet: a favorite club's LIKELY_NOT_BROADCAST match
+      // survives the first filter, is deliberately never channel-matched,
+      // and therefore falls to this second one ONCE IT KICKS OFF — the
+      // informational card is a pre-kickoff courtesy, and the live row's
+      // existing "no dead cards" rule wins over it rather than being
+      // rewritten around it.
+      const feedEvents = broadcastEligible.filter((ev) => !(ev.isLive && ev.sportKey === 'football' && !playableIds.has(ev.id)))
 
       const items = rankHomeFeed(feedEvents, personalization, now)
       // The hero ranks over the FULL candidate pool, including live events
       // with no playable stream — see selectHero: it prefers a playable
       // candidate, and falls back to showing the most relevant one as a
-      // preview rather than to nothing.
+      // preview rather than to nothing. selectHero applies the broadcast
+      // gate itself (to both its watchable-now pool and its earliest-kickoff
+      // fallback), so the pool is deliberately NOT pre-filtered here — one
+      // rule, in one place.
       const { hero, isWatchableNow } = selectHero(candidates, personalization, now, (ev) =>
         ev.sportKey === 'football' ? playableIds.has(ev.id) : true,
       )
@@ -511,6 +548,34 @@ export function useHomeFeed(
           isWatchableNow,
           events: explained,
         }
+
+        // "Why is Bootle - Northwich Victoria missing?" — answerable in one
+        // console read. Deliberately a SECOND array rather than a column on
+        // the ranking above: this one covers every fetched candidate,
+        // INCLUDING the ones the feed removed, which by definition cannot be
+        // inspected through a list of what survived. Each row states the
+        // backend's verdict, its stated reason, whether an explicit favorite
+        // club rescued it, whether it actually reached the rendered feed, and
+        // whether it cost a channel lookup.
+        const feedIds = new Set(items.map((item) => item.event.id))
+        ;(window as unknown as { __ninetyBroadcastEligibility?: unknown }).__ninetyBroadcastEligibility = {
+          now,
+          // How much local matching the broadcast gate actually saved, which
+          // is the other half of what this feature is for.
+          channelMatchesRun: nearTerm.length,
+          channelMatchesSkipped: candidates.filter(
+            (ev) => ev.sportKey === 'football' && !isChannelMatchBroadcastEligible(ev) && isNearTerm(ev, now),
+          ).length,
+          events: candidates.map((ev) => ({
+            id: ev.id,
+            title: ev.title,
+            competition: ev.league,
+            ...homeBroadcastEligibility(ev, personalization),
+            includedInHome: feedIds.has(ev.id),
+            isHero: hero?.id === ev.id,
+          })),
+        }
+
         if (import.meta.env.MODE !== 'test') {
           console.groupCollapsed(`[home] ranking — hero: ${hero?.title ?? 'none'} (watchable: ${isWatchableNow})`)
           console.table(explained.slice(0, 12).map((row) => ({ title: row.title, timing: row.timing, ...row.breakdown })))

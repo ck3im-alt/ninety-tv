@@ -4,6 +4,7 @@ import type { LeagueDef } from './leagues'
 import type { SportEvent } from './types'
 import { isHeuristicallyLive } from './liveHeuristic'
 import { normalizeVenueName } from './humanText'
+import { normalizeBroadcastAvailability } from './broadcastAvailability'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -138,6 +139,13 @@ export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
     homeScore: ev.home_score != null ? String(ev.home_score) : undefined,
     awayScore: ev.away_score != null ? String(ev.away_score) : undefined,
     liveClock: ev.status === 'halftime' ? 'HT' : undefined,
+    // "Is this expected to be on TV at all?" — normalized rather than
+    // copied: absent (any ninety-api older than 2026-08-26), null, or a
+    // classification this build predates all land on 'UNKNOWN', which Home
+    // treats exactly as it treated every event before this feature existed.
+    // A negative verdict is only ever something the backend actually said.
+    broadcastAvailability: normalizeBroadcastAvailability(ev.broadcast_availability),
+    broadcastAvailabilityReason: ev.broadcast_availability_reason ?? undefined,
     // BOTH means the channel is available as linear AND streaming, so it
     // still counts as a valid linear-playlist match; STREAMING-only and
     // UNKNOWN do not.
