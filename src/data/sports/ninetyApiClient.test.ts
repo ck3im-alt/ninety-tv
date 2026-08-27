@@ -131,7 +131,15 @@ describe('ninetyApiClient', () => {
 
     it('calls GET /v1/teams with no query string at all when unfiltered', async () => {
       await getTeams()
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith('https://api.example/v1/teams')
+      // Second argument is the abort signal every call now carries (see
+      // core/net/fetchWithTimeout.ts) -- the URL is what this asserts.
+      expect(vi.mocked(fetch).mock.calls[0][0]).toBe('https://api.example/v1/teams')
+    })
+
+    it('bounds the request, so a backend that never answers cannot hang the screen', async () => {
+      await getTeams()
+      const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit
+      expect(init.signal).toBeInstanceOf(AbortSignal)
     })
   })
 

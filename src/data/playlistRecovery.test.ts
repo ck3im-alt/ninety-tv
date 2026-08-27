@@ -51,7 +51,10 @@ describe('recoverChannelsFromSource', () => {
 
     const channels = await recoverChannelsFromSource(m3uUrlSource)
 
-    expect(fetchWithDevCorsFallback).toHaveBeenCalledWith(m3uUrlSource.url)
+    // Now called with an abort signal as well: startup recovery is bounded
+    // so a stalled M3U host cannot hold the app on its loading state (see
+    // playlistRecovery.timeout.test.ts).
+    expect(fetchWithDevCorsFallback).toHaveBeenCalledWith(m3uUrlSource.url, expect.any(AbortSignal))
     expect(channels).toHaveLength(1)
     expect(channels[0].name).toBe('BBC News')
   })

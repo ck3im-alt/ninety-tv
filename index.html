@@ -5,36 +5,183 @@
     <link rel="icon" type="image/png" href="./tizen/icon.png" />
     <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0, user-scalable=no" />
     <title>NINETY</title>
+    <style>
+      /* Inline and dependency-free on purpose: this has to render when the
+         app bundle is the thing that failed. Matches the app's own dark
+         surface (see core/designsystem/tokens.css) closely enough that a
+         viewer never sees a white flash or a foreign-looking page. */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #08090c;
+        color: #f2f4f8;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      .ninety-boot-fallback {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 24px;
+        padding: 64px;
+        background: #08090c;
+        z-index: 2147483646;
+      }
+      .ninety-boot-fallback[data-visible='true'] {
+        display: flex;
+      }
+      .ninety-boot-fallback .brand {
+        font-size: 28px;
+        letter-spacing: 0.42em;
+        font-weight: 600;
+        color: #7d8798;
+      }
+      .ninety-boot-fallback h1 {
+        margin: 0;
+        font-size: 44px;
+        font-weight: 600;
+      }
+      .ninety-boot-fallback p {
+        margin: 0;
+        max-width: 44ch;
+        font-size: 24px;
+        line-height: 1.5;
+        color: #aab3c2;
+      }
+      /* A real <button>, focused on show, so the remote's OK key activates
+         it without any of the app's spatial-navigation code being alive. */
+      .ninety-boot-fallback button {
+        margin-top: 8px;
+        padding: 18px 52px;
+        font: inherit;
+        font-size: 24px;
+        color: #08090c;
+        background: #f2f4f8;
+        border: 0;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .ninety-boot-fallback button:focus {
+        outline: 4px solid #6ea8ff;
+        outline-offset: 4px;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- Production-safe crash state. Present in the markup (rather than
+         constructed by script) so showing it is a single attribute flip
+         that cannot itself fail. Hidden until something actually goes
+         wrong. -->
+    <div id="boot-fallback" class="ninety-boot-fallback" role="alert" aria-live="assertive">
+      <div class="brand">N I N E T Y</div>
+      <h1>Something went wrong</h1>
+      <p id="boot-fallback-message">Ninety couldn't start. Restarting usually fixes it.</p>
+      <button id="boot-fallback-restart" type="button">Restart</button>
+    </div>
+
     <script>
-      // TEMPORARY re-add, 2026-08-19: diagnosing a reported blue-screen-on-
-      // startup on the physical Tizen TV after this session's perf overhaul.
-      // No devtools/console are reachable on this hardware (sdb shell/dlog
-      // are both blocked on this Partner-tier-restricted TV) — this overlay
-      // is the only way to see a boot-time error on the device itself.
-      // Remove once the real cause is found and confirmed fixed on-device.
+      // Boot supervision.
+      //
+      // Two audiences, deliberately separated (they used to be one thing —
+      // a raw green-on-black stack-trace overlay that was created
+      // unconditionally on EVERY startup and was the normal failure UX for
+      // anyone running the app, testers included).
+      //
+      //   DIAGNOSTIC BUILD (`VITE_PERF_DIAGNOSTICS=1 npm run build:tizen`,
+      //   or the dev server): keeps the full checkpoint log and stack
+      //   traces on screen. This is how the 2026-08-19 Tizen blue-screen
+      //   was found, and it stays available — a physical Samsung TV on
+      //   Partner tier offers no console, no sdb shell and no dlog, so an
+      //   on-screen log is genuinely the only instrument there is.
+      //
+      //   NORMAL BUILD (what a beta tester installs): no overlay, no stack
+      //   traces, no credentials. A fatal boot failure shows the branded
+      //   panel above with a Restart the viewer can actually press.
+      //
+      // The flag is substituted at build time by vite.config.ts's
+      // bootDiagnosticsFlagPlugin.
       ;(function () {
-        var overlay = document.createElement('div')
-        overlay.id = 'boot-diag'
-        overlay.style.cssText =
-          'position:fixed;inset:0;z-index:2147483647;background:#111;color:#7f7;' +
-          'font:20px/1.4 monospace;padding:32px;white-space:pre-wrap;overflow:auto;'
-        overlay.textContent = 'NINETY boot diagnostic\n'
-        document.body.appendChild(overlay)
+        var DIAGNOSTICS = __NINETY_DIAGNOSTICS__
+
+        var fallback = document.getElementById('boot-fallback')
+        var fallbackMessage = document.getElementById('boot-fallback-message')
+        var restart = document.getElementById('boot-fallback-restart')
+        var mounted = false
+        var shown = false
+
+        restart.addEventListener('click', function () {
+          window.location.reload()
+        })
+
+        // The panel is the LAST resort, so it is shown only for a failure
+        // that happened before React took over the screen. Once the app has
+        // mounted, React's own error boundary (src/main.tsx) owns crash
+        // presentation and this must not paint over a working UI.
+        function showFallback(message) {
+          if (mounted || shown) return
+          shown = true
+          if (message) fallbackMessage.textContent = message
+          fallback.setAttribute('data-visible', 'true')
+          try {
+            restart.focus()
+          } catch (e) {
+            /* focus() can throw on old WebKit; the panel is still readable. */
+          }
+        }
+        window.__ninetyShowBootFallback = showFallback
+
+        // --- Diagnostic overlay: only ever created in a diagnostic build ---
+        //
+        // The block between the markers is DELETED OUTRIGHT from a normal
+        // build by vite.config.ts, rather than merely being left unreached
+        // behind `DIAGNOSTICS`. A runtime flag is easy to get wrong once and
+        // impossible to audit at a glance; removing the code means the
+        // overlay's element id cannot appear anywhere in a release
+        // artifact, which is something a release check can actually assert
+        // (see docs/BETA-RELEASE-CHECKLIST.md, section D).
+        //
+        // `overlay` stays declared either way, so every `if (overlay)` guard
+        // below reads null in production instead of throwing.
+        var overlay = null
+        /* @diagnostics-only:start */
+        if (DIAGNOSTICS) {
+          overlay = document.createElement('div')
+          overlay.id = 'boot-diag'
+          overlay.style.cssText =
+            'position:fixed;inset:0;z-index:2147483647;background:#111;color:#7f7;' +
+            'font:20px/1.4 monospace;padding:32px;white-space:pre-wrap;overflow:auto;'
+          overlay.textContent = 'NINETY boot diagnostic\n'
+          document.body.appendChild(overlay)
+        }
+        /* @diagnostics-only:end */
 
         window.__ninetyBootLog = function (msg) {
-          overlay.textContent += msg + '\n'
+          if (overlay) overlay.textContent += msg + '\n'
         }
         window.__ninetyBootMounted = function () {
-          overlay.remove()
+          mounted = true
+          if (overlay) overlay.remove()
         }
+
         function fail(msg) {
-          overlay.style.background = '#300'
-          overlay.style.color = '#f88'
-          overlay.textContent += msg + '\n'
+          if (overlay) {
+            overlay.style.background = '#300'
+            overlay.style.color = '#f88'
+            overlay.textContent += msg + '\n'
+            return
+          }
+          // Production: no stack, no URLs, nothing that could carry a
+          // provider credential from a failed request — just a usable
+          // recovery action.
+          showFallback()
         }
+
         window.onerror = function (msg, src, line, col, err) {
           fail('window.onerror: ' + msg + '\n  @ ' + src + ':' + line + ':' + col + (err && err.stack ? '\n' + err.stack : ''))
         }
@@ -42,6 +189,14 @@
           var reason = ev.reason
           fail('unhandledrejection: ' + (reason && reason.stack ? reason.stack : String(reason)))
         }
+
+        // A bundle that 404s (the real 2026-08-19 base-path bug) produces
+        // no error event on some WebKit builds — it simply never executes,
+        // and the viewer is left on a black screen forever. A watchdog is
+        // the only thing that catches that class of failure.
+        setTimeout(function () {
+          if (!mounted) showFallback("Ninety couldn't start. Restarting usually fixes it.")
+        }, 20000)
       })()
     </script>
     <script type="module" src="/src/main.tsx"></script>

@@ -1,4 +1,5 @@
 export { LoadingScreen } from './LoadingScreen'
+export { LazyScreenFallback } from './LazyScreenFallback'
 export type { LoadingScreenProps } from './LoadingScreen'
 export { PLAYLIST_IMPORT_TITLE, PLAYLIST_IMPORT_STAGES } from './loadingCopy'
 export type { PlaylistImportStage } from './loadingCopy'

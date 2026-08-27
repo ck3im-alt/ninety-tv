@@ -8,6 +8,7 @@
 // proper CORS headers — no dev-proxy fallback needed here, direct fetch
 // works both in `vite dev` and the packaged Tizen widget.
 
+import { fetchWithTimeout } from '../../core/net/fetchWithTimeout'
 import type { TeamFormResult } from './types'
 import type { BroadcastAvailability } from './broadcastAvailability'
 
@@ -45,10 +46,18 @@ export function isEndpointUnavailable(err: unknown): boolean {
   return err instanceof NinetyApiError && (err.status === 404 || err.status === 501)
 }
 
+// Bounded, because Home, Schedule and Event Details all block their first
+// paint on one of these. A backend that accepts the connection and then
+// never answers (a cold Railway container, a dead middlebox holding the
+// socket open) would otherwise leave the TV on a loading state with no
+// timeout and no way back — see core/net/fetchWithTimeout.ts. A
+// RequestTimeoutError propagates to the caller unchanged, so every existing
+// `catch` still sees an Error; callers that keep a cache decide for
+// themselves whether to discard it (they do not — see useHomeFeed).
 async function getJson<T>(path: string): Promise<T> {
   const baseUrl = getBaseUrl()
   if (!baseUrl) throw new Error('VITE_NINETY_API_URL is not set (see .env.example)')
-  const res = await fetch(`${baseUrl}${path}`)
+  const res = await fetchWithTimeout(`${baseUrl}${path}`)
   if (!res.ok) throw new NinetyApiError(path, res.status)
   return (await res.json()) as T
 }

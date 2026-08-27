@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { warmChannelIndexAsync } from '../channelIndex'
 import { markPerf, measurePerf } from '../../core/perf/devPerf'
 import { EmptyPlaylistError } from './connectPlaylist'
+import { isRequestTimeout } from '../../core/net/fetchWithTimeout'
 import { combinePlaylistChannels, type LoadedPlaylistChannels } from './combinePlaylistChannels'
 import {
   commitPlaylistChannels,
@@ -378,5 +379,11 @@ export function usePlaylistLibrary(): PlaylistLibrary {
 // nothing outside this hook has any reason to format one.
 function syncErrorMessage(err: unknown): string {
   if (err instanceof EmptyPlaylistError) return 'That playlist has no channels — nothing was changed.'
+  // Worth separating from a generic failure: "didn't respond" tells a
+  // viewer (and a beta tester writing up a report) that the provider is
+  // reachable-but-slow rather than that Ninety rejected their playlist.
+  // Both branches say the existing playlist was kept, because it was —
+  // recoverOne() only sets a status here, it never clears cached channels.
+  if (isRequestTimeout(err)) return "Playlist server didn't respond — existing playlist kept."
   return "Couldn't sync — existing playlist kept."
 }

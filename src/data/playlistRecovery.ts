@@ -17,6 +17,7 @@
 // prompt instead (see hydratePlaylistLibrary()'s `unrecoverableFiles`).
 
 import { fetchWithDevCorsFallback } from '../core/net/devCorsProxy'
+import { DEFAULT_REQUEST_TIMEOUT_MS, RequestTimeoutError } from '../core/net/fetchWithTimeout'
 import { parseM3u } from './m3u/parseM3u'
 import { getLiveCategories, getLiveStreams } from './xtream/xtreamClient'
 import { liveStreamsToChannels } from './xtream/toChannels'
@@ -32,6 +33,31 @@ export async function recoverChannelsFromSource(
     const [categories, streams] = await Promise.all([getLiveCategories(creds), getLiveStreams(creds)])
     return mergeChannelSources(liveStreamsToChannels(streams, categories, creds))
   }
-  const response = await fetchWithDevCorsFallback(source.url)
+  // Bounded like every other metadata fetch. This runs on STARTUP, for each
+  // playlist whose channel cache needs rebuilding, and a plain M3U host that
+  // accepts the connection then stalls would otherwise hold the app on its
+  // loading state indefinitely with no way for the viewer to intervene. The
+  // Xtream branch above needs nothing here — xtreamClient already applies
+  // its own 12s AbortController bound to every panel call.
+  //
+  // Deliberately a THROW rather than an empty channel list: the caller
+  // (usePlaylistLibrary's hydrate path) treats a failed recovery as "this
+  // playlist still needs recovering" and leaves whatever is already cached
+  // alone. Returning [] would present as a successful recovery of a
+  // playlist with no channels — which is exactly how good data gets
+  // overwritten by a transient network failure.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS)
+  let response: Response
+  try {
+    response = await fetchWithDevCorsFallback(source.url, controller.signal)
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new RequestTimeoutError(DEFAULT_REQUEST_TIMEOUT_MS)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
   return mergeChannelSources(parseM3u(await response.text()))
 }

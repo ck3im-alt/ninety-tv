@@ -1,4 +1,6 @@
 import { Readable } from 'node:stream'
+import { existsSync, readdirSync, rmSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -90,8 +92,81 @@ function iptvDevProxyPlugin(): Plugin {
   }
 }
 
+// Keeps OS/editor droppings out of the shipped package.
+//
+// Vite copies public/ into dist/ wholesale, with no filter option, so a
+// .DS_Store that Finder writes into public/backgrounds/ (gitignored, and
+// therefore invisible in `git status`) was being copied into dist/ and from
+// there straight into the .wgt. It is real bytes in a real release artifact
+// that no reviewer would ever see in a diff.
+//
+// Runs on the browser build as well as the Tizen one, because build:tizen
+// stages from dist/ — fixing it here fixes both targets in one place.
+function stripDotfilesFromOutputPlugin(): Plugin {
+  return {
+    name: 'ninety-strip-dotfiles-from-output',
+    // `writeBundle` runs after Vite has copied publicDir, which `closeBundle`
+    // is not guaranteed to.
+    closeBundle: {
+      order: 'post',
+      handler() {
+        const outDir = resolve(import.meta.dirname, 'dist')
+        if (!existsSync(outDir)) return
+        for (const entry of readdirSync(outDir, { recursive: true, withFileTypes: true })) {
+          if (!entry.isFile() || !entry.name.startsWith('.')) continue
+          rmSync(resolve(entry.parentPath, entry.name), { force: true })
+        }
+      },
+    },
+  }
+}
+
+// Decides, at BUILD time, whether index.html's boot script is allowed to
+// show the raw developer diagnostic overlay.
+//
+// Same gate as core/perf/devPerf.ts's PERF_DIAGNOSTICS_ENABLED (`DEV ||
+// VITE_PERF_DIAGNOSTICS === '1'`), deliberately, so there is one way to ask
+// for on-device diagnostics rather than two:
+//
+//   VITE_PERF_DIAGNOSTICS=1 npm run build:tizen
+//
+// index.html is plain HTML, not a module, so it cannot read import.meta.env
+// itself — this plugin substitutes the decision into it. The placeholder
+// resolves to `false` for an ordinary production build, which is what makes
+// the branded crash screen (not the stack dump) the beta failure UX.
+function bootDiagnosticsFlagPlugin(isDiagnostic: boolean): Plugin {
+  return {
+    name: 'ninety-boot-diagnostics-flag',
+    // `order: 'pre'` is load-bearing. Vite minifies index.html's inline
+    // script as part of its own HTML processing, and minification strips
+    // comments -- including the /* @diagnostics-only */ markers this relies
+    // on. Running after that leaves nothing to match and silently ships the
+    // block. (Found exactly that way: the first version of this plugin ran
+    // at default order and the release artifact still contained the
+    // overlay.)
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        const withFlag = html.replace('__NINETY_DIAGNOSTICS__', String(isDiagnostic))
+        if (isDiagnostic) return withFlag
+        // Strip the diagnostic-only block entirely rather than leaving it
+        // unreachable behind the flag. Dead code in a release artifact
+        // still reads as a shipped debug surface to anyone auditing the
+        // package, and "the string is absent" is a check a release process
+        // can run; "the flag happens to be false" is not.
+        return withFlag.replace(
+          /\/\* @diagnostics-only:start \*\/[\s\S]*?\/\* @diagnostics-only:end \*\//g,
+          '',
+        )
+      },
+    },
+  }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  const diagnostics = command === 'serve' || mode === 'development' || process.env.VITE_PERF_DIAGNOSTICS === '1'
+  return {
   // Relative, not root-absolute: a packaged Tizen .wgt is loaded via
   // file://.../index.html (config.xml's <content src="index.html"/> is
   // resolved relative to the widget's own extracted directory, not a web
@@ -100,7 +175,8 @@ export default defineConfig({
   // before React ever mounts (blank screen, nothing in console). Relative
   // paths also resolve correctly under GitHub Pages' /ninety-tv/ subpath,
   // so one setting covers both targets — no per-target branching needed.
-  base: './',
-  build: { target: 'es2017' },
-  plugins: [react(), iptvDevProxyPlugin()],
+    base: './',
+    build: { target: 'es2017' },
+    plugins: [react(), iptvDevProxyPlugin(), bootDiagnosticsFlagPlugin(diagnostics), stripDotfilesFromOutputPlugin()],
+  }
 })

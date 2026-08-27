@@ -26,7 +26,7 @@ import { getChannelIndex } from './data/channelIndex'
 import { useChannelIdentityIndex } from './data/sports/useChannelIdentityIndex'
 import { useHomeFeed } from './data/sports/useHomeFeed'
 import { recordEventOpened, recordEventWatched } from './data/sports/watchAffinity'
-import { LoadingScreen, PLAYLIST_IMPORT_STAGES, PLAYLIST_IMPORT_TITLE, useDeferredBusy } from './core/ui'
+import { LazyScreenFallback, LoadingScreen, PLAYLIST_IMPORT_STAGES, PLAYLIST_IMPORT_TITLE, useDeferredBusy } from './core/ui'
 import type { PlaylistImportStage } from './core/ui'
 import { markPerf, measurePerf } from './core/perf/devPerf'
 import { DEBUG_FORCE_SCREEN_KEY } from './core/debugForceScreen'
@@ -550,7 +550,11 @@ function App() {
           out means it stays visible (exactly as today) while a lazy screen's
           chunk is still being fetched, instead of the whole top bar
           flashing away too. */}
-      <Suspense fallback={null}>
+      {/* Not `null`: a slow chunk on a TV otherwise looks like a dead app.
+          LazyScreenFallback stays invisible for the fast common case, so
+          this changes nothing for a transition that was already instant —
+          see core/ui/LazyScreenFallback.tsx. */}
+      <Suspense fallback={<LazyScreenFallback />}>
       {screen === 'home' && (
         <HomeScreen
           feedState={homeFeedState}
