@@ -2,7 +2,7 @@
 <widget xmlns="http://www.w3.org/ns/widgets"
         xmlns:tizen="http://tizen.org/ns/widgets"
         id="https://ninety.tv/app"
-        version="0.0.1"
+        version="0.1.0"
         viewmodes="fullscreen">
     <tizen:application id="NinetyTvAp.NinetyTV"
                         package="NinetyTvAp"

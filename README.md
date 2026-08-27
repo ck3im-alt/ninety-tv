@@ -11,6 +11,10 @@ TV-focused frontend for NINETY — a smart TV app for browsing an IPTV playlist 
 - Third-party sports metadata (team badges, etc.) still comes from TheSportsDB (`src/data/sports/theSportsDbClient.ts`) alongside ninety-api. Sportmonks was used previously but was dropped entirely (2026-08-17) in favor of ninety-api's own resolver.
 - There is no router yet — `App.tsx` uses an in-memory `Screen` union as a temporary screen switcher.
 
+## Requirements
+
+- **Node.js `^22.22.2 || ^24.15.0 || >=26`** (see `engines` in `package.json`, and `.nvmrc`). This is not advisory: `jsdom@30` — which every `@vitest-environment jsdom` test file depends on — refuses to import on anything older, and its `undici@8` dependency calls `worker_threads.markAsUncloneable`, absent before Node 22.10. On Node 20 the jsdom test files die at worker startup rather than failing individually, which reads as a test failure rather than an environment one. `src/core/boot/toolchain.test.ts` keeps CI, `.nvmrc` and `engines` in agreement.
+
 ## Local setup
 
 1. Clone and run `ninety-api` locally (see that repo's README) — it typically serves on `http://localhost:3000`.
@@ -46,6 +50,29 @@ Always verify real feature work with `npm run build:tizen` (or at minimum `npm r
 | `npm test` | Test suite |
 | `npm run preview` | Preview a built `dist/` locally |
 
-## Deploy
+`npm test` is hermetic: it must pass with **no `.env` file present**, exactly as CI runs it. If a test only passes when your local `.env` exists, that test is wrong — read `import.meta.env` lazily inside the function rather than into a module-level const (see `src/data/sports/ninetyApiClient.ts`).
 
-GitHub Pages deploy (`.github/workflows/deploy.yml`) reads `VITE_NINETY_API_URL` from the repository variable of the same name (Settings → Secrets and variables → Actions → Variables) at build time — it is not hard-coded anywhere in source or in the workflow file.
+### Diagnostic builds
+
+```
+VITE_PERF_DIAGNOSTICS=1 npm run build:tizen
+```
+
+Produces a real production build with performance instrumentation (`src/core/perf/devPerf.ts`) **and** the on-screen boot diagnostic overlay (`index.html`) compiled in. This exists because a Partner-tier Samsung TV offers no console, no `sdb shell` and no `dlog` — an on-screen log is the only instrument available on the device.
+
+A **normal** build has neither. A boot failure there shows a branded, dependency-free crash panel with a Restart button and no stack trace; a fatal render crash after startup shows the same panel via `src/core/boot/BootErrorBoundary.tsx`. Never hand a tester a diagnostic build.
+
+## CI
+
+`.github/workflows/ci.yml` runs, in order: `npm ci`, `npm test`, `npm run lint`, `npm run build`, `npm run build:tizen`. A failure at any step skips the rest, so a broken test hides the state of the builds behind it.
+
+The workflow requires a repository variable `VITE_NINETY_API_URL` (Settings → Secrets and variables → Actions → **Variables**) and fails with an explicit message if it is unset. It is read at build time and is not hard-coded in source or in the workflow.
+
+On a push to `main`, the same workflow deploys `dist/` to GitHub Pages. That deploy is the **browser** target and is not the Tizen release; the `.wgt` a tester installs is built and signed separately (see below).
+
+## Releasing
+
+- **Version** — `package.json` and `config.xml` must carry the same numeric `x.y.z` version; `src/core/boot/toolchain.test.ts` enforces it. Tizen rejects a semver pre-release suffix in `config.xml`, so a beta iteration lives in the git tag (`v0.1.0-beta.1`) rather than in the widget version.
+- **Backend** — the TV needs a deployed `ninety-api`. That repo deploys on Railway, whose start command (`railway.json`) is `npm run migrate up && npm start`, so **pending migrations are applied automatically on deploy**, before the server starts.
+- **Beta configuration** — the only thing that must be set for a beta build is `VITE_NINETY_API_URL`, pointing at the deployed API. There is no default and no fallback.
+- **Signing** — `npm run build:tizen` produces an *unsigned* `.wgt`. Signing needs a Tizen Studio author certificate; see [TIZEN-PLAN.md](TIZEN-PLAN.md) (Fase E) and [docs/BETA-RELEASE-CHECKLIST.md](docs/BETA-RELEASE-CHECKLIST.md).

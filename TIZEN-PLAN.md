@@ -1,6 +1,22 @@
 # NINETY — Google TV → Samsung Tizen TV: plan
 
-> Statusdokument. Oppdateres fortløpende etter hvert steg er gjort. Hver ny session starter med å lese denne filen for å vite hva som er gjort og hva som er neste steg.
+> **⚠️ HISTORISK ARBEIDSLOGG — ikke en beskrivelse av dagens kode.**
+>
+> Denne filen er bevart som prosjekthistorikk: den forklarer *hvorfor* ting
+> ble som de ble, steg for steg, og den verdien er reell. Men den er ikke
+> vedlikeholdt som dokumentasjon, og enkeltdetaljer i den er utdaterte —
+> f.eks. omtaler den bakgrunnsbilder (`premier-league.jpg`, `golf.png`,
+> `Europa_League.png`, `Confrerence_League.png`) som ble erstattet av det
+> kuraterte `public/backgrounds/Match_hero/`-settet og slettet i pre-beta-
+> oppryddingen 2026-08-27.
+>
+> **For dagens tilstand, les i stedet:**
+> - [`README.md`](README.md) — hva repoet er, krav, test, bygg, release
+> - [`docs/BETA-RELEASE-CHECKLIST.md`](docs/BETA-RELEASE-CHECKLIST.md) — hvordan beta faktisk kuttes
+> - [`docs/TIZEN-HARDWARE-QUALIFICATION.md`](docs/TIZEN-HARDWARE-QUALIFICATION.md) — maskinvarekvalifisering
+> - koden og testene, som er de eneste kildene som ikke kan råtne
+>
+> Fase E (signering/installasjon) nedenfor er fortsatt gjeldende prosedyre.
 
 **Sist oppdatert:** 2026-08-20 (Phase 2C — Spania/Italia EPG-utvidelse + fjernet hardkodet viewer-market-liste)
 **Neste steg:** Sportmonks er fullstendig fjernet (2026-08-17) — fotball-data kommer nå fra `ninety-api`, en egen backend som løser fixtures, lag/liga-metadata og reelle lineære kringkastingskanaler via sin egen EPG-resolver (se README.md). `ninety-api` er nå den eneste kilden til sannhet for både konkurransekatalogen (`GET /v1/competitions`, 50 fotball-konkurranser — `ninety-tv` dupliserer den ikke lenger, se `data/sports/competitionsCatalog.ts`) og EPG-markeder: `ninety-tv` har ingen hardkodet liste over hvilke land backend har kringkastingsdekning for (se `data/sports/viewerMarket.ts`) — en favorittland uten dagens EPG-dekning sendes fortsatt som en gyldig `country=`-kode til `GET /v1/events`, som bare snevrer inn `broadcasts[]` og aldri fjerner selve hendelsen, så backend kan legge til et marked uten at frontend trenger en ny release.
