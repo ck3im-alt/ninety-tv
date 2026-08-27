@@ -82,14 +82,14 @@ describe('StreamRow quality presentation', () => {
     )
     expect(container.querySelectorAll('.stream-row-quality-cue')).toHaveLength(0)
     // Exactly one quality value in the row — not a selectable list.
-    expect(container.querySelectorAll('.stream-row-quality-value')).toHaveLength(1)
+    expect(container.querySelectorAll('.stream-row-quality-col')).toHaveLength(1)
   })
 
   it('does not change the displayed quality when arrow keys are pressed', () => {
     const { container } = render(
       <StreamRow option={mergedOption()} variant="default" favoriteChannels={new Set()} onToggleFavoriteChannels={() => {}} onWatch={() => {}} />,
     )
-    const value = () => container.querySelector('.stream-row-quality-value')?.textContent
+    const value = () => container.querySelector('.stream-row-quality-col')?.textContent
     expect(value()).toBe('8K')
     for (const key of ['ArrowRight', 'ArrowRight', 'ArrowLeft']) {
       fireEvent.keyDown(window, { key, keyCode: key === 'ArrowRight' ? 39 : 37 })
@@ -151,7 +151,7 @@ describe('StreamRow with same-quality mirrors behind a tier', () => {
       <StreamRow option={mirroredOption()} variant="default" favoriteChannels={new Set()} onToggleFavoriteChannels={() => {}} onWatch={() => {}} />,
     )
     expect(container.querySelectorAll('.stream-row')).toHaveLength(1)
-    const values = [...container.querySelectorAll('.stream-row-quality-value')].map((n) => n.textContent)
+    const values = [...container.querySelectorAll('.stream-row-quality-col')].map((n) => n.textContent)
     expect(values).toEqual(['UHD'])
   })
 
@@ -175,5 +175,97 @@ describe('StreamRow favorite state for a merged row', () => {
     const { onToggleFavoriteChannels } = renderRow()
     fireEvent.click(screen.getByLabelText('Add to favorites'))
     expect(onToggleFavoriteChannels).toHaveBeenCalledWith(['p1', 'p2'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Row metadata (2026-08-26)
+// ---------------------------------------------------------------------------
+// Country used to be stated ONLY as a section heading, which works for the
+// viewer's preferred markets (one heading each) and left the flat "Other
+// countries" bucket saying nothing at all — so a Danish feed recommended to
+// a Norwegian viewer looked like any other row until the commentary started.
+describe('StreamRow metadata', () => {
+  function optionFrom(groupTitle: string, sources: ChannelSource[]): RankedEventStreamOption {
+    const channel: Channel = { id: 'c1', name: 'TV 2 Sport 1', groupTitle, sources }
+    const match: ChannelMatch = {
+      channel,
+      source: 'ninety',
+      label: 'TV 2 Sport 1',
+      isExactMatch: true,
+      identityClassification: 'CONFIRMED',
+      logicalChannelId: 'dk_tv2_sport_1',
+    }
+    return rankEventStreamOptions(buildEventStreamOptions([match], new Set<string>()), {
+      favoriteCountries: [],
+      streamType: 'auto',
+    })[0]
+  }
+
+  const render1 = (option: RankedEventStreamOption, showCountry?: boolean) =>
+    render(
+      <StreamRow
+        option={option}
+        variant="default"
+        showCountry={showCountry}
+        favoriteChannels={new Set()}
+        onToggleFavoriteChannels={() => {}}
+        onWatch={() => {}}
+      />,
+    )
+
+  it('names the country on a row that asks for it', () => {
+    const { container } = render1(optionFrom('DK| Sport', [{ label: 'FHD', url: 'http://x/1' }]), true)
+    const tag = container.querySelector('.stream-row-country')
+    expect(tag).toBeTruthy()
+    // The ISO code on screen, the full name in the tooltip/label — "United
+    // Kingdom" spelled out would be wider than the type and quality tags
+    // put together.
+    expect(tag?.querySelector('.stream-row-country-code')?.textContent).toBe('DK')
+    expect(tag?.getAttribute('title')).toBe('Denmark')
+    expect(tag?.querySelector('.stream-row-country-flag')).toBeTruthy()
+  })
+
+  it('says nothing about country on a row whose section heading already does', () => {
+    const { container } = render1(optionFrom('DK| Sport', [{ label: 'FHD', url: 'http://x/1' }]))
+    expect(container.querySelector('.stream-row-country')).toBeNull()
+  })
+
+  it('shows no country tag at all when the origin is genuinely unknown', () => {
+    // No recognizable country in the group title — better to say nothing
+    // than to render a placeholder that looks like a broken flag.
+    const { container } = render1(optionFrom('Sports', [{ label: 'FHD', url: 'http://x/1' }]), true)
+    expect(container.querySelector('.stream-row-country')).toBeNull()
+  })
+
+  it('gives UHD and above one step more emphasis, and nothing else a status colour', () => {
+    const { container: uhd } = render1(optionFrom('DK| Sport', [{ label: 'UHD', url: 'http://x/1' }]))
+    expect(uhd.querySelector('.stream-row-quality-col')?.className).toContain('high')
+
+    // HD is not a warning state and must not be styled as one — it is
+    // simply the ordinary quality treatment.
+    const { container: hd } = render1(optionFrom('DK| Sport', [{ label: 'HD', url: 'http://x/2' }]))
+    const hdClass = hd.querySelector('.stream-row-quality-col')?.className ?? ''
+    expect(hdClass).not.toContain('high')
+    expect(hdClass).not.toContain('unknown')
+  })
+
+  it('drops the quality treatment entirely when quality is unknown', () => {
+    // No quality tag anywhere in the source label — the one case where
+    // Ninety genuinely does not know.
+    const { container } = render1(optionFrom('DK| Sport', [{ label: '', url: 'http://x/1' }]))
+    const badge = container.querySelector('.stream-row-quality-col')
+    expect(badge?.className).toContain('unknown')
+    expect(badge?.textContent).toBe('—')
+  })
+
+  it('keeps every tag inside the one fixed-width group that aligns the Watch column', () => {
+    const { container } = render1(optionFrom('DK| Sport', [{ label: 'FHD', url: 'http://x/1' }]), true)
+    const meta = container.querySelector('.stream-row-meta')
+    expect(meta).toBeTruthy()
+    // Country, type and quality — and no tag loose outside the group, which
+    // is what would break the alignment down a long list.
+    expect(meta?.querySelectorAll('.stream-row-badge')).toHaveLength(3)
+    expect(container.querySelectorAll('.stream-row-badge')).toHaveLength(3)
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
 import { ROOT_FOCUS_KEY, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { FocusDebugOverlay } from './core/platform'
 import { TopNav } from './features/navigation/TopNav'
@@ -26,10 +26,13 @@ import { getChannelIndex } from './data/channelIndex'
 import { useChannelIdentityIndex } from './data/sports/useChannelIdentityIndex'
 import { useHomeFeed } from './data/sports/useHomeFeed'
 import { recordEventOpened, recordEventWatched } from './data/sports/watchAffinity'
+import { LoadingScreen, PLAYLIST_IMPORT_STAGES, PLAYLIST_IMPORT_TITLE, useDeferredBusy } from './core/ui'
+import type { PlaylistImportStage } from './core/ui'
 import { markPerf, measurePerf } from './core/perf/devPerf'
 import { DEBUG_FORCE_SCREEN_KEY } from './core/debugForceScreen'
 import { SCREEN_AFTER_ONBOARDING, resolveInitialScreen, type Screen } from './core/appScreens'
 import type { Channel } from './data/channel'
+import type { PlaylistSourceRecord } from './data/session'
 import type { SportEvent } from './data/sports/types'
 import type { EventPlaybackGroup } from './features/eventDetails/eventPlaybackGroup'
 import { createMultiviewSession } from './features/multiview/multiviewSession'
@@ -182,7 +185,13 @@ function App() {
   // (cheap sync localStorage read), same as HomeScreen used to do — Effect
   // 1 inside useHomeFeed only actually refetches when the derived prefsKey
   // string changes, e.g. right after onboarding calls savePreferences.
-  const homeFeedState = useHomeFeed(loadPreferences(), library.channels, library.xtream, identityIndex)
+  // Read fresh on every render (a cheap sync localStorage read) so a
+  // savePreferences from onboarding/Settings is picked up without a
+  // restart — hoisted into one binding because Channels now needs the same
+  // object for its preferred-country ORDER, and two independent reads per
+  // render would be two chances to disagree.
+  const preferences = loadPreferences()
+  const homeFeedState = useHomeFeed(preferences, library.channels, library.xtream, identityIndex)
   // Both playlist notices now live in the playlist library hook (it owns
   // every path that can produce one) — see PlaylistToast below for the
   // "couldn't save/reconnect" case and PlaylistSetupScreen's `notice` prop
@@ -243,6 +252,39 @@ function App() {
   const [cascadeCountry, setCascadeCountry] = useState<string | null>(null)
   const [cascadeCategory, setCascadeCategory] = useState<string | null>(null)
   const [cascadeChannel, setCascadeChannel] = useState<Channel | null>(null)
+
+  // Installing a playlist — merging, persisting and building the ~30,000
+  // channel ChannelIndex — is the one operation in the app long enough that
+  // the screen it leads to genuinely cannot render yet. `active` and `stage`
+  // are one state object so the stage SURVIVES the operation finishing: the
+  // overlay outlives `active` by its minimum-visible window (see
+  // useDeferredBusy), and re-reading a cleared stage during that tail would
+  // visibly rewrite the caption on the way out.
+  const [install, setInstall] = useState<{ active: boolean; stage: PlaylistImportStage }>({
+    active: false,
+    stage: 'organizing',
+  })
+  const installing = useDeferredBusy(install.active)
+
+  // Wraps every path that hands freshly-loaded channels to the library, so
+  // none of them can forget the loading state or leave it stuck on. Resolves
+  // to whether the install succeeded, so callers only navigate on success.
+  const installPlaylist = useCallback(
+    async (source: PlaylistSourceRecord, channels: Channel[]): Promise<boolean> => {
+      setInstall({ active: true, stage: 'organizing' })
+      try {
+        await library.addOrReconnectPlaylist(source, channels)
+        return true
+      } catch (err) {
+        console.warn('[app] playlist install failed:', err)
+        return false
+      } finally {
+        // Stage deliberately retained — see the state's own comment.
+        setInstall((prev) => ({ ...prev, active: false }))
+      }
+    },
+    [library],
+  )
 
   const [hiddenCountries, setHiddenCountries] = useState<Set<string>>(() => new Set(loadFilters().hiddenCountries))
   // Composite `${country}::${category}` keys — see categoryFavoriteKey.
@@ -570,8 +612,12 @@ function App() {
             //
             // The library hook handles persistence and the ChannelIndex
             // pre-warm, so the screen transition still never lands on the
-            // same main-thread task as a ~30,000-channel index build.
-            void library.addOrReconnectPlaylist(source, loaded).then(() => setScreen('browse-cascade'))
+            // same main-thread task as a ~30,000-channel index build. The
+            // wait is covered by the Ninety loading state (installPlaylist),
+            // which also keeps the remote inert until Channels can render.
+            void installPlaylist(source, loaded).then((ok) => {
+              if (ok) setScreen('browse-cascade')
+            })
           }}
         />
       )}
@@ -587,21 +633,17 @@ function App() {
               setScreen(SCREEN_AFTER_ONBOARDING)
               return
             }
-            // Country detection for the initial filter doesn't depend on
-            // ChannelIndex — safe to compute immediately, in parallel with
-            // the pre-warm below (parseCategory's own memoization already
-            // makes this loop cheap; ChannelIndex's pre-warm will hit the
-            // same cache).
-            const favoriteCountries = loadPreferences().favoriteCountries ?? []
-            if (favoriteCountries.length > 0) {
-              const allCountries = new Set<string>()
-              for (const channel of loaded) {
-                const { countryName } = parseCategory(channel.groupTitle || '')
-                if (countryName) allCountries.add(countryName)
-              }
-              const favorites = new Set(favoriteCountries)
-              setHiddenCountries(new Set([...allCountries].filter((name) => !favorites.has(name))))
-            }
+            // PREFERRED COUNTRIES ARE A RANKING SIGNAL, NEVER A FILTER.
+            // This used to seed hiddenCountries with every playlist country
+            // the viewer had NOT preferred, which silently deleted most of
+            // their playlist from the Channels browser the moment they
+            // finished onboarding — a preference expressed as "prioritize
+            // Norway" was being executed as "hide Denmark, Germany, Spain".
+            // The preference now reaches Channels as an ORDER (see
+            // BrowseCascadeScreen's preferredCountries prop) and
+            // hiddenCountries stays what it always was: the explicit,
+            // user-driven Filter popup. Nothing is seeded here.
+            //
             // addPlaylist persists the playlist AND pre-warms the
             // ChannelIndex before installing it, so this transition still
             // never lands a ~30,000-channel index build on the same
@@ -612,7 +654,7 @@ function App() {
             // preferences savePreferences just wrote are picked up by
             // useHomeFeed's prefsKey on this very transition; no restart, no
             // second preferences store.
-            void library.addOrReconnectPlaylist(source, loaded).then(() => setScreen(SCREEN_AFTER_ONBOARDING))
+            void installPlaylist(source, loaded).then(() => setScreen(SCREEN_AFTER_ONBOARDING))
           }}
         />
       )}
@@ -622,6 +664,7 @@ function App() {
           channelIndex={channelIndex}
           xtream={library.xtream}
           hiddenCountries={hiddenCountries}
+          preferredCountries={preferences.favoriteCountries}
           hiddenCategories={hiddenCategories}
           favoriteCategories={favoriteCategories}
           onToggleFavoriteCategory={(key) => toggleInSet(favoriteCategories, setFavoriteCategories, key)}
@@ -724,6 +767,13 @@ function App() {
       )}
 
       {library.notice && <PlaylistToast message={library.notice} onDismiss={library.dismissNotice} />}
+
+      {/* The second half of a playlist import — see installPlaylist. Sits
+          outside every screen because it deliberately outlives the screen
+          change it is covering: onboarding's last step is still mounted when
+          this goes up, and Home is mounted before it comes down, so neither
+          is ever seen half-built. */}
+      {installing && <LoadingScreen title={PLAYLIST_IMPORT_TITLE} detail={PLAYLIST_IMPORT_STAGES[install.stage]} />}
 
       {import.meta.env.DEV && adminOpen && (
         <AdminPanel channels={library.channels} onClose={() => setAdminOpen(false)} />

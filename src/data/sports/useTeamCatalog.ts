@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { TeamCatalogUnavailableError, loadTeamsForCompetitions, rememberTeams, type TeamDef } from './teamCatalog'
+import {
+  TeamCatalogUnavailableError,
+  loadTeamsForCompetition,
+  loadTeamsForCompetitions,
+  rememberTeams,
+  type TeamDef,
+} from './teamCatalog'
 
 // React wrapper around teamCatalog.ts's cached fetch, used by both team
 // pickers (onboarding step 2 and Settings).
@@ -35,7 +41,26 @@ export function useTeamCatalog(competitionIds: readonly string[]): TeamCatalogSt
       return
     }
     let cancelled = false
-    setState({ status: 'loading' })
+    // STALE-WHILE-REVALIDATE, and it fixes a real layout bug rather than
+    // being a nicety.
+    //
+    // This effect re-runs every time the viewer's followed-league set
+    // changes, which is every single time they tick a league. Blanking to
+    // 'loading' made the picker below collapse from a grid of clubs to one
+    // line of text and then back again a few milliseconds later (most of
+    // these fetches are served from teamCatalog's session cache) — and
+    // because onboarding's content area centres itself in the leftover
+    // height, that collapse dragged EVERY row above it down and back up.
+    // That was the "league row jumps and returns" bug: not a border, not a
+    // font weight, not the animation — a transient loading state below the
+    // thing that appeared to move.
+    //
+    // Keeping the last known teams on screen while the new set resolves
+    // means the grid never collapses, so nothing above it can move. There
+    // is genuinely nothing to keep on a first load, which is the one case
+    // that still shows 'loading' — and that one is a real transition, not a
+    // flicker.
+    setState((prev) => (prev.status === 'ready' && prev.teams.length > 0 ? prev : { status: 'loading' }))
     loadTeamsForCompetitions(ids)
       .then((teams) => {
         if (cancelled) return
@@ -57,6 +82,60 @@ export function useTeamCatalog(competitionIds: readonly string[]): TeamCatalogSt
       cancelled = true
     }
   }, [key])
+
+  return state
+}
+
+// ONE competition's clubs, fetched only when it is actually being looked at.
+//
+// The sibling of useTeamCatalog above, and deliberately not the same hook.
+// useTeamCatalog answers "clubs from the leagues this viewer follows",
+// which is a bounded set known up front. This answers "clubs from the
+// competition the viewer is browsing RIGHT NOW", which is how the teams
+// step lets someone reach a club from a league they did not select without
+// the app fetching all ~50 competitions' rosters to offer it.
+//
+// Per-competition requests are already de-duplicated and cached for the
+// session by teamCatalog.ts, so walking back up a rail costs nothing. The
+// CALLER is responsible for not thrashing this while the viewer scrolls —
+// onboarding's teams step debounces the active competition first, the same
+// way the channel browser debounces its preview.
+//
+// `null` means "nothing is being browsed" and resolves to an empty ready
+// state without a request.
+export function useCompetitionTeams(competitionId: string | null): TeamCatalogState {
+  const [state, setState] = useState<TeamCatalogState>(() => (competitionId ? { status: 'loading' } : READY_EMPTY))
+
+  useEffect(() => {
+    if (!competitionId) {
+      setState(READY_EMPTY)
+      return
+    }
+    let cancelled = false
+    // NOT stale-while-revalidate, unlike useTeamCatalog: switching rail rows
+    // changes which competition's heading is on screen, and holding the
+    // previous competition's clubs under a new name would be wrong rather
+    // than merely stale. The panel is a fixed height either way, so a
+    // loading state here cannot move anything.
+    setState({ status: 'loading' })
+    loadTeamsForCompetition(competitionId)
+      .then((teams) => {
+        if (cancelled) return
+        rememberTeams(teams)
+        setState({ status: 'ready', teams })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        if (err instanceof TeamCatalogUnavailableError) {
+          setState({ status: 'unavailable' })
+          return
+        }
+        setState({ status: 'error', message: err instanceof Error ? err.message : 'Failed to load teams' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [competitionId])
 
   return state
 }

@@ -280,6 +280,18 @@
   flex-direction: column;
 }
 
+/* Marks where the viewer's PREFERRED countries stop and the rest of the
+   playlist begins — see rankCountries.ts. Deliberately just a hairline with
+   air around it: preferred countries are a ranking, not a separate section,
+   and every country below this line is exactly as reachable as the ones
+   above it. flex-shrink: 0 so it survives a long, scrolled list. */
+.cascade-list-divider {
+  flex-shrink: 0;
+  height: 1px;
+  margin: var(--space-3) var(--space-6);
+  background: var(--divider);
+}
+
 /* Country, category, and channel rows all share one row height, padding,
    and label size here — the classic screens keep their own taller 88px
    channel row untouched. */

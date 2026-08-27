@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFocusable, FocusContext } from '@noriginmedia/norigin-spatial-navigation'
 import type { HomeFeedState } from '../../data/sports/useHomeFeed'
 import type { SportEvent } from '../../data/sports/types'
@@ -7,7 +7,7 @@ import { useFavoriteChannelsNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { FavoriteChannelNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
-import { eventCardStatus, cardTimeText, startingSoonLabel } from './homeRowItems'
+import { eventCardStatus, cardTimeText, rowItemsExcludingHero, startingSoonLabel } from './homeRowItems'
 import { ArrowRightIcon, FootballIcon, FormulaOneIcon, StadiumIcon } from '../onboarding/sportIcons'
 import './HomeScreen.css'
 
@@ -368,6 +368,11 @@ export function HomeScreen({
 }) {
   const { ref, focusKey } = useFocusable({ focusKey: 'home-screen', trackChildren: true })
   const { feed } = feedState
+  // The hero is a recommendation slot that has already been spent, so the
+  // row below it continues from the next one instead of repeating it — see
+  // rowItemsExcludingHero. Memoized on the two things it reads so the row
+  // isn't rebuilt (and its cards remounted) on unrelated Home re-renders.
+  const rowItems = useMemo(() => rowItemsExcludingHero(feed.items, feed.hero), [feed.items, feed.hero])
   const favoriteChannelsNowPlaying = useFavoriteChannelsNowPlaying(favoriteChannels, xtream)
 
   return (
@@ -397,9 +402,9 @@ export function HomeScreen({
             three separate "nothing here" lines. */}
         <section className="row">
           <h2 className="row-title">Live now &amp; coming up</h2>
-          {feed.items.length > 0 ? (
+          {rowItems.length > 0 ? (
             <ScrollRow>
-              {feed.items.map(({ event, group }) =>
+              {rowItems.map(({ event, group }) =>
                 group === 'live' ? (
                   <LiveNowCard key={event.id} event={event} onSelect={onSelectEvent} />
                 ) : (

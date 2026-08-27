@@ -1,5 +1,32 @@
-import type { FeedGroup } from '../../data/sports/homeRanking'
+import type { FeedGroup, HomeFeedItem } from '../../data/sports/homeRanking'
 import type { SportEvent } from '../../data/sports/types'
+
+// THE HERO ALREADY SPENT A RECOMMENDATION SLOT.
+//
+// Home ranks the hero and the feed from the same candidate pool (see
+// homeRanking.ts's "two rankings, not one"), so the match the hero picks as
+// "what would I most want to put on right now" is very often also the feed's
+// first or second card — the screen's two biggest slots showing one fixture
+// twice, one directly above the other.
+//
+// This is a PRESENTATION rule and lives here, not in the ranking: nothing
+// about the order changes, one already-ranked element is removed from one
+// row. The feed itself (useHomeFeed's HomeFeed.items) stays the complete
+// ranked answer, which is what every other consumer — Multiview's event
+// picker, the DEV ranking diagnostics — actually wants.
+//
+// Matched on event id, never on title. Two providers spell the same fixture
+// differently ("Man Utd - Liverpool" / "Manchester United vs Liverpool"), so
+// a string match would both miss the duplicate it exists to remove and,
+// worse, happily remove a genuinely different fixture that shares a name.
+// No hero means nothing to exclude.
+export function rowItemsExcludingHero(
+  items: readonly HomeFeedItem[],
+  hero: Pick<SportEvent, 'id'> | null,
+): HomeFeedItem[] {
+  if (!hero) return [...items]
+  return items.filter((item) => item.event.id !== hero.id)
+}
 
 // What ONE card in Home's "Live now & coming up" row says about itself.
 //

@@ -8,6 +8,7 @@ import {
   ONBOARDING_SECONDARY_FOCUS_KEY,
   OnboardingFooter,
 } from '../onboarding/OnboardingActions'
+import { LoadingScreen, PLAYLIST_IMPORT_STAGES, PLAYLIST_IMPORT_TITLE, nextPaint, useDeferredBusy } from '../../core/ui'
 import { QrCode } from './QrCode'
 import { usePairingSession, ackPairing } from './usePairingSession'
 import type { Channel } from '../../data/channel'
@@ -85,6 +86,10 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
   async function connect(url: string): Promise<boolean> {
     if (!url.trim()) return false
     setState({ status: 'loading' })
+    // Let the loading state reach the screen before the work starts — the
+    // M3U parse that follows the fetch is synchronous and holds the main
+    // thread. See nextPaint.
+    await nextPaint()
     try {
       const source = sourceFromUrl(url.trim())
       onLoaded(await loadChannelsForSource(source), source)
@@ -118,6 +123,11 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
     const file = event.target.files?.[0]
     if (!file) return
     setState({ status: 'loading' })
+    // THE ONE THAT ACTUALLY MATTERS. Parsing a real 30,000-channel playlist
+    // measured ~3s on a TV-class CPU, all of it synchronous — without this
+    // yield the loading panel is committed to a DOM that never gets painted
+    // before the parse takes the thread, and the app just appears to freeze.
+    await nextPaint()
     try {
       const { channels, source } = await loadChannelsFromFile(file)
       onLoaded(channels, source)
@@ -128,6 +138,15 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
       })
     }
   }
+
+  // A playlist import is the one genuinely slow thing on this screen, and it
+  // is never fast enough to be worth hiding behind a delay: reading a file
+  // or fetching a provider URL always takes long enough to notice, and the
+  // parse that follows blocks the main thread outright. So: shown at once
+  // (showDelayMs 0), and still held for the hook's minimum-visible window so
+  // an unusually quick import cannot flash. Every other state change on this
+  // screen is instant and shows nothing.
+  const importing = useDeferredBusy(state.status === 'loading', { showDelayMs: 0 })
 
   const xtreamComplete = Boolean(server.trim() && username.trim() && password.trim())
   const urlComplete = Boolean(urlValue.trim())
@@ -375,7 +394,10 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
             </section>
           </div>
 
-          {state.status === 'loading' && <p className="setup-status">Loading playlist…</p>}
+          {/* Loading is a full-screen Ninety state now (see the overlay
+              below), not a line of text under the form — importing a
+              playlist is the longest wait in the whole app and the form it
+              would sit under is no longer interactive while it runs. */}
           {state.status === 'error' && <p className="setup-status error">{state.message}</p>}
         </div>
 
@@ -385,6 +407,16 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
           upFocusKey={mode === 'xtream' ? PASSWORD_FOCUS_KEY : URL_FOCUS_KEY}
         />
       </main>
+
+      {/* Covers the fetch+parse half of an import. The other half (merging,
+          persisting and indexing the channels) happens after onLoaded hands
+          them over, and is covered by App.tsx's own overlay — one continuous
+          Ninety loading state across both, because from the viewer's side it
+          is one operation.
+
+          Deferred so a cached/instant connect never flashes a panel at all —
+          see useDeferredBusy. */}
+      {importing && <LoadingScreen title={PLAYLIST_IMPORT_TITLE} detail={PLAYLIST_IMPORT_STAGES.fetching} />}
     </FocusContext.Provider>
   )
 }

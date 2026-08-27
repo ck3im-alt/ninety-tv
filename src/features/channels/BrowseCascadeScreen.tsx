@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel, ChannelSource } from '../../data/channel'
 import { firstXtreamSource, type XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
@@ -11,6 +11,7 @@ import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
 import { flagSrc } from '../../data/countryCodes'
 import { categoryFavoriteKey, sortFavoritesFirst } from './favorites'
+import { preferredBoundary, rankCountries } from './rankCountries'
 import { ListRow } from './ListRow'
 import { SearchField } from './SearchField'
 import { Breadcrumb } from './Breadcrumb'
@@ -65,7 +66,6 @@ const PREVIEW_FAVORITE_FOCUS_KEY = 'cascade-preview-favorite'
 // into and out of it is wired explicitly — see the row components' arrow
 // handlers below.
 const TOOLBAR_FOCUS_KEY = 'cascade-toolbar'
-const OTHER = 'Other'
 
 interface Props {
   // Prepared/indexed view of the playlist, built once per playlist
@@ -76,6 +76,13 @@ interface Props {
   channelIndex: ChannelIndex
   xtream: XtreamCredentialResolver
   hiddenCountries: Set<string>
+  // The viewer's ORDERED preferred countries (SportPreferences.
+  // favoriteCountries — index 0 is their primary). A RANKING signal only:
+  // it decides the order of the country rail and nothing else. It can never
+  // remove a country — that is hiddenCountries' job, and hiddenCountries is
+  // only ever written by the Filter popup the viewer opens themselves. See
+  // rankCountries.ts for the bug this replaced.
+  preferredCountries: readonly string[]
   // Composite `${country}::${category}` keys (categoryFavoriteKey) — a
   // category is hidden per-country, not globally, since the same label can
   // mean different things in different countries' lineups.
@@ -292,6 +299,7 @@ export function BrowseCascadeScreen({
   channelIndex,
   xtream,
   hiddenCountries,
+  preferredCountries,
   hiddenCategories,
   favoriteCategories,
   onToggleFavoriteCategory,
@@ -385,12 +393,17 @@ export function BrowseCascadeScreen({
   // and re-parseCategory-ing every channel on every focus movement. Each of
   // these is now O(k) (k = countries, or categories/channels within ONE
   // country) rather than O(playlist size).
-  const countries = useMemo(() => {
-    return channelIndex
-      .getCountries()
-      .filter((c) => !hiddenCountries.has(c.name))
-      .sort((a, b) => (a.name === OTHER ? 1 : b.name === OTHER ? -1 : b.count - a.count))
-  }, [channelIndex, hiddenCountries])
+  // EVERY country in the playlist, preferred ones first — see
+  // rankCountries.ts. The only subtraction is hiddenCountries, which is the
+  // viewer's own explicit Filter selection.
+  const rankedCountries = useMemo(
+    () => rankCountries(channelIndex.getCountries().filter((c) => !hiddenCountries.has(c.name)), preferredCountries),
+    [channelIndex, hiddenCountries, preferredCountries],
+  )
+  // Index of the first non-preferred row, or -1 when there is no split to
+  // draw. Computed once here rather than per row.
+  const otherCountriesFrom = useMemo(() => preferredBoundary(rankedCountries), [rankedCountries])
+  const countries = useMemo(() => rankedCountries.map((entry) => entry.country), [rankedCountries])
 
   // Speculatively warm whichever player-engine chunk (mpegts.js/hls.js) this
   // playlist actually needs, once, as soon as Channels opens — well before
@@ -710,18 +723,28 @@ export function BrowseCascadeScreen({
               </div>
               <div className="cascade-list">
                 {countries.map((country, index) => (
-                  <ListRow
-                    key={country.name}
-                    focusKey={`cascade-country-row-${country.name}`}
-                    icon={country.code && flagSrc(country.code) ? <img className="flag-icon" src={flagSrc(country.code)!} alt="" /> : undefined}
-                    label={country.name}
-                    count={country.count}
-                    active={country.name === selectedCountry}
-                    onSelect={() => selectCountry(country.name)}
-                    onFocus={() => previewCountry(country.name)}
-                    onArrowUp={index === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined}
-                    compact={compactCountries}
-                  />
+                  <Fragment key={country.name}>
+                    {/* ONE hairline where the viewer's preferred countries
+                        stop, rather than "Preferred" / "Other countries"
+                        headings: in the four-pane state this column is ~70px
+                        wide (flags only — see isCompactCountryRail), where no
+                        heading fits at all, and a divider that survives both
+                        widths beats two treatments that disagree. It is a
+                        plain div, so it is not a spatial-nav target and
+                        Up/Down step straight past it. */}
+                    {index === otherCountriesFrom && <div className="cascade-list-divider" aria-hidden="true" />}
+                    <ListRow
+                      focusKey={`cascade-country-row-${country.name}`}
+                      icon={country.code && flagSrc(country.code) ? <img className="flag-icon" src={flagSrc(country.code)!} alt="" /> : undefined}
+                      label={country.name}
+                      count={country.count}
+                      active={country.name === selectedCountry}
+                      onSelect={() => selectCountry(country.name)}
+                      onFocus={() => previewCountry(country.name)}
+                      onArrowUp={index === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined}
+                      compact={compactCountries}
+                    />
+                  </Fragment>
                 ))}
               </div>
             </div>

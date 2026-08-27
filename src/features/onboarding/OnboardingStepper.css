@@ -1,7 +1,12 @@
-/* Three-step progress indicator, top-right of every onboarding step.
-   Connector lines were dropped with the two-column layout: at three steps
-   with real labels the row is already wide, and the numbered pills read
-   more clearly without rules running between them. */
+/* Four-step progress indicator, top-right of every onboarding step.
+   Connector lines were dropped with the two-column layout: with real labels
+   the row is already wide, and the numbered pills read more clearly without
+   rules running between them.
+
+   The gap tightened from --space-8 to --space-6 when Teams became a fourth
+   step (see ONBOARDING_STEPS) — four labelled pills at the old spacing ran
+   close enough to the wordmark on the left that the top bar stopped reading
+   as two separate things. */
 
 .onboarding-stepper {
   list-style: none;
@@ -9,7 +14,7 @@
   padding: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-6);
 }
 
 .stepper-item {

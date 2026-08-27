@@ -1,0 +1,90 @@
+/* The one Ninety loading state — see LoadingScreen.tsx for why this is an
+   opaque panel rather than skeleton placeholders.
+
+   Fixed to the 1920x1080 canvas and above every screen, including the
+   player's own video surface (z-index sits above .playlist-persistence-toast
+   at 1000, which is the highest thing in the app). */
+
+.ninety-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  /* OPAQUE. A translucent scrim here would show the half-built screen
+     underneath, which is the exact flash this component exists to remove. */
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ninety-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Left-aligned text would drift off the optical centre of a panel this
+     empty; centred is the only thing that reads as deliberate here. */
+  text-align: center;
+  gap: var(--space-4);
+  /* Slightly above true centre: a block of text centred in a 1080px frame
+     reads as low, because the eye weights the top of the screen. */
+  margin-bottom: 60px;
+}
+
+.ninety-loading-logo {
+  font-size: var(--font-logo-size);
+  font-weight: var(--weight-regular);
+  letter-spacing: 9px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-8);
+}
+
+/* Same size/weight as an onboarding headline — this IS a Ninety screen, not
+   a spinner overlay, and at 3 metres a smaller line simply isn't readable. */
+.ninety-loading-title {
+  font-size: 40px;
+  font-weight: var(--weight-light);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.ninety-loading-detail {
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* A single thin sweep, not a spinner and not a percentage bar. Wide enough
+   (480px) to read as motion from a sofa; a small spinning glyph at TV
+   distance is a dot that may or may not be moving. */
+.ninety-loading-track {
+  position: relative;
+  width: 480px;
+  height: 3px;
+  margin-top: var(--space-6);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  overflow: hidden;
+}
+
+.ninety-loading-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 34%;
+  border-radius: 999px;
+  /* Fades out at both ends rather than sliding as a hard-edged block —
+     the same restraint as the top-pick row's edge illumination. */
+  background: linear-gradient(90deg, transparent, var(--accent) 45%, var(--accent) 55%, transparent);
+  animation: ninety-loading-sweep 1400ms var(--motion-ease) infinite;
+}
+
+@keyframes ninety-loading-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(calc(480px / 0.34));
+  }
+}

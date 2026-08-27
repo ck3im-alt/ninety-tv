@@ -1,35 +1,65 @@
 import { useMemo } from 'react'
 import { setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useFocusScrollIntoView } from '../../core/platform'
-import type { TeamGroup } from '../../data/sports/teamSuggestions'
+import type { TeamDef } from '../../data/sports/teamCatalog'
+import type { TeamCatalogState } from '../../data/sports/useTeamCatalog'
 import { chunkIntoRows, isRowEdge, verticalNeighbour, type FocusChain } from './focusChain'
 import { BLOCK_ARROW } from './SelectableCard'
 import { teamFocusKey, teamGroupFocusKey } from './teamFocusKeys'
 import { TeamCard } from './TeamCard'
 
-// The "All teams" browser — the same master/detail panel as LeagueBrowser,
-// with competitions down the rail and that competition's clubs in the grid.
+// The club browser on onboarding's Teams step — the same master/detail
+// panel as LeagueBrowser, with competitions down the rail and one
+// competition's clubs in the grid.
 //
 // It shares LeagueBrowser's stylesheet (.league-browser and friends) rather
-// than duplicating it: this IS the same panel, holding a different
-// catalogue, and only one of the two is ever open at a time. A second
-// near-identical stylesheet would be two things to keep in sync for no
-// visual difference. The `team-browser` class exists only so the layout
-// rule in onboardingShared.css can name both.
+// than duplicating it: this IS the same panel holding a different
+// catalogue, and a second near-identical stylesheet would be two things to
+// keep in sync for no visual difference. The `team-browser` class exists
+// only so layout rules can name both.
 //
-// NO TYPING REQUIRED. Every club in the viewer's followed leagues is
-// reachable with the D-pad alone — rail down to a competition, right into
-// its grid. That is the whole point of browsing by competition on a TV.
+// LAZY, AND THAT IS THE POINT. The rail lists every competition Ninety
+// tracks, not only the ones the viewer selected — league selection
+// PRIORITIZES clubs, it does not restrict which ones exist (a Norwegian
+// viewer who follows only Eliteserien can still follow Real Madrid). Rosters
+// for ~50 competitions are far too much to fetch up front, so this component
+// renders whatever roster the caller currently has and says so when it is
+// still coming; the caller fetches the active competition alone (see
+// useCompetitionTeams) and debounces the rail so scrolling costs nothing.
+//
+// NO TYPING REQUIRED anywhere in here: every club is reachable with the
+// D-pad — rail down to a competition, right into its grid.
 const BROWSER_GRID_COLUMNS = 5
 
+// One rail row. Deliberately NOT a TeamGroup: the rail knows every
+// competition, while teams are only ever loaded for the one being looked
+// at, so a rail row cannot carry a roster.
+export interface TeamRailGroup {
+  competitionId: string
+  label: string
+  // The competition's region/country, shown when the viewer has followed
+  // nothing in it yet. Quiet context, so a rail of 50 rows is scannable.
+  meta?: string
+  // How many of the viewer's followed clubs belong to this competition, as
+  // far as the app has actually seen its roster. Zero (rather than unknown)
+  // for a competition never loaded this session — see the accumulator in
+  // OnboardingTeamsScreen.
+  followedCount: number
+}
+
 interface Props {
-  groups: readonly TeamGroup[]
-  activeGroup: TeamGroup
+  groups: readonly TeamRailGroup[]
+  activeCompetitionId: string
+  activeLabel: string
+  // The active competition's clubs. Empty while `status` is anything but
+  // 'ready'.
+  teams: readonly TeamDef[]
+  status: TeamCatalogState['status']
   selectedTeamIds: ReadonlySet<string>
   onActivateGroup: (competitionId: string) => void
   onToggleTeam: (teamId: string) => void
-  // The control directly above the panel — where Up out of either column
-  // goes.
+  // Where Up out of the top of either column goes — the suggestions row
+  // above the panel.
   exitUpFocusKey: string
   // The footer's primary action, so the viewer never has to walk every
   // competition to reach Continue.
@@ -39,7 +69,10 @@ interface Props {
 
 export function TeamBrowser({
   groups,
-  activeGroup,
+  activeCompetitionId,
+  activeLabel,
+  teams,
+  status,
   selectedTeamIds,
   onActivateGroup,
   onToggleTeam,
@@ -51,20 +84,20 @@ export function TeamBrowser({
   // can't describe a side-by-side master/detail panel.
   const railChain = useMemo<FocusChain>(() => groups.map((group) => [teamGroupFocusKey(group.competitionId)]), [groups])
   const gridChain = useMemo<FocusChain>(
-    () => chunkIntoRows(activeGroup.teams.map((team) => teamFocusKey(team.id)), BROWSER_GRID_COLUMNS),
-    [activeGroup],
+    () => chunkIntoRows(teams.map((team) => teamFocusKey(team.id)), BROWSER_GRID_COLUMNS),
+    [teams],
   )
 
-  const firstTeamKey = activeGroup.teams[0] ? teamFocusKey(activeGroup.teams[0].id) : null
-  const activeGroupKey = teamGroupFocusKey(activeGroup.competitionId)
+  const firstTeamKey = teams[0] ? teamFocusKey(teams[0].id) : null
+  const activeGroupKey = teamGroupFocusKey(activeCompetitionId)
 
   return (
     <section className="league-browser team-browser">
       <h3 className="league-browser-rail-header">Competitions</h3>
       <div className="league-browser-detail-header">
-        <h3 className="league-browser-region">{activeGroup.label}</h3>
+        <h3 className="league-browser-region">{activeLabel}</h3>
         <span className="league-browser-region-meta">
-          {activeGroup.teams.length} {activeGroup.teams.length === 1 ? 'team' : 'teams'}
+          {status === 'ready' ? `${teams.length} ${teams.length === 1 ? 'team' : 'teams'}` : ' '}
         </span>
       </div>
 
@@ -73,23 +106,34 @@ export function TeamBrowser({
           <CompetitionRow
             key={group.competitionId || 'other'}
             group={group}
-            active={group.competitionId === activeGroup.competitionId}
-            selectedCount={group.teams.reduce((count, team) => count + (selectedTeamIds.has(team.id) ? 1 : 0), 0)}
+            active={group.competitionId === activeCompetitionId}
             chain={railChain}
             exitUpFocusKey={exitUpFocusKey}
             exitDownFocusKey={exitDownFocusKey}
             onExitDown={onExitDown}
             onActivate={onActivateGroup}
-            firstTeamKey={group.competitionId === activeGroup.competitionId ? firstTeamKey : null}
+            firstTeamKey={group.competitionId === activeCompetitionId ? firstTeamKey : null}
           />
         ))}
       </div>
 
       {/* Keyed by competition so switching resets this pane's scroll
           position instead of inheriting the previous one's. */}
-      <div className="league-browser-detail" key={activeGroup.competitionId || 'other'}>
+      <div className="league-browser-detail" key={activeCompetitionId || 'other'}>
+        {/* The pane is a fixed height (the panel owns it), so none of these
+            states can move anything on the page — they only decide what
+            fills a box that is already there. */}
+        {status === 'loading' && <p className="picker-status">Loading teams...</p>}
+        {status === 'unavailable' && (
+          <p className="picker-status">Following teams isn't available yet — you can add them later in Settings.</p>
+        )}
+        {status === 'error' && <p className="picker-status">Couldn't load teams right now. You can add them later in Settings.</p>}
+        {status === 'ready' && teams.length === 0 && (
+          <p className="picker-status">Ninety doesn't track any teams for this competition yet.</p>
+        )}
+
         <div className="league-browser-grid">
-          {activeGroup.teams.map((team) => {
+          {teams.map((team) => {
             const key = teamFocusKey(team.id)
             return (
               <TeamCard
@@ -109,6 +153,8 @@ export function TeamBrowser({
                       void setFocus(exitDownFocusKey)
                     }
                   },
+                  // The competition is the PARENT of its grid: Left out of
+                  // the first column returns to the row you came in on.
                   onArrowLeft: isRowEdge(gridChain, key, 'left') ? () => void setFocus(activeGroupKey) : undefined,
                   onArrowRight: isRowEdge(gridChain, key, 'right') ? BLOCK_ARROW : undefined,
                 }}
@@ -127,7 +173,6 @@ export function TeamBrowser({
 function CompetitionRow({
   group,
   active,
-  selectedCount,
   chain,
   firstTeamKey,
   exitUpFocusKey,
@@ -135,9 +180,8 @@ function CompetitionRow({
   onActivate,
   onExitDown,
 }: {
-  group: TeamGroup
+  group: TeamRailGroup
   active: boolean
-  selectedCount: number
   chain: FocusChain
   firstTeamKey: string | null
   exitUpFocusKey: string
@@ -186,10 +230,14 @@ function CompetitionRow({
       onClick={() => void setFocus(focusKey)}
     >
       <span className="region-row-label">{group.label}</span>
-      {selectedCount > 0 ? (
-        <span className="region-row-selected">{selectedCount} followed</span>
+      {/* The viewer's own selections once there are any, so a glance down
+          the rail says where they have picked clubs; otherwise the quiet
+          region label. Accent TEXT only — never a green row, which would
+          out-shout the focus ring. */}
+      {group.followedCount > 0 ? (
+        <span className="region-row-selected">{group.followedCount} followed</span>
       ) : (
-        <span className="region-row-count">{group.teams.length}</span>
+        group.meta && <span className="region-row-count">{group.meta}</span>
       )}
     </div>
   )

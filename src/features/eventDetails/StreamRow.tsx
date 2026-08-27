@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { countryNameToCode, flagSrc } from '../../data/countryCodes'
 import { toEventPlaybackGroup } from './eventPlaybackGroup'
 import type { RankedEventStreamOption } from './buildEventStreamOptions'
 import type { EventPlaybackGroup } from './eventPlaybackGroup'
@@ -52,6 +53,43 @@ interface StreamRowProps {
   // trusted to find a small top-left button from a full-width row on its
   // own.
   onArrowUp?: () => void
+  // Whether this row has to say which country it comes from.
+  //
+  // Country is normally the SECTION HEADING above a run of rows (see
+  // StreamSections.tsx), which is both quieter and more scannable than
+  // repeating it per row. That works for the viewer's preferred markets,
+  // which each get their own headed section — but everything else is
+  // deliberately collapsed into one flat "Other countries" bucket, and in
+  // there a row's origin was simply unstated. Ninety will legitimately
+  // recommend a Danish feed to a Norwegian viewer when it is the best
+  // source available; the viewer has to be able to see that at a glance
+  // rather than discover it when the commentary starts.
+  //
+  // So: on, exactly for rows in that flat bucket. Preferred-country rows
+  // already sit under their own flag and name, and a second copy on every
+  // row would be noise.
+  showCountry?: boolean
+}
+
+// The row's origin, at the smallest size that still reads across a room:
+// the flag carries the recognition, the ISO code disambiguates it. The full
+// name goes in the title/aria-label rather than on screen — "United
+// Kingdom" would be wider than the quality and type tags combined, and the
+// metadata columns have to stay narrower than the stream name they sit
+// beside.
+function CountryTag({ countryName, countryCode }: { countryName: string | null; countryCode: string | null }) {
+  const code = (countryCode ?? (countryName ? countryNameToCode(countryName) : null))?.toUpperCase() ?? null
+  // Nothing at all rather than a "?" placeholder: an unknown origin is
+  // genuinely absent information, and the ranking already treats it as
+  // such (see countryBucketRank).
+  if (!code && !countryName) return null
+  const flag = code ? flagSrc(code) : null
+  return (
+    <span className="stream-row-badge stream-row-country" title={countryName ?? code ?? undefined}>
+      {flag && <img className="stream-row-country-flag" src={flag} alt="" />}
+      <span className="stream-row-country-code">{code ?? countryName}</span>
+    </span>
+  )
 }
 
 function LogoTile({ logo, displayName }: { logo?: string; displayName: string }) {
@@ -70,8 +108,9 @@ function PlayIcon() {
 
 // Missing metadata is rendered as a quiet dash, never a loud "Unknown"
 // badge — absent information must read as visually LESS important than
-// present information, and the fixed-width columns keep every row's layout
-// identical regardless of what's missing.
+// present information. The metadata GROUP is fixed-width (see
+// .stream-row-meta), so a row with nothing to say still lines its Watch
+// column up with every other row's.
 const EMPTY_METADATA = '—'
 
 // One selectable stream-GROUP row, reused across the country-grouped list
@@ -104,6 +143,7 @@ export function StreamRow({
   onWatch,
   focusKey,
   onArrowUp,
+  showCountry,
 }: StreamRowProps) {
   // Always the best available quality (qualityVariants is sorted best-tier
   // first — see groupSourcesByTier), never a user-selected index. Extra
@@ -148,13 +188,25 @@ export function StreamRow({
       <button ref={ref} className="stream-row-play" onClick={watch}>
         <LogoTile logo={option.logo} displayName={option.displayName} />
         <span className="stream-row-name">{option.displayName}</span>
-        {/* Consumer wording: "TV" / "Event" — never the IPTV-internal "PPV".
-            The internal classification survives untouched on
-            option.matchSource/sourceType for debug. Small outlined badge,
-            not a filled status pill. */}
-        <span className={`stream-row-badge stream-row-type ${option.sourceType}`}>{option.sourceType === 'event' ? 'EVENT' : 'TV'}</span>
-        <span className={`stream-row-badge stream-row-quality-col ${best?.qualityLabel == null ? 'unknown' : ''}`}>
-          <span className="stream-row-quality-value">{qualityLabel}</span>
+        {/* ONE right-aligned metadata group rather than three independently
+            fixed-width columns. Each tag is now sized by its own content —
+            "8K" must not occupy the width of "FHD" — while the GROUP keeps a
+            fixed width, so the Watch column still lines up perfectly down
+            the list. */}
+        <span className="stream-row-meta">
+          {showCountry && <CountryTag countryName={option.countryName} countryCode={option.countryCode} />}
+          {/* Consumer wording: "TV" / "Event" — never the IPTV-internal
+              "PPV". The internal classification survives untouched on
+              option.matchSource/sourceType for debug. */}
+          <span className={`stream-row-badge stream-row-type ${option.sourceType}`}>{option.sourceType === 'event' ? 'EVENT' : 'TV'}</span>
+          {/* `high` for UHD/4K/8K only (see rankStreamQuality's tiers) —
+              one small step up in emphasis for the tiers a viewer actively
+              looks for, NOT a green/amber/red ladder down the list. */}
+          <span
+            className={`stream-row-badge stream-row-quality-col ${best?.qualityLabel == null ? 'unknown' : best.qualityTier >= 4 ? 'high' : ''}`}
+          >
+            {qualityLabel}
+          </span>
         </span>
         <span className="stream-row-watch">
           <PlayIcon /> Watch now

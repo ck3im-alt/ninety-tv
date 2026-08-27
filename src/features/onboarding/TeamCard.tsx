@@ -16,14 +16,20 @@ export function TeamCard({
   selected,
   onToggle,
   arrows,
+  // Which key space this tile belongs to. Defaults to the browser grid's;
+  // the suggestions row passes its own, because the same club can be on
+  // both surfaces at once and two focusables must never share a key. See
+  // teamFocusKeys.ts.
+  focusKey = teamFocusKey(team.id),
 }: {
   team: TeamDef
   selected: boolean
   onToggle: () => void
   arrows: CardArrows
+  focusKey?: string
 }) {
   return (
-    <SelectableCard focusKey={teamFocusKey(team.id)} selected={selected} onToggle={onToggle} {...arrows}>
+    <SelectableCard focusKey={focusKey} selected={selected} onToggle={onToggle} {...arrows}>
       {/* A crest when the catalogue has one, and nothing at all when it
           doesn't — never a placeholder shape, which on a wall of tiles
           reads as a broken image rather than as "no logo". The name alone

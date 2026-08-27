@@ -64,15 +64,15 @@ export function StreamList({
   const options = partitioned.trusted
   const candidates = partitioned.candidates
 
-  // Country is ALWAYS a section header, never per-row metadata — including
-  // when a section holds just one stream. groupOptionsByCountry already
-  // returns one section per distinguishable bucket (primary/preferred
-  // countries individually, everything else as one shared "other" bucket),
-  // so this always has at least one section whenever there's at least one
-  // trusted option.
+  // Country is a section HEADING for every bucket that names a single
+  // country, and a per-row tag inside the one bucket that does not — see
+  // renderRow. groupOptionsByCountry returns one section per distinguishable
+  // bucket (primary/preferred countries individually, everything else as one
+  // shared "other" bucket), so this always has at least one section whenever
+  // there's at least one trusted option.
   const sections = groupOptionsByCountry(options, favoriteCountries)
 
-  function renderRow(option: RankedEventStreamOption, isFirstOverall: boolean) {
+  function renderRow(option: RankedEventStreamOption, isFirstOverall: boolean, section: CountryGroupSection) {
     return (
       <StreamRow
         key={option.key}
@@ -80,6 +80,11 @@ export function StreamList({
         option={option}
         variant="default"
         primary={option.key === topPickKey}
+        // Only inside the flat "Other countries" bucket. Every other
+        // section is one country with its own flag and name in the heading
+        // above, so a per-row tag there would just repeat it — see
+        // StreamRow's showCountry.
+        showCountry={section.kind === 'other'}
         onArrowUp={isFirstOverall ? () => void setFocus('event-details-back') : undefined}
         {...shared}
       />
@@ -92,7 +97,7 @@ export function StreamList({
         <div key={`${section.kind}-${section.countryCode ?? 'other'}-${sectionIndex}`} className="stream-country-section">
           <CountrySectionHeader section={section} />
           <div className="stream-row-list">
-            {section.options.map((option, rowIndex) => renderRow(option, sectionIndex === 0 && rowIndex === 0))}
+            {section.options.map((option, rowIndex) => renderRow(option, sectionIndex === 0 && rowIndex === 0, section))}
           </div>
         </div>
       ))}
@@ -151,6 +156,9 @@ export function CandidateStreamList({
               focusKey={option.key}
               option={option}
               variant="candidate"
+              // Candidates are one flat, ungrouped list with no country
+              // headings at all, so every row here has to carry its own.
+              showCountry
               onArrowUp={index === 0 ? onFirstRowUp : undefined}
               {...shared}
             />

@@ -4,20 +4,15 @@ import { useBackHandler } from '../../core/platform'
 import type { SportKey } from '../../data/sports/types'
 import type { LeagueDef } from '../../data/sports/leagues'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
-import { useTeamCatalog } from '../../data/sports/useTeamCatalog'
-import { groupTeamsByCompetition, suggestTeams } from '../../data/sports/teamSuggestions'
 import { buildRecommendedLeagues } from './recommendedLeagues'
 import { groupExpandedLeagues } from './groupExpandedLeagues'
 import { resolveActiveGroup } from './leagueBrowserState'
 import { chunkIntoRows, isRowEdge, lastRowEntry, verticalNeighbour, type FocusChain } from './focusChain'
 import { LeagueBrowser } from './LeagueBrowser'
 import { LeagueCard } from './LeagueCard'
-import { TeamBrowser } from './TeamBrowser'
-import { TeamCard } from './TeamCard'
-import { TEAM_FOCUS_PREFIX, TEAM_GROUP_FOCUS_PREFIX, teamFocusKey, teamGroupFocusKey } from './teamFocusKeys'
 import { LEAGUE_FOCUS_PREFIX, REGION_FOCUS_PREFIX, leagueFocusKey, regionFocusKey } from './leagueFocusKeys'
-import { OnboardingExpander } from './OnboardingExpander'
 import { OnboardingTopBar } from './OnboardingStepper'
+import { useOnboardingLanding } from './useOnboardingLanding'
 import { BLOCK_ARROW, SelectableCard } from './SelectableCard'
 import { ONBOARDING_PRIMARY_FOCUS_KEY, OnboardingFooter } from './OnboardingActions'
 import { FootballIcon, FormulaOneIcon } from './sportIcons'
@@ -36,12 +31,6 @@ const POPULAR_SPORTS: PopularSport[] = [
 ]
 
 const FOOTBALL_FOCUS_KEY = 'sport-football'
-const LEAGUES_TOGGLE_FOCUS_KEY = 'leagues-toggle'
-const TEAMS_TOGGLE_FOCUS_KEY = 'teams-toggle'
-// Matches .team-grid's own `repeat(8, 1fr)` — same eight columns as the
-// recommended-leagues row directly above it, which is also exactly
-// SUGGESTED_TEAM_LIMIT, so the suggestions are always ONE row.
-const SUGGESTED_GRID_COLUMNS = 8
 // Matches .league-grid's own `repeat(8, 1fr)` (OnboardingSportsScreen.css).
 // Eight is exactly the recommendation's maximum size (Big Five + the two
 // tracked UEFA competitions + the viewer's home league), so the pinned row
@@ -68,45 +57,55 @@ interface Props {
   // detection failing just means one fewer card and a browser that opens on
   // the international competitions instead.
   viewerCountryCode: string | null
-  showAllLeagues: boolean
-  onToggleShowAllLeagues: () => void
   onToggleSport: (id: SportKey) => void
   onToggleLeague: (id: string) => void
-  // Canonical ninety-api team ids — never names. OPTIONAL for the viewer:
-  // nothing on this screen requires a team, and the section degrades to a
-  // single explanatory line when the backend has no team catalogue yet.
-  selectedTeams: Set<string>
-  onToggleTeam: (id: string) => void
-  showAllTeams: boolean
-  onToggleShowAllTeams: () => void
   onBack: () => void
   onContinue: () => void
 }
 
+// ONBOARDING STEP 2 — SPORTS & LEAGUES.
+//
+// THE 2026-08-26 PASS: no expander, no nesting, no page scroll.
+//
+// This screen used to be a stack of expandable sections — recommended
+// leagues, then a "Browse all leagues (42)" toggle that appended a panel,
+// then a "Teams you follow" row, then a "Browse all teams" toggle that
+// appended a SECOND panel (and closed the first, because two would not
+// fit). Every one of those toggles moved the page under the viewer's
+// thumb, each needed its own focus-rescue effect for the cards it
+// unmounted, and reaching a Belgian second division from the top of the
+// screen meant expand, scroll, rail, scroll.
+//
+// Now it is three fixed things: the sports row, the pinned recommendations,
+// and the full catalogue as an always-open master/detail panel that takes
+// exactly the leftover height. Nothing expands, nothing collapses, the page
+// never scrolls, and every competition Ninety tracks is two directions away
+// (rail down, right into the grid). Teams moved to a step of their own —
+// see OnboardingTeamsScreen.
 export function OnboardingSportsScreen({
   selectedSports,
   selectedLeagues,
   viewerCountryCode,
-  showAllLeagues,
-  onToggleShowAllLeagues,
   onToggleSport,
   onToggleLeague,
-  selectedTeams,
-  onToggleTeam,
-  showAllTeams,
-  onToggleShowAllTeams,
   onBack,
   onContinue,
 }: Props) {
   // preferredChildFocusKey as well as the Football card's own forceFocus:
   // forceFocus only applies on mount, but the flow re-focuses this screen's
-  // root key on every step change -- including arriving back here from
-  // step 3. See OnboardingFlow's STEP_FOCUS_KEYS.
+  // root key on every step change -- including arriving back here from a
+  // later step. See OnboardingFlow's STEP_FOCUS_KEYS.
   const { ref, focusKey } = useFocusable({
     focusKey: 'onboarding-sports',
     trackChildren: true,
     preferredChildFocusKey: FOOTBALL_FOCUS_KEY,
   })
+  // Back from the Teams step leaves focus on the shared footer Back key,
+  // which this step re-registers under the same name — see
+  // useOnboardingLanding. The Football card is mounted from the first
+  // render, so this only ever has to handle that case.
+  useOnboardingLanding(FOOTBALL_FOCUS_KEY)
+
   const footballSelected = selectedSports.has('football')
   // Competition catalog is an async fetch (GET /v1/competitions) -- see
   // competitionsCatalog.ts -- never a local copy of the 50-competition list.
@@ -116,18 +115,16 @@ export function OnboardingSportsScreen({
     [competitionsState],
   )
 
-  // PINNED, AND STILL THE TOP OF THE SCREEN WHEN THE BROWSER IS OPEN.
-  // Big Five + tracked UEFA competitions + the viewer's own top domestic
-  // league (see recommendedLeagues.ts), sized to sit on ONE row. Opening
-  // the browser appends a panel below; it never scrolls these away and
-  // never moves them into the browser.
+  // PINNED, AND ALWAYS THE TOP OF THE SCREEN. Big Five + tracked UEFA
+  // competitions + the viewer's own top domestic league (see
+  // recommendedLeagues.ts), sized to sit on ONE row. The browser below
+  // never scrolls these away and never contains them.
   const recommended = useMemo(() => buildRecommendedLeagues(catalog, viewerCountryCode), [catalog, viewerCountryCode])
 
   // The rest of the catalog, grouped by region and ordered home-first, with
   // every recommended id removed so no competition renders twice (which
   // would also mean two focusables fighting over one `league-<id>` key) and
-  // with no empty group. Unchanged by this pass -- the browser below is a
-  // new way of RENDERING this result, not a new way of computing it.
+  // with no empty group.
   const groups = useMemo(
     () =>
       groupExpandedLeagues({
@@ -137,10 +134,10 @@ export function OnboardingSportsScreen({
       }),
     [catalog, recommended, viewerCountryCode],
   )
-  const expandedCount = useMemo(() => groups.reduce((total, group) => total + group.leagues.length, 0), [groups])
-  const canShowAll = groups.length > 0
   const hasLeagueGrid = footballSelected && recommended.length > 0
-  const expanded = showAllLeagues && canShowAll && hasLeagueGrid
+  // The browser is open whenever there is anything to put in it. There is
+  // no viewer-facing toggle any more — see this component's header.
+  const browsing = hasLeagueGrid && groups.length > 0
 
   // Which region the browser is showing. Null until the user moves in the
   // rail -- resolveActiveGroup then answers with the default region, so the
@@ -149,80 +146,22 @@ export function OnboardingSportsScreen({
   const [activeRegionKey, setActiveRegionKey] = useState<string | null>(null)
   const activeGroup = useMemo(() => resolveActiveGroup(groups, activeRegionKey), [groups, activeRegionKey])
 
-  // --- Teams you follow ---
-  //
-  // Scoped to the leagues the viewer has actually picked, which is what
-  // keeps this a short, obviously-relevant list rather than every club
-  // Ninety tracks. It also means the suggestions visibly follow the
-  // selection above: tick Eliteserien and Norwegian clubs appear.
-  //
-  // Ordered, not a bare Set, so suggestTeams can give the FIRST league the
-  // first suggestion slot.
-  const followedLeagueIds = useMemo(
-    () => recommended.concat(groups.flatMap((group) => group.leagues)).filter((l) => selectedLeagues.has(l.id)).map((l) => l.id),
-    [recommended, groups, selectedLeagues],
-  )
-  const teamsState = useTeamCatalog(footballSelected ? followedLeagueIds : [])
-  const teamCatalog = useMemo(() => (teamsState.status === 'ready' ? teamsState.teams : []), [teamsState])
-  const suggestedTeams = useMemo(
-    () =>
-      suggestTeams({
-        teams: teamCatalog,
-        competitionIds: followedLeagueIds,
-        selectedTeamIds: [...selectedTeams],
-      }),
-    [teamCatalog, followedLeagueIds, selectedTeams],
-  )
-  // Everything NOT already on the suggestions row, so no club renders twice
-  // (which would also mean two focusables fighting over one `team-<id>`
-  // key — the same rule groupExpandedLeagues follows for competitions).
-  const competitionNames = useMemo(() => new Map(catalog.map((l) => [l.id, l.name])), [catalog])
-  const teamGroups = useMemo(() => {
-    const shown = new Set(suggestedTeams.map((team) => team.id))
-    return groupTeamsByCompetition(
-      teamCatalog.filter((team) => !shown.has(team.id)),
-      competitionNames,
-      followedLeagueIds,
-    )
-  }, [teamCatalog, suggestedTeams, competitionNames, followedLeagueIds])
-  const teamCount = useMemo(() => teamGroups.reduce((total, group) => total + group.teams.length, 0), [teamGroups])
-  const [activeTeamGroupId, setActiveTeamGroupId] = useState<string | null>(null)
-  const activeTeamGroup =
-    teamGroups.find((group) => group.competitionId === activeTeamGroupId) ?? teamGroups[0] ?? null
-  // Shown whenever football is on: even with nothing loadable it renders one
-  // explanatory line, because a section that appears and disappears as the
-  // catalogue resolves is worse than one that says what is going on.
-  const hasTeamSection = footballSelected && hasLeagueGrid
-  const canBrowseTeams = teamGroups.length > 0
-  const teamsExpanded = showAllTeams && canBrowseTeams && hasTeamSection
-
   // THE VERTICAL model for the page above the browser: the sports row, the
-  // recommendations row(s), the expander, and -- when the browser is open
-  // -- one final row standing for the panel itself, entered at its active
-  // region. Up/Down for every card is answered by looking the current key
-  // up in here (focusChain.ts) rather than each card naming a neighbour, so
-  // a partial last row or a differently-sized recommendation set needs no
-  // special case. The browser's own two columns have their own chains --
-  // see LeagueBrowser.
+  // recommendations row(s), and -- when the browser is showing -- one final
+  // row standing for the panel itself, entered at its active region. Up/Down
+  // for every card is answered by looking the current key up in here
+  // (focusChain.ts) rather than each card naming a neighbour, so a partial
+  // last row or a differently-sized recommendation set needs no special
+  // case. The browser's own two columns have their own chains -- see
+  // LeagueBrowser.
   const chain = useMemo<FocusChain>(() => {
     const rows: string[][] = [POPULAR_SPORTS.map((sport) => sportKey(sport.id))]
     if (hasLeagueGrid) {
       rows.push(...chunkIntoRows(recommended.map((l) => leagueFocusKey(l.id)), RECOMMENDED_GRID_COLUMNS))
-      if (canShowAll) rows.push([LEAGUES_TOGGLE_FOCUS_KEY])
-      if (expanded && activeGroup) rows.push([regionFocusKey(activeGroup.key)])
-    }
-    // The teams block sits below the leagues block in the model exactly as
-    // it does on screen, so Down out of the last league row walks into the
-    // suggestions with no special case. Only ONE browser panel is ever open
-    // (opening either closes the other — see the toggles below), so at most
-    // one panel row is ever in the chain.
-    if (hasTeamSection && !expanded) {
-      rows.push(...chunkIntoRows(suggestedTeams.map((team) => teamFocusKey(team.id)), SUGGESTED_GRID_COLUMNS))
-      if (canBrowseTeams) rows.push([TEAMS_TOGGLE_FOCUS_KEY])
-      if (teamsExpanded && activeTeamGroup) rows.push([teamGroupFocusKey(activeTeamGroup.competitionId)])
+      if (browsing && activeGroup) rows.push([regionFocusKey(activeGroup.key)])
     }
     return rows
-  }, [hasLeagueGrid, recommended, canShowAll, expanded, activeGroup, hasTeamSection, suggestedTeams, canBrowseTeams, teamsExpanded, activeTeamGroup])
+  }, [hasLeagueGrid, recommended, browsing, activeGroup])
 
   // One set of arrow handlers for every card on the page above the browser,
   // derived from the model above. Down past the last row is the footer; Up
@@ -244,22 +183,17 @@ export function OnboardingSportsScreen({
     [chain],
   )
 
-  // Every focus key the open browser currently has mounted. Used only to
+  // Every focus key the browser currently has mounted. Used only to
   // validate the remembered return key below -- a remembered key whose card
   // has since been unmounted (the region changed, the catalog reloaded)
   // must never be a setFocus target.
   const browserFocusKeys = useMemo(() => {
     const keys = new Set<string>()
-    if (expanded) {
-      for (const group of groups) keys.add(regionFocusKey(group.key))
-      for (const league of activeGroup?.leagues ?? []) keys.add(leagueFocusKey(league.id))
-    }
-    if (teamsExpanded) {
-      for (const group of teamGroups) keys.add(teamGroupFocusKey(group.competitionId))
-      for (const team of activeTeamGroup?.teams ?? []) keys.add(teamFocusKey(team.id))
-    }
+    if (!browsing) return keys
+    for (const group of groups) keys.add(regionFocusKey(group.key))
+    for (const league of activeGroup?.leagues ?? []) keys.add(leagueFocusKey(league.id))
     return keys
-  }, [expanded, groups, activeGroup, teamsExpanded, teamGroups, activeTeamGroup])
+  }, [browsing, groups, activeGroup])
 
   // Where the user stepped DOWN out of the browser into the footer. Up from
   // Continue returns there rather than to a fixed entry point, so leaving to
@@ -272,132 +206,68 @@ export function OnboardingSportsScreen({
     const remembered = browserReturnKeyRef.current
     if (remembered && browserFocusKeys.has(remembered)) return remembered
     // Otherwise the last row of the page model: the browser's active region
-    // when it is open, the expander when it is not.
+    // when it is showing, the recommendations when it is not.
     return lastRowEntry(chain) ?? FOOTBALL_FOCUS_KEY
   }, [browserFocusKeys, chain])
 
-  // Deselecting Football unmounts the whole league section -- grid, expander
-  // and browser. Only redirects when focus actually WAS on something that
-  // just disappeared; norigin would otherwise fall back to the invisible
-  // screen root.
+  // Deselecting Football unmounts the whole league section -- grid and
+  // browser. Only redirects when focus actually WAS on something that just
+  // disappeared; norigin would otherwise fall back to the invisible screen
+  // root.
   useEffect(() => {
     if (footballSelected) return
     const current = currentFocusKey()
-    const inLeagueSection =
-      current.startsWith(LEAGUE_FOCUS_PREFIX) ||
-      current.startsWith(REGION_FOCUS_PREFIX) ||
-      current.startsWith(TEAM_FOCUS_PREFIX) ||
-      current.startsWith(TEAM_GROUP_FOCUS_PREFIX) ||
-      current === LEAGUES_TOGGLE_FOCUS_KEY ||
-      current === TEAMS_TOGGLE_FOCUS_KEY
-    if (inLeagueSection) void setFocus(FOOTBALL_FOCUS_KEY)
+    if (current.startsWith(LEAGUE_FOCUS_PREFIX) || current.startsWith(REGION_FOCUS_PREFIX)) {
+      void setFocus(FOOTBALL_FOCUS_KEY)
+    }
   }, [footballSelected])
-
-  // Closing the browser unmounts every region row and every card in it.
-  // Focus is normally already on the expander (that is what was pressed),
-  // but no other route into a close may leave focus pointing at a removed
-  // element.
-  useEffect(() => {
-    if (expanded) return
-    const current = currentFocusKey()
-    const wasInBrowser =
-      current.startsWith(REGION_FOCUS_PREFIX) ||
-      (current.startsWith(LEAGUE_FOCUS_PREFIX) && !recommended.some((l) => leagueFocusKey(l.id) === current))
-    if (wasInBrowser) void setFocus(LEAGUES_TOGGLE_FOCUS_KEY)
-  }, [expanded, recommended])
-
-  // The team browser's own close-rescue, mirroring the league browser's
-  // above: closing it unmounts every competition row and every card in it.
-  useEffect(() => {
-    if (teamsExpanded) return
-    const current = currentFocusKey()
-    const wasInBrowser =
-      current.startsWith(TEAM_GROUP_FOCUS_PREFIX) ||
-      (current.startsWith(TEAM_FOCUS_PREFIX) && !suggestedTeams.some((t) => teamFocusKey(t.id) === current))
-    if (wasInBrowser) void setFocus(TEAMS_TOGGLE_FOCUS_KEY)
-  }, [teamsExpanded, suggestedTeams])
-
-  // Changing the browsed competition swaps the entire team pane — same
-  // reasoning as the league browser's region effect below.
-  useEffect(() => {
-    if (!teamsExpanded || !activeTeamGroup) return
-    const current = currentFocusKey()
-    if (!current.startsWith(TEAM_FOCUS_PREFIX)) return
-    if (suggestedTeams.some((t) => teamFocusKey(t.id) === current)) return
-    if (activeTeamGroup.teams.some((t) => teamFocusKey(t.id) === current)) return
-    void setFocus(teamGroupFocusKey(activeTeamGroup.competitionId))
-  }, [teamsExpanded, activeTeamGroup, suggestedTeams])
 
   // Changing region swaps the entire detail pane. Focus normally sits in the
   // rail while that happens (focusing a region row is what changes it), but
   // a mouse/click route can leave it on a card that is no longer rendered --
   // hand it back to the region that now owns the pane.
   useEffect(() => {
-    if (!expanded || !activeGroup) return
+    if (!browsing || !activeGroup) return
     const current = currentFocusKey()
     if (!current.startsWith(LEAGUE_FOCUS_PREFIX)) return
     if (recommended.some((l) => leagueFocusKey(l.id) === current)) return
     if (activeGroup.leagues.some((l) => leagueFocusKey(l.id) === current)) return
     void setFocus(regionFocusKey(activeGroup.key))
-  }, [expanded, activeGroup, recommended])
+  }, [browsing, activeGroup, recommended])
 
-  // Back inside the open browser closes it and returns to the control that
-  // opened it, rather than leaving step 2 outright -- the standard "unwind
-  // the innermost thing first" TV behaviour, through the existing
-  // back-handler stack (no second global key listener). Focus is moved
-  // BEFORE the state change so nothing is unmounted while focused. A second
-  // Back reaches this same handler with nothing left to close and goes back
-  // to step 1.
+  // Nothing on this step opens or closes any more, so Back has exactly one
+  // meaning: the previous step. Still routed through the existing
+  // back-handler stack rather than a second global key listener.
   useBackHandler(() => {
-    if (expanded) {
-      void setFocus(LEAGUES_TOGGLE_FOCUS_KEY)
-      onToggleShowAllLeagues()
-      return true
-    }
-    if (teamsExpanded) {
-      void setFocus(TEAMS_TOGGLE_FOCUS_KEY)
-      onToggleShowAllTeams()
-      return true
-    }
     onBack()
     return true
   })
 
-  // ONE PANEL AT A TIME. Both browsers are the last child of the content
-  // area and both claim the leftover height; two open at once would halve
-  // each and push the footer off a 1080px screen. Opening one therefore
-  // closes the other, which is also the more honest interaction — you are
-  // either choosing competitions or choosing clubs.
-  const toggleLeagueBrowser = () => {
-    if (!expanded && teamsExpanded) onToggleShowAllTeams()
-    onToggleShowAllLeagues()
-  }
-  const toggleTeamBrowser = () => {
-    if (!teamsExpanded && expanded) onToggleShowAllLeagues()
-    onToggleShowAllTeams()
-  }
-
   return (
     <FocusContext.Provider value={focusKey}>
-      {/* `dense`: this step has the most to fit of the three (sports +
-          recommendations + a whole browser panel + the footer, all inside
-          1080px), so it tightens the shared chrome's vertical rhythm. */}
+      {/* `dense`: this step fits the sports row, the recommendations and a
+          whole browser panel inside 1080px, so it tightens the shared
+          chrome's vertical rhythm. */}
       <main ref={ref} className="onboarding-screen dense">
         <OnboardingTopBar current={2} />
 
         <div className="onboarding-heading">
           <h1 className="onboarding-headline">
-            Choose what you <span className="accent">follow</span>
+            Choose the leagues you <span className="accent">follow</span>
           </h1>
           <p className="onboarding-description">
-            Pick the leagues and teams you follow so Ninety can personalize your Home screen.
+            Recommended competitions are at the top. Everything else Ninety tracks is in the browser below — you'll pick
+            your clubs next.
           </p>
         </div>
 
         {/* `browsing` turns the content area from a centred, scrollable
             document into a fixed layout whose last child (the browser) takes
-            exactly the leftover height -- see onboardingShared.css. */}
-        <div className={`onboarding-body ${expanded || teamsExpanded ? 'browsing' : ''}`}>
+            exactly the leftover height -- see onboardingShared.css. It is
+            also what makes this step immune to the layout-jump class of bug:
+            with the spacers switched off, nothing below can move anything
+            above it. */}
+        <div className={`onboarding-body ${browsing ? 'browsing' : ''}`}>
           <section className="onboarding-section sports-section">
             <h2 className="picker-section-title">Sports</h2>
             <div className="sports-grid">
@@ -445,112 +315,20 @@ export function OnboardingSportsScreen({
                   />
                 ))}
               </div>
-
-              {/* Stays mounted, in this exact DOM position, under this exact
-                  focusKey whether or not the browser below is open -- only
-                  the label changes. Pressing OK opens a panel BELOW it and
-                  moves nothing, so focus never has to be rescued. */}
-              {canShowAll && (
-                <OnboardingExpander
-                  focusKey={LEAGUES_TOGGLE_FOCUS_KEY}
-                  expanded={expanded}
-                  moreLabel={`Browse all leagues (${expandedCount})`}
-                  fewerLabel="Hide league browser"
-                  chain={chain}
-                  onToggle={toggleLeagueBrowser}
-                />
-              )}
             </section>
           )}
 
-          {/* TEAMS YOU FOLLOW — integrated into this step rather than made a
-              fourth one. It is a refinement of the choice directly above it
-              ("these leagues, and these clubs especially"), not a separate
-              decision, and onboarding is already the longest thing between
-              a new TV and watching something.
-
-              Deliberately compact: a short suggested row plus a browser
-              behind one press. Dumping every club Ninety tracks onto a
-              first-run screen would be unusable with a remote and would
-              make an optional step look mandatory. */}
-          {hasTeamSection && !expanded && (
-            <section className="onboarding-section">
-              <div className="picker-section-header">
-                <h2 className="picker-section-title">
-                  Teams you follow
-                  <span className="picker-section-counter">
-                    Optional — helps Ninety put your matches first
-                  </span>
-                </h2>
-              </div>
-
-              {teamsState.status === 'loading' && <p className="picker-status">Loading teams...</p>}
-              {/* Two DIFFERENT non-ready states, on purpose. "Not available
-                  yet" is a fact about this Ninety backend (the team
-                  catalogue ships separately); an error is something that
-                  went wrong. Neither blocks Continue — following teams is
-                  optional, and a first-run flow must never be gated on an
-                  optional catalogue being reachable. */}
-              {teamsState.status === 'unavailable' && (
-                <p className="picker-status">Following teams isn't available yet — you can add them later in Settings.</p>
-              )}
-              {teamsState.status === 'error' && (
-                <p className="picker-status">Couldn't load teams right now. You can add them later in Settings.</p>
-              )}
-              {teamsState.status === 'ready' && suggestedTeams.length === 0 && (
-                <p className="picker-status">Pick a league above and Ninety will suggest teams to follow.</p>
-              )}
-
-              {suggestedTeams.length > 0 && (
-                <div className="team-grid">
-                  {suggestedTeams.map((team) => (
-                    <TeamCard
-                      key={team.id}
-                      team={team}
-                      selected={selectedTeams.has(team.id)}
-                      onToggle={() => onToggleTeam(team.id)}
-                      arrows={arrowsFor(teamFocusKey(team.id))}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {canBrowseTeams && (
-                <OnboardingExpander
-                  focusKey={TEAMS_TOGGLE_FOCUS_KEY}
-                  expanded={teamsExpanded}
-                  moreLabel={`Browse all teams (${teamCount})`}
-                  fewerLabel="Hide team browser"
-                  chain={chain}
-                  onToggle={toggleTeamBrowser}
-                />
-              )}
-            </section>
-          )}
-
-          {teamsExpanded && activeTeamGroup && (
-            <TeamBrowser
-              groups={teamGroups}
-              activeGroup={activeTeamGroup}
-              selectedTeamIds={selectedTeams}
-              onActivateGroup={setActiveTeamGroupId}
-              onToggleTeam={onToggleTeam}
-              exitUpFocusKey={TEAMS_TOGGLE_FOCUS_KEY}
-              exitDownFocusKey={ONBOARDING_PRIMARY_FOCUS_KEY}
-              onExitDown={(from) => {
-                browserReturnKeyRef.current = from
-              }}
-            />
-          )}
-
-          {expanded && activeGroup && (
+          {browsing && activeGroup && (
             <LeagueBrowser
               groups={groups}
               activeGroup={activeGroup}
               selectedLeagues={selectedLeagues}
               onActivateRegion={setActiveRegionKey}
               onToggleLeague={onToggleLeague}
-              exitUpFocusKey={LEAGUES_TOGGLE_FOCUS_KEY}
+              // Up out of the top of either column lands on the last
+              // recommendation row rather than on a control that no longer
+              // exists.
+              exitUpFocusKey={lastRowEntry(chain.slice(0, -1)) ?? FOOTBALL_FOCUS_KEY}
               exitDownFocusKey={ONBOARDING_PRIMARY_FOCUS_KEY}
               onExitDown={(from) => {
                 browserReturnKeyRef.current = from
@@ -559,7 +337,13 @@ export function OnboardingSportsScreen({
           )}
         </div>
 
-        <OnboardingFooter onBack={onBack} primary={{ label: 'Continue', onPress: onContinue }} upFocusKey={footerUpFocusKey} />
+        <OnboardingFooter
+          onBack={onBack}
+          primary={{ label: 'Continue', onPress: onContinue }}
+          // Up out of the footer returns to exactly where the user left the
+          // browser, falling back to the last row of the page model.
+          upFocusKey={footerUpFocusKey}
+        />
       </main>
     </FocusContext.Provider>
   )

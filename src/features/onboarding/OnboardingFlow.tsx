@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { PlaylistSetupScreen } from '../setup/PlaylistSetupScreen'
 import { OnboardingSportsScreen } from './OnboardingSportsScreen'
+import { OnboardingTeamsScreen } from './OnboardingTeamsScreen'
 import { OnboardingCountriesScreen } from './OnboardingCountriesScreen'
 import { pickInitialPrimaryCountry } from './recommendedCountries'
 import { DEFAULT_PREFERENCES, markOnboardingComplete, savePreferences, withCountryToggled } from '../../data/preferences'
@@ -11,10 +12,13 @@ import type { SportKey } from '../../data/sports/types'
 import type { Channel } from '../../data/channel'
 import type { PlaylistSourceRecord } from '../../data/session'
 
-// Exactly three steps. The old fourth "You're all set" screen was removed
-// in the 2026-08-25 restructure — finishing Countries IS finishing
-// onboarding.
-type Step = 1 | 2 | 3
+// Four steps: Playlist, Sports & leagues, Teams, Countries. There is still
+// no "You're all set" summary — finishing Countries IS finishing onboarding
+// (the 2026-08-25 restructure removed that screen).
+//
+// Teams became step 3 in the 2026-08-26 pass; it used to be a cramped
+// expandable section inside step 2. See ONBOARDING_STEPS for why.
+type Step = 1 | 2 | 3 | 4
 
 // Each step screen's own root focusKey. Targeted directly (rather than
 // ROOT_FOCUS_KEY) for the same reason App.tsx targets a screen's own key
@@ -25,20 +29,21 @@ type Step = 1 | 2 | 3
 const STEP_FOCUS_KEYS: Record<Step, string> = {
   1: 'setup-screen',
   2: 'onboarding-sports',
-  3: 'onboarding-countries',
+  3: 'onboarding-teams',
+  4: 'onboarding-countries',
 }
 
 interface Props {
-  // Called once, from step 3's Finish setup, after preferences are saved
+  // Called once, from step 4's Finish setup, after preferences are saved
   // and onboarding is marked complete. `channels` is empty (and `source`
   // null) when the user skipped step 1 — App.tsx must not treat that as a
   // playlist to install.
   onDone: (channels: Channel[], source: PlaylistSourceRecord | null) => void
 }
 
-// Owns state across all three onboarding steps (playlist connect → sports &
-// leagues → countries) so nothing is persisted piecemeal — only Finish
-// setup actually writes to storage. Each step screen stays a plain
+// Owns state across all four onboarding steps (playlist connect → sports &
+// leagues → teams → countries) so nothing is persisted piecemeal — only
+// Finish setup actually writes to storage. Each step screen stays a plain
 // controlled component with no storage awareness of its own.
 export function OnboardingFlow({ onDone }: Props) {
   const [step, setStep] = useState<Step>(1)
@@ -54,18 +59,19 @@ export function OnboardingFlow({ onDone }: Props) {
   // priority order and the first pick is the user's primary country (see
   // SportPreferences.favoriteCountries / withCountryToggled).
   const [selectedCountries, setSelectedCountries] = useState<string[]>([])
-  // "See all"/"See more" expansion lives here rather than inside the step
-  // screens so navigating Back and forward again doesn't silently collapse
-  // a list the user deliberately expanded.
-  const [showAllLeagues, setShowAllLeagues] = useState(false)
-  const [showAllTeams, setShowAllTeams] = useState(false)
+  // Only the Countries step still has anything to expand — the league and
+  // team steps replaced their expanders with always-open browser panels (see
+  // OnboardingSportsScreen). It lives here rather than inside the screen so
+  // navigating Back and forward again doesn't silently collapse a list the
+  // user deliberately expanded.
   const [showAllCountries, setShowAllCountries] = useState(false)
 
   // Country-level personalization signal for this TV — device region, then
   // locale, then the connected playlist (see data/viewerCountry.ts). Owned
   // here, at the flow level, so the async device probe starts on step 1 and
-  // has long resolved by the time steps 2 and 3 render recommendations from
-  // it. Never blocks: an undetected country just means fewer suggestions.
+  // has long resolved by the time the later steps render recommendations
+  // from it. Never blocks: an undetected country just means fewer
+  // suggestions.
   const viewerCountry = useViewerCountry(channels)
   const availableCountries = useMemo(() => playlistCountries(channels), [channels])
 
@@ -141,7 +147,7 @@ export function OnboardingFlow({ onDone }: Props) {
       // everyone starts on 'auto' and can change it any time in Settings.
       streamType: 'auto',
       // Optional, and genuinely optional: onboarding never blocks on the
-      // team catalogue being reachable (see OnboardingSportsScreen) — a
+      // team catalogue being reachable (see OnboardingTeamsScreen) — a
       // viewer who skipped or couldn't load it finishes with an empty list
       // and can add teams later in Settings.
       favoriteTeamIds: selectedSports.has('football') ? [...selectedTeams] : [],
@@ -174,16 +180,25 @@ export function OnboardingFlow({ onDone }: Props) {
         selectedSports={selectedSports}
         selectedLeagues={selectedLeagues}
         viewerCountryCode={viewerCountry.code}
-        showAllLeagues={showAllLeagues}
-        onToggleShowAllLeagues={() => setShowAllLeagues((v) => !v)}
         onToggleSport={toggleSport}
         onToggleLeague={toggleLeague}
-        selectedTeams={selectedTeams}
-        onToggleTeam={toggleTeam}
-        showAllTeams={showAllTeams}
-        onToggleShowAllTeams={() => setShowAllTeams((v) => !v)}
         onBack={() => setStep(1)}
         onContinue={() => setStep(3)}
+      />
+    )
+  }
+
+  if (step === 3) {
+    return (
+      <OnboardingTeamsScreen
+        // Leagues ORDER the clubs on this step (suggestions, and the top of
+        // the browser's rail); they never limit which clubs exist. See
+        // teamRail.ts.
+        selectedLeagues={selectedLeagues}
+        selectedTeams={selectedTeams}
+        onToggleTeam={toggleTeam}
+        onBack={() => setStep(2)}
+        onContinue={() => setStep(4)}
       />
     )
   }
@@ -200,7 +215,7 @@ export function OnboardingFlow({ onDone }: Props) {
         countriesSeededRef.current = true
         setSelectedCountries([])
       }}
-      onBack={() => setStep(2)}
+      onBack={() => setStep(3)}
       onFinish={finish}
     />
   )

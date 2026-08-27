@@ -616,11 +616,10 @@
   flex-shrink: 0;
 }
 
-/* Right-side metadata occupies FIXED-width columns (type / quality) with
-   only the stream name flexing — a long list scans as an aligned table,
-   and a row can never get wider/messier because some metadata is missing
-   or a label happens to be a longer word. Country is never per-row
-   metadata — it's the section header above, see StreamSections.tsx. */
+/* The stream name is the only thing that flexes; everything to its right
+   lives in ONE fixed-width, right-aligned metadata group (below), so a long
+   list still scans as an aligned table without every individual tag being
+   padded out to the width of the longest label it might ever hold. */
 .stream-row-name {
   flex: 1 1 220px;
   min-width: 0;
@@ -631,59 +630,114 @@
   color: var(--text-primary);
 }
 
-/* Metadata, not buttons/status pills — deliberately quieter than the
-   stream name and Watch now (information hierarchy: name -> Watch now ->
-   EVENT/TV -> quality, never four equally-loud elements). TV stays fully
-   neutral; EVENT gets the most restrained possible touch of Ninety's own
-   accent (never the old warning-orange, which read as a status/error
-   color here). Fixed widths so the badge/quality/Watch columns all line
-   up vertically across every row regardless of label length. */
+/* THE ALIGNMENT UNIT. Each tag inside is sized by its own content — "8K"
+   is a narrow tag and "FHD" a slightly wider one, which is exactly right
+   and is what the previous fixed 92px quality column got wrong (an 8K
+   badge as wide as a button, floating in its own empty box). What stays
+   fixed is this group's width, so Watch now starts at the same x on every
+   row no matter how much metadata a row happens to carry.
+
+   Right-aligned, so the tags sit tight against the action they qualify
+   rather than drifting mid-row when a row has no country tag. */
+.stream-row-meta {
+  flex: 0 0 190px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Metadata, not buttons and not status pills — deliberately quieter than
+   the stream name and Watch now (information hierarchy: name -> Watch now
+   -> country/type/quality, never four equally-loud elements).
+
+   COLOUR, added 2026-08-26. These were three near-identical grey
+   rectangles, which meant reading each one as words rather than
+   recognizing it as a shape+hue. Each kind of tag now carries one
+   restrained hue from the tokens (see --tag-tv / --tag-quality) as its
+   text colour over a ~13% tint of itself: enough for the eye to parse the
+   row at a glance, nowhere near enough to compete with the focus ring or
+   with the accent that marks the top pick.
+
+   Sizing: this used to be a 28px-tall box with a 40px min-width inside a
+   92px column. It is now a badge — content width, 7px of side padding,
+   24px tall, tight radius. Still 12px type, which measures ~9mm at 1080p
+   on a 55" panel: comfortably readable at 3m. */
 .stream-row-badge {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  border-radius: var(--radius-sm);
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 5px;
   font-size: 12px;
-  font-weight: var(--weight-regular);
-  letter-spacing: 0.06em;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
-.stream-row-type {
-  flex-basis: 64px;
-  color: var(--text-muted);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+/* Where a recommended stream actually comes from — shown ONLY on rows whose
+   country isn't already stated by the section heading above them (see
+   StreamRow's showCountry). Neutral, not hued: the flag is already the
+   loudest thing in it, and a coloured surface behind a coloured flag reads
+   as a badge-on-a-badge. */
+.stream-row-country {
+  gap: 5px;
+  padding-left: 5px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-elevated) 70%, transparent);
 }
 
+.stream-row-country-flag {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.stream-row-country-code {
+  letter-spacing: 0.06em;
+}
+
+/* Linear TV channel. */
+.stream-row-type {
+  color: var(--tag-tv);
+  background: color-mix(in srgb, var(--tag-tv) 13%, transparent);
+}
+
+/* ...and an event-specific feed, which keeps Ninety's own accent (never
+   the old warning-orange, which read as a status/error colour here). */
 .stream-row-type.event {
   color: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
-}
-
-/* Quieter than the type badge — no border at all, just a soft tint, per
-   "avoid overly strong rectangular borders... use a quieter surface than
-   the EVENT badge". */
-.stream-row-quality-col {
-  flex-basis: 92px;
-  gap: 4px;
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface-elevated) 65%, transparent);
-  padding: 0 var(--space-2);
-}
-
-.stream-row-quality-col.unknown {
-  color: var(--text-disabled);
-  background: transparent;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
 }
 
 /* Reports the group's BEST available variant, nothing selectable — quality
    is chosen inside the player now, not on this row (see StreamRow.tsx), so
    the old ‹ › cycle cues are gone along with the interaction. */
-.stream-row-quality-value {
-  min-width: 40px;
-  text-align: center;
+.stream-row-quality-col {
+  color: color-mix(in srgb, var(--tag-quality) 80%, var(--text-secondary));
+  background: color-mix(in srgb, var(--tag-quality) 11%, transparent);
+}
+
+/* UHD/4K/8K — ONE step up in emphasis for the tiers a viewer actively
+   looks for. Deliberately not a green/amber/red ladder: SD is not an error
+   state, it is a fact, and colouring it like a failure would be both ugly
+   and untrue. Same hue, more of it. */
+.stream-row-quality-col.high {
+  color: var(--tag-quality);
+  background: color-mix(in srgb, var(--tag-quality) 20%, transparent);
+}
+
+/* Unknown quality is ABSENT information — it must read as less important
+   than any real value, so it keeps the em dash and drops both hue and
+   surface entirely. */
+.stream-row-quality-col.unknown {
+  color: var(--text-disabled);
+  background: transparent;
 }
 
 /* The clearest action on the row — quiet enough at rest to stay secondary

@@ -7,12 +7,29 @@
 // Keys are DERIVED from canonical ids, never written out: the team
 // catalogue is fetched at runtime and changes without a release.
 
-// One club tile. Shared by the suggestions row and the browser's grid,
-// which is safe because groupTeamsByCompetition and suggestTeams are only
-// ever rendered one at a time within a surface — see the screen's own
-// dedupe of the two lists.
+// One club tile in the BROWSER's grid.
 export const TEAM_FOCUS_PREFIX = 'team-'
 export const teamFocusKey = (teamId: string) => `${TEAM_FOCUS_PREFIX}${teamId}`
+
+// The same club, in the SUGGESTIONS row above the browser — and a
+// deliberately different key space.
+//
+// The two surfaces genuinely can show the same club at the same time, and
+// should: the suggestions are a shortcut into the very catalogue the panel
+// browses, so following Manchester United from the suggestions must show it
+// ticked in the Premier League grid too. Sharing one key made those two
+// tiles two focusables registered under one name, and norigin resolves that
+// by keeping whichever it saw last — which is how pressing OK on a club in
+// the grid threw focus back to the rail, and why the press sometimes did
+// not register at all.
+//
+// The leagues step never hit this because groupExpandedLeagues removes every
+// recommended competition from the browser's groups, so one id really does
+// mean one card there. Teams cannot do the same: hiding the eight suggested
+// clubs from their own league's grid would leave a Premier League page
+// mysteriously missing Arsenal.
+export const SUGGESTED_TEAM_FOCUS_PREFIX = 'suggested-team-'
+export const suggestedTeamFocusKey = (teamId: string) => `${SUGGESTED_TEAM_FOCUS_PREFIX}${teamId}`
 
 // A competition row in the team browser's rail. Distinct from the league
 // browser's `browse-` prefix so the two panels' rescue effects can't

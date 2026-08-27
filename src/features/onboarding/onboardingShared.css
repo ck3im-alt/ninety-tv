@@ -87,15 +87,15 @@
   margin: var(--space-3) 0 0;
 }
 
-/* ---- Dense variant (onboarding step 2) ----
+/* ---- Dense variant (the leagues and teams steps) ----
 
-   Step 2 has the most to fit inside the same 1080px as every other step:
-   the sports row, a full row of recommended leagues, the "Browse all
-   leagues" control, an entire master/detail browser panel AND the footer.
-   Rather than let the browser push the footer off screen, this variant
-   tightens the shared chrome's vertical rhythm — smaller headline, smaller
-   margins between the fixed blocks — which buys the panel ~90px without
-   touching type sizes that matter for sofa readability. */
+   Both picker steps have to fit a pinned recommendation row, an entire
+   master/detail browser panel AND the footer inside the same 1080px as
+   every other step (the leagues step also carries the sports row). Rather
+   than let the panel push the footer off screen, this variant tightens the
+   shared chrome's vertical rhythm — smaller headline, smaller margins
+   between the fixed blocks — which buys the panel ~90px without touching
+   any type size that matters for sofa readability. */
 
 .onboarding-screen.dense .onboarding-topbar,
 .onboarding-screen.dense .onboarding-heading {
@@ -134,9 +134,24 @@
    scroll-clipping that `justify-content: center` causes: these spacers are
    flex-shrinkable to nothing, so the moment the content is taller than the
    box they collapse and it scrolls from the top as normal. Matters because
-   the three steps have very different content heights (step 1 fills the
-   page; steps 2 and 3 use about half of it) and top-aligning all of them
-   left a dead band above the footer on two screens out of three. */
+   the steps have very different content heights (Playlist fills the page;
+   Countries uses about half of it) and top-aligning all of them left a dead
+   band above the footer.
+
+   THE HAZARD THESE CREATE, stated so it is not rediscovered the hard way.
+   Centring couples EVERY row on the page to the total content height: if
+   anything below grows or shrinks, the free space is redistributed and
+   everything above it moves. That is exactly how ticking a league made the
+   whole league row jump and settle back — a transient "Loading teams..."
+   line replacing a grid, a hundred pixels further down the page, briefly
+   re-centred the rows above it. (The other half of that fix is
+   useTeamCatalog's stale-while-revalidate.)
+
+   The rule that follows: a step whose content can change height WITHOUT the
+   viewer acting on that content must not be centred. Both picker steps
+   (leagues, teams) are permanently in `browsing` mode below, which switches
+   these spacers off — so on those two, nothing below can move anything
+   above it, structurally. */
 .onboarding-body::before,
 .onboarding-body::after {
   content: '';
@@ -149,14 +164,18 @@
   flex-shrink: 0;
 }
 
-/* ---- Panel mode (step 2's open league browser) ----
+/* ---- Panel mode (the leagues and teams browsers) ----
 
-   THE RULE THAT KEEPS THE PAGE ONE SCREEN TALL. Opening the browser used to
-   append ~19 headings and 42 cards to this scroll container, taking its
+   THE RULE THAT KEEPS THE PAGE ONE SCREEN TALL. The catalogue used to be
+   ~19 headings and 42 cards appended to this scroll container, taking its
    content from about one screen to several. Now the last child is a panel
    that takes exactly the height left over and manages its own insides, so
-   this container's content height still equals its box height and the page
+   this container's content height always equals its box height and the page
    never scrolls at all.
+
+   Since the 2026-08-26 pass both picker steps are ALWAYS in this mode —
+   there is no expander to open, the panel is simply there. That is what
+   makes those two steps immune to the centring hazard documented above.
 
    The centring spacers are switched off first: they and the panel would
    otherwise all be flex-growers competing for the same free space, and the
@@ -170,9 +189,9 @@
    to be sized by what is left rather than by its contents. The min-height
    is a floor for an unusually short viewport: better a slightly clipped
    panel than one collapsed to nothing. */
-/* Both browsers (leagues and teams) are the same panel component — see
-   TeamBrowser.tsx — and only ever one is open at a time, so one rule
-   covers both. */
+/* Both browsers (leagues and teams) are the same panel and carry the same
+   .league-browser class — see TeamBrowser.tsx — and they live on different
+   steps, so one rule covers both. */
 .onboarding-body.browsing > .league-browser {
   flex: 1 1 0;
   min-height: 240px;

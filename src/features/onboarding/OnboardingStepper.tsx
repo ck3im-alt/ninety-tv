@@ -5,12 +5,25 @@ export interface StepDef {
   label: string
 }
 
-// Exactly three steps. The old fourth ("You're all set") screen was removed
-// in the 2026-08-25 restructure — finishing Countries completes onboarding
-// and goes straight to Home, so there is no summary step to announce.
+// Four steps, and still no "You're all set" summary — finishing Countries
+// completes onboarding and goes straight to Home (the 2026-08-25
+// restructure removed that screen and it is not coming back).
+//
+// Teams became a step of its own rather than an expandable section under
+// the leagues: squeezed beneath an already-tall league picker it had a few
+// hundred pixels to work with, which is not enough to choose clubs from
+// with a remote. A step gets the whole 1080px canvas, which is what the
+// job actually needs — and it makes the flow read as four equal-sized
+// decisions instead of three plus a cramped afterthought.
+//
 // Labels are deliberately terse: this is a progress indicator read from
 // across a room, not a description of each step.
-export const ONBOARDING_STEPS: StepDef[] = [{ label: 'Playlist' }, { label: 'Sports & leagues' }, { label: 'Countries' }]
+export const ONBOARDING_STEPS: StepDef[] = [
+  { label: 'Playlist' },
+  { label: 'Sports & leagues' },
+  { label: 'Teams' },
+  { label: 'Countries' },
+]
 
 // Purely indicative — not focusable and not interactive. Jumping between
 // steps out of order would let someone reach Countries before a playlist

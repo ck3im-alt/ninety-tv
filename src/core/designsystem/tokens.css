@@ -22,6 +22,26 @@
   --warning: #f0a52a;
   --warning-dark: #332512;
 
+  /* ---- Metadata tag hues ----
+     Exactly two, added 2026-08-26 so a stream row's TV/EVENT and quality
+     tags stop being three identical grey rectangles the eye has to read
+     word by word.
+
+     Both are deliberately chosen NOT to be status colours. Ninety already
+     spends green on "this is selected / this is the pick", red on LIVE and
+     amber on warnings; a metadata tag that borrows any of those is making a
+     claim it cannot back up (an SD stream is not a warning). A cool blue
+     for "linear TV channel" and a violet for "picture quality" are legible
+     against the dark surfaces at low saturation, read as labels rather than
+     verdicts, and cannot be confused with the three colours that do mean
+     something.
+
+     Used ONLY as text colour plus a very low-alpha tint of themselves (see
+     .stream-row-badge) — never as a solid fill, which would make the tags
+     louder than the focus ring they sit inside. */
+  --tag-tv: #6ea6dd;
+  --tag-quality: #ab8ceb;
+
   --divider: #18222d;
   --border: #1b2630;
   --border-focus: #76f04b;

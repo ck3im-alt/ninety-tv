@@ -7,6 +7,7 @@ import type { PlaylistCountry } from '../../data/viewerCountry'
 import { buildRecommendedCountries, type RecommendedCountry } from './recommendedCountries'
 import { chunkIntoRows, isRowEdge, lastRowEntry, verticalNeighbour, type FocusChain } from './focusChain'
 import { OnboardingExpander } from './OnboardingExpander'
+import { useOnboardingLanding } from './useOnboardingLanding'
 import { OnboardingTopBar } from './OnboardingStepper'
 import { BLOCK_ARROW, SelectableCard } from './SelectableCard'
 import {
@@ -58,7 +59,7 @@ export function OnboardingCountriesScreen({
   onBack,
   onFinish,
 }: Props) {
-  // PINNED, exactly like step 2's recommended leagues: the detected home
+  // PINNED, exactly like the league step's recommended row: the detected home
   // country, up to two neighbouring markets, the UK and the US -- filtered
   // to what the playlist actually carries and topped up from its biggest
   // remaining countries. See recommendedCountries.ts.
@@ -93,8 +94,9 @@ export function OnboardingCountriesScreen({
   const expanded = showAllCountries && canShowAll
 
   // Every focusable row of the picker surface, top to bottom, in render
-  // order -- see focusChain.ts. Same model as step 2, so partial rows and
-  // the pinned/appended boundary need no per-card special cases.
+  // order -- see focusChain.ts. The same row model every other onboarding
+  // surface uses, so partial rows and the pinned/appended boundary need no
+  // per-card special cases.
   const chain = useMemo<FocusChain>(() => {
     const rows: string[][] = [...chunkIntoRows(pinned.map((c) => countryKey(c.name)), GRID_COLUMNS)]
     if (canShowAll) rows.push([COUNTRIES_TOGGLE_FOCUS_KEY])
@@ -119,12 +121,20 @@ export function OnboardingCountriesScreen({
 
   const firstCardFocusKey = pinned[0] ? countryKey(pinned[0].name) : undefined
 
+  // Arriving here means pressing OK on the previous step's Continue, which
+  // leaves focus on a footer key this step re-registers under the same name
+  // — so nothing goes stale and preferredChildFocusKey below is never
+  // re-resolved. Without this the step opened with "Finish setup" focused,
+  // one OK press from completing onboarding without the viewer ever seeing
+  // the countries. See useOnboardingLanding.
+  useOnboardingLanding(firstCardFocusKey ?? null)
+
   // preferredChildFocusKey (not just the first card's forceFocus, which
   // only applies on mount): the flow re-focuses this screen's own root key
-  // on every step change, including arriving back here from step 2 -- see
-  // OnboardingFlow's STEP_FOCUS_KEYS. Falls back to the primary action so a
-  // playlist-less, undetected-country viewer with no cards at all can still
-  // reach Finish setup.
+  // on every step change, including arriving back here after stepping back
+  // to Teams -- see OnboardingFlow's STEP_FOCUS_KEYS. Falls back to the
+  // primary action so a playlist-less, undetected-country viewer with no
+  // cards at all can still reach Finish setup.
   const { ref, focusKey } = useFocusable({
     focusKey: 'onboarding-countries',
     trackChildren: true,
@@ -151,7 +161,7 @@ export function OnboardingCountriesScreen({
     if (!pinned.some((c) => countryKey(c.name) === current)) void setFocus(COUNTRIES_TOGGLE_FOCUS_KEY)
   }, [expanded, pinned])
 
-  // Same "unwind the innermost thing first" Back behaviour as step 2, via
+  // "Unwind the innermost thing first" Back behaviour, via
   // the existing back-handler stack. Focus moves BEFORE the state change so
   // no card is unmounted while focused.
   useBackHandler(() => {
@@ -167,15 +177,19 @@ export function OnboardingCountriesScreen({
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="onboarding-screen">
-        <OnboardingTopBar current={3} />
+        <OnboardingTopBar current={4} />
 
         <div className="onboarding-heading">
           <h1 className="onboarding-headline">
             Choose your preferred <span className="accent">countries</span>
           </h1>
           <p className="onboarding-description">
-            We'll prioritize streams from these countries when several options are available. Your first pick is your
-            primary country.
+            {/* Says out loud what this preference does and — just as
+                importantly — what it does not do. It used to quietly hide
+                every other country's channels from Channels; see
+                rankCountries.ts. */}
+            We'll put streams from these countries first when several options are available. Nothing is ever hidden —
+            your whole playlist stays browsable. Your first pick is your primary country.
           </p>
         </div>
 
@@ -210,9 +224,11 @@ export function OnboardingCountriesScreen({
                 ))}
               </div>
 
-              {/* Same stable-position, stable-focusKey control as step 2's
-                  More leagues: the appended list goes BELOW it, so it never
-                  moves out from under the focus ring. */}
+              {/* Stable position, stable focusKey — the appended list goes
+                  BELOW this control, so it never moves out from under the
+                  focus ring. The last expander left in onboarding: the
+                  league and team steps replaced theirs with always-open
+                  browser panels. */}
               {canShowAll && (
                 <OnboardingExpander
                   focusKey={COUNTRIES_TOGGLE_FOCUS_KEY}
