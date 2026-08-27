@@ -6,7 +6,7 @@
   overflow: hidden;
   outline: 3px solid transparent;
   outline-offset: -3px;
-  transition: outline-color var(--motion-duration) var(--motion-ease);
+  transition: outline-color var(--motion-focus) var(--motion-ease);
 }
 
 /* Subtle but clearly visible focus state — a bright accent ring, no layout
@@ -133,8 +133,12 @@
   border-bottom: none;
 }
 
+/* Two channels — see .filter-row.focused for why an inset outline rather
+   than a border. */
 .pane-menu-row.focused {
   background: var(--surface-focus);
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .pane-menu-source-label {

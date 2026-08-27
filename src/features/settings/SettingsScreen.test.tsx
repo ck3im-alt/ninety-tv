@@ -132,6 +132,7 @@ function renderSettings({
     resyncPlaylist: vi.fn().mockResolvedValue(undefined),
     resyncAll: vi.fn().mockResolvedValue(undefined),
     removePlaylist: vi.fn().mockResolvedValue(undefined),
+    setPlaybackActive: vi.fn(),
     onChangeChannelVisibility: vi.fn(),
     onClearRecentlyWatched: vi.fn(),
     onBack: vi.fn(),

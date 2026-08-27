@@ -57,8 +57,8 @@ export function markPerf(name: string): void {
 export function measurePerf(name: string, start: string, end?: string): void {
   if (!PERF_DIAGNOSTICS_ENABLED) return
   const log = perfLog()
-  const startEntry = log?.marks.findLast((m) => m.name === start)
-  const endEntry = end ? log?.marks.findLast((m) => m.name === end) : undefined
+  const startEntry = lastMark(log, start)
+  const endEntry = end ? lastMark(log, end) : undefined
   const endTime = endEntry?.time ?? now()
   const duration = startEntry ? endTime - startEntry.time : NaN
   try {
@@ -74,6 +74,22 @@ export function measurePerf(name: string, start: string, end?: string): void {
     console.info(`[perf] ${name}: ${duration.toFixed(1)}ms`)
   }
   if (log) log.measures.push({ name, duration, start, end })
+}
+
+// Array.prototype.findLast is ES2023 (Chromium 97+), and this file is the
+// one part of the app that is COMPILED IN to the diagnostic .wgt used for
+// on-device measurement — on a Tizen WebKit older than that, `findLast`
+// would have thrown a TypeError out of App's very first mount effect and
+// taken the whole diagnostic build down with it. config.xml declares
+// required_version 6.0, i.e. Chromium 76. esbuild's es2017 target rewrites
+// SYNTAX but never polyfills a built-in method, so this has to be written
+// out.
+function lastMark(log: NinetyPerfLog | null, name: string): { name: string; time: number } | undefined {
+  if (!log) return undefined
+  for (let i = log.marks.length - 1; i >= 0; i--) {
+    if (log.marks[i].name === name) return log.marks[i]
+  }
+  return undefined
 }
 
 // Records a duration that's already been computed elsewhere (e.g.

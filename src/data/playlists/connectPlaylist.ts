@@ -8,10 +8,9 @@
 // did (playlistRecovery.ts -> xtreamClient/parseM3u/mergeChannelSources);
 // this module only owns the small amount of glue that used to be private to
 // the setup screen.
-import { parseM3u } from '../m3u/parseM3u'
 import { parseXtreamPlaylistUrl } from '../xtream/xtreamClient'
 import { recoverChannelsFromSource } from '../playlistRecovery'
-import { mergeChannelSources } from '../../features/channels/mergeChannels'
+import { buildPlaylistChannels } from './playlistBuildWorkerClient'
 import type { Channel } from '../channel'
 import type { M3uUrlSourceRecord, PlaylistSourceRecord, XtreamSourceRecord } from '../session'
 
@@ -55,7 +54,11 @@ export async function loadChannelsForSource(source: XtreamSourceRecord | M3uUrlS
 // retained (see session.ts's FileSourceRecord), which is exactly why a file
 // playlist offers "Replace file" instead of "Resync" in Settings.
 export async function loadChannelsFromFile(file: File): Promise<{ channels: Channel[]; source: PlaylistSourceRecord }> {
-  const raw = parseM3u(await file.text())
-  if (raw.length === 0) throw new EmptyPlaylistError()
-  return { channels: mergeChannelSources(raw), source: { type: 'file', fileName: file.name } }
+  // Same off-main-thread parse+merge every other connect path uses (see
+  // playlistBuildWorkerClient.ts) — a file playlist is exactly as large as
+  // a downloaded one, and this runs while the import loading screen is up,
+  // which can only animate if the main thread is free.
+  const { channels } = await buildPlaylistChannels({ kind: 'm3u-text', text: await file.text() })
+  if (channels.length === 0) throw new EmptyPlaylistError()
+  return { channels, source: { type: 'file', fileName: file.name } }
 }

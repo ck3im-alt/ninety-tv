@@ -97,7 +97,7 @@
   justify-content: space-between;
   gap: var(--space-3);
   cursor: pointer;
-  transition: background var(--motion-duration) var(--motion-ease), border-color var(--motion-duration) var(--motion-ease);
+  transition: background var(--motion-focus) var(--motion-ease), border-color var(--motion-focus) var(--motion-ease);
 }
 
 /* The region being browsed, which is NOT always the focused one — focus

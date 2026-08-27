@@ -214,6 +214,15 @@ function MultiviewPaneVideo({
             onRestoreGrid()
           }}
           onSelectSource={(index) => {
+            // Marked as applied BEFORE the load, because this pick reaches
+            // the controller twice otherwise: once here (immediately, so the
+            // stream changes on the keypress rather than a render later) and
+            // once from the sync effect above, when the session's own
+            // pane.sourceIndex catches up. selectSource always reloads —
+            // there is no same-index bail — so the pane tore down and rebuilt
+            // the identical stream twice in a row, which on TV silicon is a
+            // visible double stall in one of up to four live panes.
+            appliedSourceIndexRef.current = index
             controller.selectSource(index)
             onSelectSource(index)
           }}

@@ -293,7 +293,7 @@
   min-height: 148px;
   box-sizing: border-box;
   cursor: pointer;
-  transition: border-color var(--motion-duration) var(--motion-ease), background var(--motion-duration) var(--motion-ease);
+  transition: border-color var(--motion-focus) var(--motion-ease), background var(--motion-focus) var(--motion-ease);
 }
 
 /* Selected reads as a quiet, tinted state; only the checkbox is actually

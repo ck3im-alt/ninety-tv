@@ -86,7 +86,7 @@
   font-weight: var(--weight-regular);
   padding: var(--space-4) var(--space-6);
   cursor: pointer;
-  transition: color var(--motion-duration) var(--motion-ease), background-color var(--motion-duration) var(--motion-ease);
+  transition: color var(--motion-focus) var(--motion-ease), background-color var(--motion-focus) var(--motion-ease);
 }
 
 .settings-rail-item.active {

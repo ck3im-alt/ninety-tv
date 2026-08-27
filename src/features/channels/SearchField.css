@@ -5,14 +5,20 @@
   height: 68px;
   border-radius: var(--radius-md);
   background: var(--surface-primary);
-  border: 1px solid var(--border);
+  /* 1.5px at rest as well, so focus recolours the border instead of
+     thickening it — a width change nudges the input text half a pixel. */
+  border: 1.5px solid var(--border);
   padding: 0 var(--space-6);
   box-sizing: border-box;
+  transition:
+    background-color var(--motion-focus) var(--motion-ease),
+    border-color var(--motion-focus) var(--motion-ease);
 }
 
 .search-field:focus-within,
 .search-field.focused {
-  border: 1.5px solid var(--border-focus);
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
 }
 
 .search-field-icon {

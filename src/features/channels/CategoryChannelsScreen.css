@@ -394,11 +394,19 @@
   font-size: 18px;
 }
 
+/* Vocabulary A. A lone border-colour change was too close to the FAVORITED
+   state below, which also drew an accent border — so a favorited button
+   sitting unfocused beside a focused-but-unfavorited one read as the more
+   selected of the two. See the focus-state contract in tokens.css. */
 .fav-btn.focused {
   border-color: var(--border-focus);
+  background: var(--surface-focus);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
 
+/* FAVORITED: the label already changes ("☆ Add to Favorites" ->
+   "★ Favorited"), so accent TEXT is all this needs — no border of its own. */
 .fav-btn.active {
-  border-color: var(--accent);
   color: var(--accent);
 }

@@ -35,7 +35,7 @@ import type { ChannelIndex } from '../../data/channelIndex'
 import type { PlaylistLibrary } from '../../data/playlists/usePlaylistLibrary'
 import './SettingsScreen.css'
 
-const ROOT_FOCUS_KEY = 'settings-screen'
+const SCREEN_FOCUS_KEY = 'settings-screen'
 const BACK_FOCUS_KEY = 'settings-back'
 // ChannelIndex's bucket for channels whose category carried no recognizable
 // country prefix — see data/channelIndex.ts's OTHER.
@@ -87,7 +87,7 @@ export function SettingsScreen({
   }
 
   const { ref, focusKey } = useFocusable({
-    focusKey: ROOT_FOCUS_KEY,
+    focusKey: SCREEN_FOCUS_KEY,
     trackChildren: true,
     // Always resolvable at mount: the rail is a fixed local list with no
     // async gating, so this never races the lazy chunk load the way a

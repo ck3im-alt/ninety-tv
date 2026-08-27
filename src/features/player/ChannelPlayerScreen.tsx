@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { FocusContext, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { FocusContext, doesFocusableExist, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { usePlayerSession } from '../../core/player'
 import type { SubtitleTrack } from '../../core/player'
 import type { ChannelSource } from '../../data/channel'
-import { useBackHandler, useFocusScrollIntoView, useModalFocusScope } from '../../core/platform'
+import { NavIntent, keyEventToIntent, useBackHandler, useFocusScrollIntoView, useModalFocusScope } from '../../core/platform'
 import type { Channel } from '../../data/channel'
 import { estimateQualityTier, qualityTierLabel } from '../eventDetails/rankStreamQuality'
 import { formatEventStreamDisplayLine } from '../eventDetails/ppvDisplayName'
@@ -32,6 +32,24 @@ interface Props {
 
 const OVERLAY_FOCUS_KEY = 'player-overlay'
 const TOOLBAR_FOCUS_KEY = 'player-toolbar'
+// The toolbar's deliberate landing target whenever the OSD is revealed
+// without a remembered last-focused button. Play/Pause, NOT the first
+// button (Channel List → onBack): norigin resolves a container with no
+// preferredChildFocusKey to the child closest to the origin, which put the
+// "leave playback" action under the very first OK press. Defence in depth —
+// the toolbar is unfocusable while hidden (see `focusable={menuVisible}`
+// below), so nothing there can be activated invisibly at all; this makes
+// the worst case of a mis-ordered press "pause" rather than "quit".
+const PLAY_PAUSE_FOCUS_KEY = 'player-play-pause'
+// Every toolbar control carries an explicit, stable focus key rather than
+// norigin's auto-generated `sn:focusable-item-N`: those are assigned in
+// mount order, so the Multiview button being conditional silently shifted
+// the keys of everything after it, and nothing (tests, the dev focus
+// overlay, a future setFocus) could address a specific control by name.
+const CHANNEL_LIST_FOCUS_KEY = 'player-channel-list'
+const SYNC_LIVE_FOCUS_KEY = 'player-sync-live'
+const MUTE_FOCUS_KEY = 'player-mute'
+const MULTIVIEW_FOCUS_KEY = 'player-multiview'
 const SOURCE_TOGGLE_FOCUS_KEY = 'player-source-toggle'
 const SUBTITLES_TOGGLE_FOCUS_KEY = 'player-subtitles-toggle'
 const SOURCE_POPUP_FOCUS_KEY = 'player-source-popup'
@@ -113,14 +131,31 @@ function ToolbarButton({
   label,
   onSelect,
   active = false,
+  focusable = true,
+  onFocus,
 }: {
   focusKey?: string
   icon: string
   label: string
   onSelect: () => void
   active?: boolean
+  // Reports which control the viewer is on, so the screen can bring focus
+  // back here the next time the OSD is revealed — see revealTargetRef.
+  onFocus?: () => void
+  // False while the OSD is hidden. The overlay is hidden by opacity alone
+  // (it stays mounted and laid out so it can fade back in), and
+  // `pointer-events: none` only stops the MOUSE — a D-pad has no pointer.
+  // Without this every toolbar button kept full spatial-nav registration
+  // while invisible, and since norigin's own window keydown listener runs
+  // before this screen's "any key reveals the OSD" listener, one OK press
+  // both revealed the OSD and fired whatever invisible button held focus.
+  // Same pattern ChannelRow already uses for its CSS-hidden favourite star:
+  // nothing invisible may be a spatial-nav target. norigin also re-checks
+  // `focusable` inside its own onEnterPress dispatch, so this closes the
+  // activation path as well as the navigation path.
+  focusable?: boolean
 }) {
-  const { ref, focused } = useFocusable({ focusKey, onEnterPress: onSelect })
+  const { ref, focused } = useFocusable({ focusKey, focusable, onEnterPress: onSelect, onFocus })
   return (
     <button ref={ref} className={`toolbar-btn ${focused ? 'focused' : ''} ${active ? 'active' : ''}`} onClick={onSelect}>
       <span className="toolbar-btn-icon">{icon}</span>
@@ -303,7 +338,45 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
   const hasInteractedRef = useRef(true)
 
   const { ref: overlayRef, focusKey: overlayFocusKey } = useFocusable({ focusKey: OVERLAY_FOCUS_KEY, trackChildren: true })
-  const { ref: toolbarRef, focusKey: toolbarFocusKey } = useFocusable({ focusKey: TOOLBAR_FOCUS_KEY, trackChildren: true })
+  // Where the NEXT reveal of the OSD should put focus. Starts at Play/Pause
+  // and then follows the viewer around the toolbar, so an OSD that timed
+  // out mid-interaction comes back exactly where they left it.
+  //
+  // A ref, and this screen's own memory, rather than norigin's built-in
+  // `lastFocusedChildKey`, for two reasons. It is read during render into
+  // `preferredChildFocusKey` (whose updateFocusable runs before the
+  // menuVisible effect below, so it is always current by the time focus is
+  // placed) without costing a re-render per toolbar move while four
+  // decoders may be running. And norigin's version is stored on the
+  // container entry in a module-level singleton keyed by focus key: it
+  // outlives the component, so a *new* playback session could inherit the
+  // previous one's last toolbar button instead of the deliberate default.
+  const revealTargetRef = useRef<string>(PLAY_PAUSE_FOCUS_KEY)
+
+  // The toolbar container doubles as this screen's NEUTRAL FOCUS ANCHOR.
+  //
+  // While the OSD is hidden none of its buttons are focusable (see
+  // ToolbarButton's `focusable` prop), so norigin's getNextFocusKey finds no
+  // participating children and resolves setFocus(TOOLBAR_FOCUS_KEY) to this
+  // container itself. A container has no onEnterPress, so OK does nothing —
+  // which is exactly the property the hidden OSD needs — while spatial nav
+  // still has a real, mounted component to navigate FROM once the buttons
+  // come back. `preferredChildFocusKey` then decides where the reveal lands:
+  // a real, visible control, and never Channel List (→ onBack) by default.
+  const { ref: toolbarRef, focusKey: toolbarFocusKey } = useFocusable({
+    focusKey: TOOLBAR_FOCUS_KEY,
+    trackChildren: true,
+    saveLastFocusedChild: false,
+    preferredChildFocusKey: revealTargetRef.current,
+  })
+
+  // Every toolbar button reports itself here as it gains focus — see
+  // revealTargetRef. Deliberately not a useCallback: ToolbarButton already
+  // receives a fresh onEnterPress closure per render, so memoising only this
+  // one would buy nothing.
+  const rememberRevealTarget = (key: string) => () => {
+    revealTargetRef.current = key
+  }
 
   const closePopups = () => {
     setSourcePopupOpen(false)
@@ -317,16 +390,18 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
   // could leave spatial focus pointing at a component that had just been
   // removed (both the option AND its popup unmount together, so there was
   // nothing left for the library's own autoRestoreFocus safety net to land
-  // on either). Landing on TOOLBAR_FOCUS_KEY here (a real, always-mounted
-  // — see the pre-focus effect below — anchor) instead of the previous
-  // ROOT_FOCUS_KEY also fixes a second bug: ROOT_FOCUS_KEY resolution only
-  // ever considers currently-mounted forceFocus components, and nothing on
-  // this screen uses forceFocus, so that call was silently a no-op.
+  // on either).
+  //
+  // Focus PLACEMENT is deliberately not done here any more: it belongs to
+  // the single `menuVisible` effect below, which owns both directions of
+  // the transition. Doing it here as well raced that effect — this runs
+  // before React has committed `menuVisible: false`, so the toolbar buttons
+  // were still focusable and setFocus resolved to one of them, only for the
+  // effect to re-anchor a moment later.
   function hideMenu() {
     if (idleTimer.current) clearTimeout(idleTimer.current)
     setMenuVisible(false)
     closePopups()
-    void setFocus(TOOLBAR_FOCUS_KEY)
   }
 
   function scheduleIdleHide() {
@@ -352,17 +427,39 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
     scheduleIdleHide()
   }
 
+  // THE screen's whole focus model, both directions, in one place.
+  //
   // Unlike every other screen here, nothing on this one uses forceFocus —
-  // the overlay starts hidden and there's nothing else to land on. Without
-  // this, the very first remote press after arriving only reveals the
-  // overlay (via the "any key shows the menu" listener below) without
-  // actually moving focus anywhere, since spatial nav has nothing focused
-  // yet to navigate from — so it silently eats one press before the
-  // toolbar becomes usable. Pre-focusing the toolbar (even while it's still
-  // visually hidden) means the first press already lands on Channel List.
+  // the overlay starts hidden and there's nothing else to land on. Spatial
+  // nav still needs a mounted component to navigate FROM, so focus is
+  // anchored on the toolbar at mount as before. What changed is what that
+  // means while hidden: the buttons are no longer focusable, so this
+  // resolves to the toolbar CONTAINER — a real, always-mounted,
+  // NON-ACTIONABLE anchor. OK on it does nothing; the window-level reveal
+  // listener below still shows the OSD, because it never needed focus.
+  //
+  // When `menuVisible` flips to true, React has already re-registered every
+  // button as focusable (child effects run before this parent effect), so
+  // focus can go straight to a real, VISIBLE button: the last one the viewer
+  // used, or Play/Pause. Crucially this happens in a later task than the
+  // keypress that revealed the OSD, so one press can never both reveal and
+  // activate.
+  //
+  // The reveal target is named explicitly rather than left to
+  // setFocus(TOOLBAR_FOCUS_KEY) + preferredChildFocusKey, because norigin
+  // silently falls back to "child closest to the origin" whenever the
+  // preferred key is not a participating focusable — and on this toolbar
+  // that child is Channel List, i.e. the exact action this whole fix exists
+  // to keep away from an unattended OK press. The existence check covers a
+  // remembered target that has since unmounted (Multiview is conditional).
   useEffect(() => {
-    void setFocus(TOOLBAR_FOCUS_KEY)
-  }, [])
+    if (!menuVisible) {
+      void setFocus(TOOLBAR_FOCUS_KEY)
+      return
+    }
+    if (!doesFocusableExist(revealTargetRef.current)) revealTargetRef.current = PLAY_PAUSE_FOCUS_KEY
+    void setFocus(revealTargetRef.current)
+  }, [menuVisible])
 
   useEffect(() => {
     return () => {
@@ -391,8 +488,18 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
   // only called showMenu() in the `!menuVisible` branch, so normal arrow-
   // key/Enter activity while actively using the toolbar or a popup did
   // nothing to the timer, and the OSD could disappear mid-interaction.
+  //
+  // Back is explicitly EXCLUDED. It is the one key with its own complete
+  // meaning at every level of this screen (popup → close popup, visible OSD
+  // → hide OSD, hidden OSD → leave the Player), so treating it as a generic
+  // "wake the OSD" press made it do two contradictory things at once:
+  // reveal the overlay on the very press that was leaving the screen, and —
+  // because this listener runs after backHandler's, on a `menuVisible` that
+  // React hasn't re-committed yet — arm a 6 s idle timer for an OSD that had
+  // just been hidden.
   useEffect(() => {
-    const onKeyDown = () => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (keyEventToIntent(event) === NavIntent.Back) return
       if (menuVisible) scheduleIdleHide()
       else showMenu()
     }
@@ -497,18 +604,41 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
           )}
 
           <FocusContext.Provider value={toolbarFocusKey}>
+            {/* Every button below takes `focusable={menuVisible}`: while the
+                OSD is hidden the toolbar must hold no actionable spatial-nav
+                target at all (see ToolbarButton's own comment). This is the
+                whole fix for "one OK press while nothing is on screen exits
+                playback" — Channel List, the first button, is onBack. */}
             <div ref={toolbarRef} className="toolbar">
-              <ToolbarButton icon="☰" label="Channel List" onSelect={onBack} />
+              <ToolbarButton
+                focusKey={CHANNEL_LIST_FOCUS_KEY}
+                icon="☰"
+                label="Channel List"
+                onSelect={onBack}
+                focusable={menuVisible}
+                onFocus={rememberRevealTarget(CHANNEL_LIST_FOCUS_KEY)}
+              />
 
               <ToolbarButton
+                focusKey={PLAY_PAUSE_FOCUS_KEY}
                 icon={isPaused ? '▶' : '❚❚'}
                 label={isPaused ? 'Play' : 'Pause'}
                 onSelect={() => (isPaused ? controller.play() : controller.pause())}
+                focusable={menuVisible}
+                onFocus={rememberRevealTarget(PLAY_PAUSE_FOCUS_KEY)}
               />
 
-              <ToolbarButton icon="((•))" label="Sync Live" onSelect={() => controller.seekToLive()} />
+              <ToolbarButton
+                focusKey={SYNC_LIVE_FOCUS_KEY}
+                icon="((•))"
+                label="Sync Live"
+                onSelect={() => controller.seekToLive()}
+                focusable={menuVisible}
+                onFocus={rememberRevealTarget(SYNC_LIVE_FOCUS_KEY)}
+              />
 
               <ToolbarButton
+                focusKey={MUTE_FOCUS_KEY}
                 icon={playerState.muted ? '🔇' : '🔊'}
                 label={playerState.muted ? 'Unmute' : 'Mute'}
                 onSelect={() => {
@@ -517,6 +647,8 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
                   hasInteractedRef.current = true
                   controller.setMuted(next)
                 }}
+                focusable={menuVisible}
+                onFocus={rememberRevealTarget(MUTE_FOCUS_KEY)}
               />
 
               <div className="toolbar-item">
@@ -525,6 +657,8 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
                   icon={isQualityMenu ? '◍' : '🖥'}
                   label={isQualityMenu ? 'Quality' : 'Source'}
                   active={sourcePopupOpen}
+                  focusable={menuVisible}
+                  onFocus={rememberRevealTarget(SOURCE_TOGGLE_FOCUS_KEY)}
                   onSelect={() => {
                     setSubtitlesPopupOpen(false)
                     setSourcePopupOpen((open) => !open)
@@ -552,11 +686,14 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
 
               {onAddToMultiview && (
                 <ToolbarButton
+                  focusKey={MULTIVIEW_FOCUS_KEY}
                   icon="▦"
                   label="Multiview"
                   onSelect={() => {
                     if (selected && activeSource) onAddToMultiview(selected, activeSource)
                   }}
+                  focusable={menuVisible}
+                  onFocus={rememberRevealTarget(MULTIVIEW_FOCUS_KEY)}
                 />
               )}
 
@@ -566,6 +703,8 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
                   icon="CC"
                   label="Text"
                   active={subtitlesPopupOpen}
+                  focusable={menuVisible}
+                  onFocus={rememberRevealTarget(SUBTITLES_TOGGLE_FOCUS_KEY)}
                   onSelect={() => {
                     setSourcePopupOpen(false)
                     setSubtitlesPopupOpen((open) => !open)

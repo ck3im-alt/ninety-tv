@@ -689,6 +689,10 @@ export function BrowseCascadeScreen({
                   favoriteChannels={favoriteChannels}
                   selectedChannelId={selectedChannel?.id}
                   focusKeyPrefix="cascade-search-row"
+                  // The QUERY is the list identity, not the result array: a
+                  // background playlist refresh rebuilds the results for the
+                  // same query and must not scroll the viewer back to the top.
+                  listKey={`search:${debouncedQuery}`}
                   onSelect={watchChannel}
                   onFocusChannel={selectChannel}
                   onToggleFavorite={onToggleFavoriteChannel}
@@ -823,6 +827,11 @@ export function BrowseCascadeScreen({
                     favoriteChannels={favoriteChannels}
                     selectedChannelId={selectedChannel?.id}
                     focusKeyPrefix="cascade-channel-row"
+                    // The SELECTION is the list identity. channelsInCategory
+                    // gets a new array on every playlist generation, but as
+                    // long as the viewer is still in the same country +
+                    // category they must stay exactly where they were.
+                    listKey={`${selectedCountry}::${selectedCategory}`}
                     onSelect={watchChannel}
                     onFocusChannel={selectChannel}
                     onToggleFavorite={onToggleFavoriteChannel}

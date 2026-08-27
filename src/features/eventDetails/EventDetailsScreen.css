@@ -35,18 +35,31 @@
   justify-content: space-between;
 }
 
+/* The transparent border and horizontal padding are permanent so focus
+   colours them in without moving the topbar. */
 .event-details-back {
   font: inherit;
   background: none;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   cursor: pointer;
   font-size: var(--font-body);
-  padding: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  transition:
+    color var(--motion-focus) var(--motion-ease),
+    background-color var(--motion-focus) var(--motion-ease),
+    border-color var(--motion-focus) var(--motion-ease);
 }
 
+/* Vocabulary A. This is the ONLY focusable on the screen while matches are
+   still resolving, so a text-colour-only cue meant that during the very
+   window where the viewer most needs to know the remote still works, the
+   focus indicator was one shade of green on a dark bar. */
 .event-details-back.focused {
-  color: var(--accent);
+  color: var(--text-primary);
+  background: var(--surface-focus);
+  border-color: var(--border-focus);
 }
 
 .event-details-logo {
@@ -518,7 +531,15 @@
   align-items: stretch;
   height: 68px;
   border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 55%, var(--surface-primary));
+  /* Plain value first, blended value second. color-mix() needs Chromium
+     111; the Tizen WebKit on most target TVs is older, and there an invalid
+     colour invalidates the WHOLE `border` shorthand — taking border-width
+     and border-style with it, so .focused's border-color would have had
+     nothing to paint on. This pair degrades to a slightly crisper rest
+     border instead of to no border at all. (#131d27 is the same mix,
+     precomputed against --border/--surface-primary.) */
+  border: 1px solid #131d27;
+  border-color: color-mix(in srgb, var(--border) 55%, var(--surface-primary));
   background: var(--surface-primary);
   box-sizing: border-box;
   /* Deliberately no background-color in this list — a row's top-pick
@@ -529,10 +550,15 @@
      real Chromium paint glitch (the row would render as a near-solid dark
      block, content hidden, on initial mount) — a real bug this fixes, not
      a style preference. border-color/box-shadow genuinely do change on
-     focus and transition correctly. */
+     focus and transition correctly.
+
+     Focus timing is var(--motion-focus) (see tokens.css): the focus ring is
+     a cursor, and at 160ms it faded in behind the viewer's next press. The
+     `background` swap on .focused is deliberately NOT transitioned, both
+     for that Chromium bug and because focus must snap. */
   transition:
-    border-color 160ms var(--motion-ease),
-    box-shadow 160ms var(--motion-ease);
+    border-color var(--motion-focus) var(--motion-ease),
+    box-shadow var(--motion-focus) var(--motion-ease);
 }
 
 .stream-row-candidate {
@@ -542,36 +568,55 @@
   opacity: 0.8;
 }
 
-/* The single best stream across the whole event — Ninety's own accent
-   green from tokens, never a color lifted from a reference screenshot. A
-   thin border, a faint center tint, and a slightly stronger illumination
-   right at the two edges (never a flat fill) plus a very soft outer glow
-   — reads as a premium "this is the one" selection state at TV viewing
-   distance without turning the row into a green rectangle. */
+/* The single best stream across the whole event — RECOMMENDED, which under
+   the focus-state contract (tokens.css) gets the same budget as "selected":
+   a dimmed-accent border and a faint tint, never the focus vocabulary.
+
+   It used to take `border-color: var(--accent)` plus a 24px accent glow —
+   and since --accent and --border-focus are the same green, that meant a
+   top pick at rest was already wearing the app's focus border. Focusing it
+   then added only a 1px accent ring, drawn immediately outside an
+   already-accent border, underneath a glow present in both states: at
+   1920x1080 across a living room, no perceivable change at all. That is
+   what made "the first stream doesn't look selected" — logical focus was
+   correct the whole time (see EventDetailsScreen.tsx's topPickFocusKey);
+   the recommendation was simply drowning it.
+
+   Rank is now STATED (the "TOP PICK" badge in StreamRow's meta group) and
+   only tinted here. Row order already carries most of the signal. */
 .stream-row.top-pick {
-  border-color: var(--accent);
+  border-color: var(--border-selected);
   background: var(--accent-dark);
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--accent) 16%, transparent) 0%,
+      color-mix(in srgb, var(--accent) 10%, transparent) 0%,
       transparent 12%,
       transparent 88%,
-      color-mix(in srgb, var(--accent) 16%, transparent) 100%
+      color-mix(in srgb, var(--accent) 10%, transparent) 100%
     ),
-    color-mix(in srgb, var(--accent) 7%, var(--surface-primary) 93%);
-  box-shadow: 0 0 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+    color-mix(in srgb, var(--accent) 6%, var(--surface-primary) 94%);
 }
 
+/* Vocabulary A, both channels: the row lights up AND takes the full accent
+   border, plus a 2px ring so the edge survives against the tint underneath
+   a top pick. Nothing else in this list is allowed either of those, so
+   focus is unambiguous whichever row it lands on. */
 .stream-row.focused {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
 
+/* Focus wins outright; the top pick keeps only its badge, which says in
+   words what the green used to try to say in colour. Restating the whole
+   focus treatment (rather than inheriting it) is deliberate — .top-pick's
+   multi-layer `background` shorthand would otherwise beat .focused's
+   single-value one on source order alone. */
 .stream-row.top-pick.focused {
-  box-shadow:
-    0 0 0 1px var(--accent),
-    0 0 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
 
 .stream-row-play {
@@ -678,6 +723,36 @@
   white-space: nowrap;
 }
 
+/* RECOMMENDED, stated in words. This is the half of the top-pick treatment
+   that carries meaning; the row tint is only there to group it.
+
+   Deliberately NOT a .stream-row-badge and deliberately NOT inside
+   .stream-row-meta: that group is the fixed-width ALIGNMENT UNIT for the
+   row's metadata (country/type/quality), and a fourth tag would both
+   overflow it and misfile a ranking claim as metadata. It sits beside the
+   name instead, in the flexible half of the row, where .stream-row-name's
+   own ellipsis absorbs the space it takes.
+
+   Colour: --accent-soft on a low-alpha tint, bordered with
+   --border-selected. Explicitly not --accent as a border, which under the
+   focus-state contract belongs to focus alone. */
+.stream-row-rank-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--accent-soft);
+  background: var(--accent-dark);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid var(--border-selected);
+}
+
 /* Where a recommended stream actually comes from — shown ONLY on rows whose
    country isn't already stated by the section heading above them (see
    StreamRow's showCountry). Neutral, not hued: the flag is already the
@@ -687,6 +762,7 @@
   gap: 5px;
   padding-left: 5px;
   color: var(--text-secondary);
+  background: var(--surface-elevated);
   background: color-mix(in srgb, var(--surface-elevated) 70%, transparent);
 }
 
@@ -705,6 +781,7 @@
 /* Linear TV channel. */
 .stream-row-type {
   color: var(--tag-tv);
+  background: var(--surface-elevated);
   background: color-mix(in srgb, var(--tag-tv) 13%, transparent);
 }
 
@@ -712,6 +789,7 @@
    the old warning-orange, which read as a status/error colour here). */
 .stream-row-type.event {
   color: var(--accent-soft);
+  background: var(--accent-dark);
   background: color-mix(in srgb, var(--accent) 13%, transparent);
 }
 
@@ -719,7 +797,9 @@
    is chosen inside the player now, not on this row (see StreamRow.tsx), so
    the old ‹ › cycle cues are gone along with the interaction. */
 .stream-row-quality-col {
+  color: var(--text-secondary);
   color: color-mix(in srgb, var(--tag-quality) 80%, var(--text-secondary));
+  background: var(--surface-elevated);
   background: color-mix(in srgb, var(--tag-quality) 11%, transparent);
 }
 
@@ -729,6 +809,7 @@
    and untrue. Same hue, more of it. */
 .stream-row-quality-col.high {
   color: var(--tag-quality);
+  background: var(--surface-elevated);
   background: color-mix(in srgb, var(--tag-quality) 20%, transparent);
 }
 
@@ -753,7 +834,7 @@
   font-weight: var(--weight-regular);
   white-space: nowrap;
   padding-left: var(--space-3);
-  transition: color 160ms var(--motion-ease);
+  transition: color var(--motion-focus) var(--motion-ease);
 }
 
 .top-pick .stream-row-watch {
@@ -778,7 +859,8 @@
   width: 60px;
   display: flex;
   align-items: stretch;
-  border-left: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-left: 1px solid var(--border);
+  border-left-color: color-mix(in srgb, var(--border) 55%, transparent);
 }
 
 .stream-row-candidate .stream-row-favorite-col {
@@ -796,17 +878,26 @@
   font-size: 20px;
   cursor: pointer;
   transition:
-    color 160ms var(--motion-ease),
-    background-color 160ms var(--motion-ease);
+    color var(--motion-focus) var(--motion-ease),
+    background-color var(--motion-focus) var(--motion-ease);
 }
 
+/* FAVORITED: a filled glyph and accent TEXT, nothing else — the star
+   changes shape (☆ -> ★) as well as colour, so it needs no surface of its
+   own, and giving it one would spend focus's budget on a state that is
+   permanently true. */
 .stream-row-favorite.active {
   color: var(--accent);
 }
 
+/* FOCUSED: both channels, matching .ch-row-favorite in Channels (the
+   reference implementation). Previously this was accent text plus a 70%
+   surface tint, which a favorited-at-rest star already half-matched. */
 .stream-row-favorite.focused {
   color: var(--accent);
-  background: color-mix(in srgb, var(--surface-focus) 70%, transparent);
+  background: var(--surface-focus);
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 /* ---------- Collapsed "might also have it" candidates ---------- */

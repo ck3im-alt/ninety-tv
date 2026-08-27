@@ -210,6 +210,16 @@ function PlaylistActions({
           {status.message}
         </p>
       )}
+      {/* A refreshed playlist that is fetched and validated but deliberately
+          held back because a stream is playing (see usePlaylistLibrary's
+          playback gate). Worth saying out loud: without it, a viewer who
+          pressed nothing and saw nothing change would have no way to tell
+          "already up to date" from "waiting for you to stop watching". */}
+      {status.kind === 'pending-install' && (
+        <p className="settings-status" role="status">
+          An updated channel list is ready and will be applied when playback ends.
+        </p>
+      )}
     </div>
   )
 }
@@ -217,6 +227,7 @@ function PlaylistActions({
 function PlaylistStatus({ playlist, status }: { playlist: PlaylistDefinition; status: PlaylistSyncStatus }) {
   if (status.kind === 'syncing') return <span className="settings-badge">Syncing…</span>
   if (status.kind === 'error') return <span className="settings-badge error">Sync failed</span>
+  if (status.kind === 'pending-install') return <span className="settings-badge">Update ready</span>
   return (
     <span className="settings-row-value-stack">
       <span>{playlist.channelCount.toLocaleString()} channels</span>

@@ -35,16 +35,16 @@
 // against import.meta.env.BASE_URL below so they work under both the packaged
 // Tizen widget (file://) and a subpath deploy.
 const MATCH_HERO_BY_COMPETITION: Record<string, string> = {
-  football_premier_league: 'backgrounds/Match_hero/Premier_League.png',
-  football_la_liga: 'backgrounds/Match_hero/La_liga.png',
-  football_serie_a: 'backgrounds/Match_hero/Serie_A.png',
-  football_bundesliga: 'backgrounds/Match_hero/Bundesliga.png',
-  football_ligue_1: 'backgrounds/Match_hero/Ligue_1.png',
-  football_champions_league: 'backgrounds/Match_hero/Champions_League.png',
-  football_europa_league: 'backgrounds/Match_hero/Europa_League.png',
-  'norway-eliteserien': 'backgrounds/Match_hero/Eliteserien.png',
-  'sweden-allsvenskan': 'backgrounds/Match_hero/Allsvenskan.png',
-  'denmark-superliga': 'backgrounds/Match_hero/Superliga_DK.png',
+  football_premier_league: 'backgrounds/Match_hero/Premier_League.jpg',
+  football_la_liga: 'backgrounds/Match_hero/La_liga.jpg',
+  football_serie_a: 'backgrounds/Match_hero/Serie_A.jpg',
+  football_bundesliga: 'backgrounds/Match_hero/Bundesliga.jpg',
+  football_ligue_1: 'backgrounds/Match_hero/Ligue_1.jpg',
+  football_champions_league: 'backgrounds/Match_hero/Champions_League.jpg',
+  football_europa_league: 'backgrounds/Match_hero/Europa_League.jpg',
+  'norway-eliteserien': 'backgrounds/Match_hero/Eliteserien.jpg',
+  'sweden-allsvenskan': 'backgrounds/Match_hero/Allsvenskan.jpg',
+  'denmark-superliga': 'backgrounds/Match_hero/Superliga_DK.jpg',
 }
 
 // null — never a placeholder or a fallback image — for a competition with no

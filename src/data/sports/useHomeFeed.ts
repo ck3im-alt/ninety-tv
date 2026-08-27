@@ -17,6 +17,7 @@ import {
   isHomeFeedBroadcastEligible,
 } from './homeBroadcastEligibility'
 import { markPerf, measurePerf } from '../../core/perf/devPerf'
+import { sliceWork } from '../../core/async/sliceWork'
 import type { SportEvent } from './types'
 import type { SportPreferences } from '../preferences'
 import type { Channel } from '../channel'
@@ -461,20 +462,41 @@ export function useHomeFeed(
       const nearTerm = candidates.filter(
         (ev) => ev.sportKey === 'football' && isChannelMatchBroadcastEligible(ev) && isNearTerm(ev, now),
       )
-      const playableIds = new Set<string>(
-        (
-          await Promise.all(
-            nearTerm.map(async (ev): Promise<string | null> => {
-              try {
-                const { matches } = await matchChannelsForEvent(ev, channels, xtream, identityIndex)
-                return matches.length > 0 ? ev.id : null
-              } catch {
-                return null
-              }
-            }),
-          )
-        ).filter((id): id is string => id != null),
+      // TIME-SLICED, NOT ONE Promise.all. With allowNetworkFallback unset
+      // every stage of matchChannelsForEvent is synchronous and returns
+      // before its first await, so `Promise.all(nearTerm.map(...))` executed
+      // every event's matching back-to-back inside ONE unbroken main-thread
+      // task — measured at 1.9 s for 30 events against a 7,750-channel
+      // PPV/unmapped bucket on a dev Mac (and 3-6x that on TV silicon),
+      // every 60 seconds, on every screen including full-screen playback and
+      // 4-pane Multiview.
+      //
+      // Yields on a TIME BUDGET rather than a fixed chunk size, which
+      // matters in both directions. A long pass never occupies the main
+      // thread for more than roughly one budget at a stretch, so a queued
+      // D-pad keydown, a paint or a video callback gets in. A SHORT pass —
+      // the common case, and the one on Home's first-paint path — yields
+      // zero times and therefore adds zero latency, where fixed chunking
+      // would have inserted an idle-callback wait every few events before
+      // Home could render a single card.
+      //
+      // `cancelled` is re-checked after every yield: yielding introduces
+      // real interleaving where there was none, so a superseded pass must
+      // stop rather than finish and overwrite fresher state.
+      const playableIds = new Set<string>()
+      const outcome = await sliceWork(
+        nearTerm,
+        async (ev) => {
+          try {
+            const { matches } = await matchChannelsForEvent(ev, channels, xtream, identityIndex)
+            if (matches.length > 0) playableIds.add(ev.id)
+          } catch {
+            // One event failing to match is not a reason to abandon the rest.
+          }
+        },
+        { sliceMs: LOCAL_MATCH_SLICE_MS, shouldStop: () => cancelled },
       )
+      if (outcome === 'stopped') return
 
       // A newer fetchState/channels/identityIndex has already superseded
       // this pass — never overwrite state produced for a newer generation
@@ -597,6 +619,18 @@ export function useHomeFeed(
 
   return state
 }
+
+// How long the local-matching pass may hold the main thread before handing
+// it back. Chosen so one uninterrupted slice stays inside a 60 Hz frame
+// here, and — allowing the usual 3-6x for TV silicon, plus the one event
+// that is always allowed to overrun the budget — inside the band where a
+// viewer cannot perceive a dropped D-pad response there.
+//
+// A budget rather than a chunk count on purpose: it makes the yield
+// frequency scale with how expensive matching actually is on THIS device
+// against THIS playlist, instead of being tuned against one machine's
+// numbers, and it costs a short list nothing at all.
+const LOCAL_MATCH_SLICE_MS = 8
 
 // Live, or kicking off within the next few hours — the band worth spending
 // a channel lookup on. Wider than the hero's own 60-minute window so a

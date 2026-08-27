@@ -98,12 +98,23 @@
   object-fit: contain;
 }
 
+/* ACTIVE = the league currently filtering the list below. Same collision
+   the Match View top pick had: --accent and --border-focus are one colour,
+   so an accent border here WAS the focus border, and the selected pill and
+   the focused pill were indistinguishable. Under the focus-state contract
+   (tokens.css) a selected state gets surface elevation and the dimmed
+   accent instead. */
 .league-pill.active {
   color: var(--text-primary);
-  border-color: var(--accent);
+  background: var(--surface-elevated);
+  border-color: var(--border-selected);
 }
 
+/* FOCUSED: both channels, so it stays the loudest pill in the row whether
+   or not it is also the active one. */
 .league-pill.focused {
+  color: var(--text-primary);
+  background: var(--surface-focus);
   border-color: var(--border-focus);
 }
 

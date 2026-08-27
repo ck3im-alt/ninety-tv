@@ -45,6 +45,13 @@
   --divider: #18222d;
   --border: #1b2630;
   --border-focus: #76f04b;
+  /* A DIMMED accent, for states that are true but are not focus: selected,
+     current, recommended, top pick. Deliberately the same value onboarding
+     arrived at independently for `.pick-card.selected` (see
+     onboardingShared.css) — it reads as "green, on purpose, quieter" at 3 m
+     without ever being mistaken for the focus border. See the focus-state
+     contract below. */
+  --border-selected: #33513a;
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -86,4 +93,60 @@
 
   --motion-duration: 200ms;
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ---- Focus motion ----
+     Focus is a CURSOR, not an animation. On a D-pad the viewer presses a
+     direction and needs to know where they are before they press the next
+     one; at 200ms, ten quick presses queue up ten fades and the highlight
+     visibly trails the remote. Every property that CARRIES focus
+     (border-color, background, box-shadow, outline-color, and colour where
+     it is the focus signal) uses this; everything decorative or
+     layout-related keeps --motion-duration.
+
+     Kept as a token rather than hard-coded `0s` so it can be nudged to
+     ~60ms from one place if it reads as harsh on the panel. */
+  --motion-focus: 0ms;
 }
+
+/* ===========================================================================
+   THE FOCUS-STATE CONTRACT
+   ===========================================================================
+   Six states can be true of one element at once. They are ranked, and the
+   ranking is absolute: at every moment, on every screen, the loudest thing
+   visible must be the thing OK will act on.
+
+   1. FOCUSED — where the remote is. Exactly one per screen.
+      Must change AT LEAST TWO visual channels (e.g. background AND border),
+      so no other state can neutralise it, and must not shift layout: give
+      the element a transparent border/ring at rest and colour it on focus.
+      Standard vocabularies:
+        A  background: var(--surface-focus) + border-color: var(--border-focus)
+        B  offset ring: box-shadow 0 0 0 3px <page bg>, 0 0 0 5px var(--border-focus)
+           — for controls sitting on artwork or on an accent fill
+      Transition it with var(--motion-focus).
+
+   2. ACTIVE / CURRENT — the screen or item the app is presently on
+      (nav tab, selected country column, open popup). Must stay visible
+      while focus is elsewhere, and must stay QUIETER than focus: surface
+      elevation, accent TEXT, a rail or an underline. Never the focus
+      border, never a full accent ring.
+
+   3. SELECTED / TOGGLED — the user has chosen this (onboarding picks,
+      chosen quality). Surface elevation plus var(--border-selected), plus
+      an explicit mark (a check) where one fits. Never the focus vocabulary.
+
+   4. RECOMMENDED / TOP PICK — Ninety's own ranking claim. Same budget as
+      SELECTED, plus a worded badge. It is a *statement*, and row order
+      already carries most of it; it must never be encoded in a colour that
+      competes with focus. (This rule exists because it was broken: the
+      Event Details top pick wore a full accent border and an accent glow
+      at rest, which left real focus with a 1px ring to distinguish itself.)
+
+   5. FAVORITED — a filled glyph plus var(--accent) as TEXT colour only.
+      Never a background or a border, which is focus's budget.
+
+   6. DISABLED — var(--text-disabled), and NOT focusable. Anything that
+      cannot be acted on must be out of the spatial-nav tree, not merely
+      dimmed — and so must anything invisible (`focusable: false` while a
+      container is hidden; see ChannelRow's star and the Player toolbar).
+   =========================================================================== */

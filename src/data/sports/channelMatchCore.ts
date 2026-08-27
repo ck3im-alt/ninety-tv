@@ -21,7 +21,18 @@ export const GENERIC_TEAM_WORDS = new Set([
   'ALBION', 'FC', 'AFC', 'CF', 'SK', 'FK', 'SC', 'CD', 'RC', 'REAL',
 ])
 
-export function significantWords(teamName: string): string[] {
+// Memoized on the team name for the same reason meaningfulWords below is:
+// textMatchesTeam calls this once per (channel, team) pair, so Home's
+// near-term pass ran it 2 x bucket-size x event-count times per refresh —
+// 465,000 calls for 30 events against a 7,750-channel PPV bucket, each
+// allocating a folded string, a replaced string, a split array, two
+// filtered arrays and a sort. The input vocabulary is tiny by comparison
+// (two team names per event), so the cache hit rate here is essentially
+// 100%. Pure function of its argument, so this is behaviour-preserving.
+//
+// Callers must treat the returned array as read-only — it is the cached
+// instance, not a copy. Both call sites only iterate it.
+export const significantWords = memoize((teamName: string): string[] => {
   const words = foldForMatching(teamName)
     .replace(/[^A-Z0-9 ]+/g, ' ')
     .split(' ')
@@ -32,7 +43,7 @@ export function significantWords(teamName: string): string[] {
   // unfiltered list rather than matching against nothing at all.
   const distinctive = words.filter((w) => !GENERIC_TEAM_WORDS.has(w))
   return (distinctive.length > 0 ? distinctive : words).slice(0, 2)
-}
+})
 
 export function textMatchesTeam(foldedText: string, teamName: string): boolean {
   return significantWords(teamName).some((w) => foldedText.includes(w))

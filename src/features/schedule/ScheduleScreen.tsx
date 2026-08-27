@@ -15,7 +15,7 @@ import './ScheduleScreen.css'
 // 'competitions' (see core/appScreens.ts) — renaming a persisted navigation
 // identifier buys nothing and risks a stale value, so only the product
 // surface changed.
-const ROOT_FOCUS_KEY = 'schedule-screen'
+const SCREEN_FOCUS_KEY = 'schedule-screen'
 const BACK_FOCUS_KEY = 'schedule-back'
 // The "All" pill has no competition id of its own; `null` is its value
 // everywhere in the state, and this is just its focus key.
@@ -192,7 +192,7 @@ export function ScheduleScreen({ onSelectEvent, onBack }: { onSelectEvent: (even
   })
 
   const { ref, focusKey } = useFocusable({
-    focusKey: ROOT_FOCUS_KEY,
+    focusKey: SCREEN_FOCUS_KEY,
     trackChildren: true,
     // Back is the one target that exists from the very first frame; All takes
     // over the moment the day's fixtures land (see the transition effect

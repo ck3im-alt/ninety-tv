@@ -26,21 +26,42 @@
   gap: var(--space-8);
 }
 
+/* The transparent border and the padding are permanent, so focusing a tab
+   colours them in rather than resizing the bar — no layout shift, and no
+   neighbouring tab nudging sideways under a held D-pad. */
 .nav-item {
   position: relative;
   font-size: var(--font-nav-size);
   color: var(--text-secondary);
-  padding-bottom: var(--space-2);
-  transition: color var(--motion-duration) var(--motion-ease);
+  padding: var(--space-2) var(--space-4) calc(var(--space-2) + 2px);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  transition:
+    color var(--motion-focus) var(--motion-ease),
+    background-color var(--motion-focus) var(--motion-ease),
+    border-color var(--motion-focus) var(--motion-ease);
 }
 
+/* ACTIVE = which screen the app is on. It has to stay readable while focus
+   is somewhere else, and it has to stay QUIETER than focus — see the
+   focus-state contract in tokens.css.
+
+   This used to be `color: var(--accent)`, the identical treatment .focused
+   used, so on Home with focus on Home you could not tell the two apart, and
+   moving focus to Schedule left TWO tabs looking exactly the same. The
+   accent underline below already says "you are here" unambiguously and is a
+   channel focus never uses, so the label itself only needs to brighten. */
 .nav-item.active {
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
+/* FOCUSED = where the remote is. Vocabulary A: surface AND border, neither
+   of which any other nav state may touch. */
 .nav-item.focused {
-  color: var(--accent);
-  text-shadow: 0 0 0 var(--accent);
+  color: var(--text-primary);
+  background: var(--surface-focus);
+  border-color: var(--border-focus);
 }
 
 .nav-item.clickable {
@@ -49,10 +70,11 @@
 
 .nav-underline {
   position: absolute;
-  left: 5%;
-  right: 5%;
-  bottom: -10px;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: 2px;
   height: 2px;
+  border-radius: 1px;
   background: var(--accent);
 }
 
@@ -74,7 +96,7 @@
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  transition: box-shadow var(--motion-duration) var(--motion-ease);
+  transition: box-shadow var(--motion-focus) var(--motion-ease);
 }
 
 .avatar.clickable {

@@ -5,6 +5,7 @@ import { StreamRow } from './StreamRow'
 import { groupOptionsByCountry } from './buildEventStreamOptions'
 import type { CountryGroupSection, PartitionedStreamOptions, RankedEventStreamOption } from './buildEventStreamOptions'
 import { flagSrc } from '../../data/countryCodes'
+import { BACK_FOCUS_KEY, CANDIDATE_TOGGLE_FOCUS_KEY } from './eventDetailsFocusKeys'
 import type { EventPlaybackGroup } from './eventPlaybackGroup'
 
 interface SharedRowProps {
@@ -85,7 +86,7 @@ export function StreamList({
         // above, so a per-row tag there would just repeat it — see
         // StreamRow's showCountry.
         showCountry={section.kind === 'other'}
-        onArrowUp={isFirstOverall ? () => void setFocus('event-details-back') : undefined}
+        onArrowUp={isFirstOverall ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
         {...shared}
       />
     )
@@ -106,7 +107,7 @@ export function StreamList({
         <CandidateStreamList
           options={candidates}
           defaultOpen={options.length === 0}
-          onFirstRowUp={options.length === 0 ? () => void setFocus('event-details-back') : undefined}
+          onFirstRowUp={options.length === 0 ? () => void setFocus(BACK_FOCUS_KEY) : undefined}
           {...shared}
         />
       )}
@@ -126,6 +127,7 @@ export function CandidateStreamList({
 }: { options: RankedEventStreamOption[]; defaultOpen: boolean; onFirstRowUp?: () => void } & SharedRowProps) {
   const [open, setOpen] = useState(defaultOpen)
   const { ref: toggleRef, focused: toggleFocused } = useFocusable({
+    focusKey: CANDIDATE_TOGGLE_FOCUS_KEY,
     onEnterPress: () => {
       setOpen(true)
       // The toggle button unmounts the instant `open` becomes true (see

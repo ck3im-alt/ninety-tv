@@ -186,8 +186,13 @@
   border: 1.5px solid transparent;
 }
 
+/* Two channels. A background-only change down a list of identical rows is
+   the weakest cue in the app's vocabulary; `outline` keeps the row's own
+   height and divider untouched, so nothing shifts as focus moves. */
 .filter-row.focused {
   background: var(--surface-focus);
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .filter-row.active {

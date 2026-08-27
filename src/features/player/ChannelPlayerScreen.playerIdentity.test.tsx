@@ -90,15 +90,36 @@ function createFakePlayer(): Player {
 const TEST_CHANNEL: Channel = {
   id: 'chan1',
   name: 'Test Sports Channel',
-  sources: [{ label: 'HD', url: 'https://example.test/stream.m3u8' }],
+  sources: [
+    { label: 'FHD', url: 'https://example.test/stream-fhd.m3u8' },
+    { label: 'HD', url: 'https://example.test/stream.m3u8' },
+  ],
 }
 
-function Harness({ scoreTick }: { scoreTick: number }) {
+function Harness({ scoreTick, channels = [TEST_CHANNEL] }: { scoreTick: number; channels?: Channel[] }) {
   return (
     <div data-score-tick={scoreTick}>
-      <ChannelPlayerScreen channels={[TEST_CHANNEL]} onBack={() => {}} />
+      <ChannelPlayerScreen channels={channels} initialSourceLabel="HD" onBack={() => {}} />
     </div>
   )
+}
+
+// A brand-new `channels` array carrying the same channel plus whatever the
+// provider added — structurally what App.tsx hands the Player after a
+// playlist generation is installed. In production the coordinator's playback
+// gate means this cannot reach a live Player at all (see
+// usePlaylistLibrary's setPlaybackActive); these tests are the second line
+// of that defence, because "a refresh must NEVER disturb an active stream"
+// is not a requirement to leave resting on one mechanism.
+function nextGenerationChannels(generation: number): Channel[] {
+  return [
+    { ...TEST_CHANNEL, sources: TEST_CHANNEL.sources.map((s) => ({ ...s })) },
+    {
+      id: `ppv-${generation}`,
+      name: `PPV ${generation}`,
+      sources: [{ label: 'UHD', url: `https://example.test/ppv-${generation}.ts` }],
+    },
+  ]
 }
 
 afterEach(() => {
@@ -137,6 +158,46 @@ describe('ChannelPlayerScreen player identity across unrelated parent re-renders
 
     const videoElAfter = container.querySelector('video')
     expect(videoElAfter).toBe(videoElBefore)
+  })
+
+  it('does not reload, re-source or remount when a new playlist generation replaces the channels array', async () => {
+    const loaded: string[] = []
+    let fakePlayer: Player | null = null
+    createHtmlVideoPlayerMock.mockImplementation(() => {
+      const base = createFakePlayer()
+      fakePlayer = {
+        ...base,
+        async load(url: string) {
+          loaded.push(url)
+          await base.load(url)
+        },
+      }
+      return fakePlayer
+    })
+    const { container, rerender } = render(<Harness scoreTick={0} />)
+    await act(async () => {
+      await fakePlayer!.play()
+    })
+
+    const videoBefore = container.querySelector('video')
+    const loadedBefore = [...loaded]
+    expect(loadedBefore).toHaveLength(1)
+    // Started on the source the caller asked for, not the first in the list.
+    expect(loadedBefore[0]).toBe('https://example.test/stream.m3u8')
+
+    for (let generation = 1; generation <= 4; generation++) {
+      // eslint-disable-next-line no-await-in-loop
+      await act(async () => {
+        rerender(<Harness scoreTick={generation} channels={nextGenerationChannels(generation)} />)
+      })
+    }
+
+    expect(createHtmlVideoPlayerMock).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('video')).toBe(videoBefore)
+    // No second load(): the source URL and therefore the quality the viewer
+    // is watching are untouched.
+    expect(loaded).toEqual(loadedBefore)
+    expect(fakePlayer!.getState().status).toBe('playing')
   })
 
   it('does not reset playback state (e.g. an in-progress "playing" status) across unrelated parent re-renders', async () => {

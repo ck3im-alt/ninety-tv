@@ -6,16 +6,16 @@ import { MATCH_HERO_COMPETITION_IDS, competitionMatchHero } from './competitionA
 // typo'd path or a competition wired to the wrong league's banner fails here
 // instead of shipping.
 const EXPECTED: Array<[id: string, file: string]> = [
-  ['football_premier_league', 'Match_hero/Premier_League.png'],
-  ['football_la_liga', 'Match_hero/La_liga.png'],
-  ['football_serie_a', 'Match_hero/Serie_A.png'],
-  ['football_bundesliga', 'Match_hero/Bundesliga.png'],
-  ['football_ligue_1', 'Match_hero/Ligue_1.png'],
-  ['football_champions_league', 'Match_hero/Champions_League.png'],
-  ['football_europa_league', 'Match_hero/Europa_League.png'],
-  ['norway-eliteserien', 'Match_hero/Eliteserien.png'],
-  ['sweden-allsvenskan', 'Match_hero/Allsvenskan.png'],
-  ['denmark-superliga', 'Match_hero/Superliga_DK.png'],
+  ['football_premier_league', 'Match_hero/Premier_League.jpg'],
+  ['football_la_liga', 'Match_hero/La_liga.jpg'],
+  ['football_serie_a', 'Match_hero/Serie_A.jpg'],
+  ['football_bundesliga', 'Match_hero/Bundesliga.jpg'],
+  ['football_ligue_1', 'Match_hero/Ligue_1.jpg'],
+  ['football_champions_league', 'Match_hero/Champions_League.jpg'],
+  ['football_europa_league', 'Match_hero/Europa_League.jpg'],
+  ['norway-eliteserien', 'Match_hero/Eliteserien.jpg'],
+  ['sweden-allsvenskan', 'Match_hero/Allsvenskan.jpg'],
+  ['denmark-superliga', 'Match_hero/Superliga_DK.jpg'],
 ]
 
 describe('competitionMatchHero', () => {
@@ -64,17 +64,17 @@ describe('competitionMatchHero — competitions with no curated artwork', () => 
 // have artwork — so a name or substring match would mis-assign it.
 describe('competitionMatchHero — name collisions must not leak artwork', () => {
   it("does not give Austria's Bundesliga the German Bundesliga's banner", () => {
-    expect(competitionMatchHero('football_bundesliga')).toContain('Bundesliga.png')
+    expect(competitionMatchHero('football_bundesliga')).toContain('Bundesliga.jpg')
     expect(competitionMatchHero('austria-bundesliga')).toBeNull()
   })
 
   it("does not give Brazil's Serie A the Italian Serie A's banner", () => {
-    expect(competitionMatchHero('football_serie_a')).toContain('Serie_A.png')
+    expect(competitionMatchHero('football_serie_a')).toContain('Serie_A.jpg')
     expect(competitionMatchHero('brazil-serie-a')).toBeNull()
   })
 
   it("does not give Canada's Premier League the English Premier League's banner", () => {
-    expect(competitionMatchHero('football_premier_league')).toContain('Premier_League.png')
+    expect(competitionMatchHero('football_premier_league')).toContain('Premier_League.jpg')
     expect(competitionMatchHero('canada-canadian-premier-league')).toBeNull()
   })
 

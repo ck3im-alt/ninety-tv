@@ -259,7 +259,18 @@
      nothing to scroll vertically) just passed through; small upward
      corrections near this boundary didn't. */
   overflow-y: hidden;
-  scroll-behavior: smooth;
+  /* Deliberately NOT `scroll-behavior: smooth`. This rail is scrolled by
+     two very different things and they want opposite timings:
+
+     - focus-follow (each card's scrollIntoView as the D-pad moves along the
+       row) must be INSTANT. With smooth scrolling every press started a
+       ~300ms animation, and holding Right queued them up, so the rail
+       visibly trailed the highlight and the viewer could not tell where
+       focus actually was. Focus is a cursor, not an animation — same
+       principle as --motion-focus in tokens.css.
+     - the chevron is a deliberate paged jump, and there smooth motion helps
+       the eye follow. It asks for it explicitly (scrollBy with
+       `behavior: 'smooth'`, see ScrollRow), which is unaffected by this. */
   /* Scrolling here is driven by focus/the remote's D-pad, not a mouse or
      touch drag — the browser's scrollbar track is a desktop affordance
      that's meaningless on a TV, so it's hidden while overflow scrolling
@@ -290,6 +301,7 @@
   height: 16px;
 }
 
+/* Already vocabulary A — kept, and only the timing changed. */
 .scroll-chevron.focused {
   border-color: var(--border-focus);
   background: var(--surface-focus);
@@ -306,11 +318,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  transition: border-color var(--motion-duration) var(--motion-ease);
+  transition:
+    border-color var(--motion-focus) var(--motion-ease),
+    background-color var(--motion-focus) var(--motion-ease),
+    box-shadow var(--motion-focus) var(--motion-ease);
 }
 
+/* Vocabulary A + a ring. A 1px border-colour swap was the app's weakest
+   focus cue and it sat on its busiest surface: a horizontal rail of
+   same-sized cards on artwork, where the eye has nothing else to compare
+   against. Under the focus-state contract (tokens.css) every focusable has
+   to change at least two channels, and a card on this screen needs the
+   extra 2px ring to survive the hero image bleeding behind the rail. */
 .event-card.focused {
   border-color: var(--border-focus);
+  background: var(--surface-focus);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
 
 .event-card-header {

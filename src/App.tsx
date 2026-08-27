@@ -329,6 +329,21 @@ function App() {
   // (not a modal), so there's no local "remember the opener" closure the
   // way FilterPopup/AdminPanel have; App is the only place that knows both
   // the old and new screen.
+  // THE PLAYBACK GATE (see usePlaylistLibrary's setPlaybackActive). App is
+  // the only place that knows whether a screen owning live video is up, so
+  // it is the only place that can tell the sync coordinator. Both screens
+  // count: Multiview can have four decoders running, which is if anything
+  // the more fragile of the two.
+  //
+  // Deliberately its own effect, deliberately calling a ref-writing
+  // callback: telling the library that playback started must not re-render
+  // the library's consumers, and must not be entangled with the focus
+  // effect below.
+  const setPlaybackActive = library.setPlaybackActive
+  useEffect(() => {
+    setPlaybackActive(screen === 'player' || screen === 'multiview')
+  }, [screen, setPlaybackActive])
+
   const previousScreenRef = useRef<Screen>(screen)
   useEffect(() => {
     const previousScreen = previousScreenRef.current
@@ -592,6 +607,7 @@ function App() {
         <EventDetailsScreen
           event={liveSelectedEvent}
           channels={library.channels}
+          playlistGenerationId={library.generationId}
           xtream={library.xtream}
           identityIndex={identityIndex}
           favoriteChannels={favoriteChannels}

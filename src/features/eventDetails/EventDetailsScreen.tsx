@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { FocusContext, doesFocusableExist, getCurrentFocusKey, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useBackHandler, useFocusScrollIntoView } from '../../core/platform'
+import { BACK_FOCUS_KEY, SCREEN_FOCUS_KEY } from './eventDetailsFocusKeys'
 import { matchChannelsForEvent } from '../../data/sports/channelMatch'
 import type { ChannelMatch, BroadcastStationInfo } from '../../data/sports/channelMatch'
 import { buildEventStreamOptions, rankEventStreamOptions, partitionStreamOptions } from './buildEventStreamOptions'
@@ -19,6 +20,14 @@ import './EventDetailsScreen.css'
 interface Props {
   event: SportEvent
   channels: Channel[]
+  // The identity of the CURRENT playlist generation (see
+  // playlistDefinition.combinedGenerationId). This, not the `channels` array
+  // reference, is what tells this screen the playlist genuinely changed.
+  // Background refreshes now install a new generation every ~12 minutes, and
+  // keying re-matching on array identity meant every one of them reset this
+  // screen to "Finding the best streams…" and threw the viewer's focus back
+  // to row 1 while they were reading row 5.
+  playlistGenerationId: string | null
   xtream: XtreamCredentialResolver
   identityIndex: ChannelIdentityIndex | null
   // Same Set/setter App.tsx already owns for every other favorite star in
@@ -51,6 +60,7 @@ type MatchState =
 export function EventDetailsScreen({
   event,
   channels,
+  playlistGenerationId,
   xtream,
   identityIndex,
   favoriteChannels,
@@ -60,6 +70,21 @@ export function EventDetailsScreen({
   onBrowseChannels,
 }: Props) {
   const [state, setState] = useState<MatchState>({ status: 'loading' })
+
+  // Read by the matching effect without being dependencies of it. `channels`
+  // gets a new array reference on every playlist generation and `xtream` a
+  // new resolver whenever the library's playlist list changes; neither is a
+  // reason on its own to re-run matching, and depending on them is exactly
+  // what made this screen flash on every background refresh. The generation
+  // id below is the honest signal for "the playlist really changed".
+  const channelsRef = useRef(channels)
+  channelsRef.current = channels
+  const xtreamRef = useRef(xtream)
+  xtreamRef.current = xtream
+  // Which event this screen last STARTED matching for. A change means a
+  // fresh match (show the loading state); an unchanged value with a changed
+  // generation/identity index means a REVALIDATION (keep what is on screen).
+  const matchedEventIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     // ninety-api and EPG matching both need "home vs away" text to match
@@ -79,23 +104,46 @@ export function EventDetailsScreen({
     // fallback-enabled) match and flashing back to "Finding the best
     // streams…" on every background score tick would be exactly the
     // reload-during-silent-refresh this feature explicitly must not cause.
+    //
+    // STALE-WHILE-REVALIDATE FOR PLAYLIST GENERATIONS. A new generation is a
+    // real reason to re-match — it is how a PPV stream added by the provider
+    // twenty minutes into the build-up becomes discoverable without the
+    // viewer backing out and re-entering. But it is NOT a reason to blank
+    // the screen: the rows already shown are still valid until the new match
+    // says otherwise, so the loading state is entered only for a genuinely
+    // new event. A revalidation that FAILS (network, abort) keeps whatever
+    // is on screen rather than replacing real streams with an error.
+    const isFreshEvent = matchedEventIdRef.current !== event.id
+    matchedEventIdRef.current = event.id
+
     let cancelled = false
     const controller = new AbortController()
-    setState({ status: 'loading' })
-    matchChannelsForEvent(event, channels, xtream, identityIndex, { allowNetworkFallback: true, signal: controller.signal })
+    if (isFreshEvent) setState({ status: 'loading' })
+    matchChannelsForEvent(event, channelsRef.current, xtreamRef.current, identityIndex, {
+      allowNetworkFallback: true,
+      signal: controller.signal,
+    })
       .then(({ matches, apiStations }) => {
         if (cancelled) return
         setState(matches.length > 0 ? { status: 'ready', matches, apiStations } : { status: 'not-found', apiStations })
       })
       .catch(() => {
-        if (!cancelled) setState({ status: 'not-found', apiStations: [] })
+        if (cancelled) return
+        // Keyed on what is ON SCREEN, not on why this run started. Real,
+        // playable rows always beat an empty state produced by one failed
+        // poll — but a run that fails while the screen is STILL on the
+        // loading skeleton (identityIndex or a new generation landing
+        // moments after mount, then the provider going down) has to resolve
+        // it, or "Finding the best streams…" stays up forever with nothing
+        // left to finish it.
+        setState((prev) => (prev.status === 'ready' ? prev : { status: 'not-found', apiStations: [] }))
       })
     return () => {
       cancelled = true
       controller.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event.id, channels, xtream, identityIndex])
+  }, [event.id, playlistGenerationId, identityIndex])
 
   useBackHandler(() => {
     onBack()
@@ -149,9 +197,9 @@ export function EventDetailsScreen({
   // container first registers); once ready, this points at the #1
   // recommended stream instead.
   const { ref, focusKey } = useFocusable({
-    focusKey: 'event-details-screen',
+    focusKey: SCREEN_FOCUS_KEY,
     trackChildren: true,
-    preferredChildFocusKey: topPickFocusKey ?? 'event-details-back',
+    preferredChildFocusKey: topPickFocusKey ?? BACK_FOCUS_KEY,
   })
 
   // Explicitly advances focus onto the #1 recommendation the moment
@@ -163,23 +211,52 @@ export function EventDetailsScreen({
   // exactly once per loading->ready transition, not on every render while
   // already ready — it must never repeatedly yank focus back to the top
   // pick while the user is actively browsing other streams.
+  //
+  // The `currentFocusKey` guard covers the sub-frame race the hardening
+  // audit called out: while loading, Back is the only focusable, so that is
+  // where focus legitimately is when matches land — but a user press
+  // arriving in the same frame (or a future re-match triggered by something
+  // other than a fresh mount) can leave focus on a stream row that still
+  // exists. Claiming focus in that case would yank the viewer off the row
+  // they were on. Claim it only from the loading-state fallback, or from
+  // nothing at all.
   useEffect(() => {
-    if (state.status === 'ready' && topPickFocusKey) {
-      void setFocus(topPickFocusKey)
-    }
+    if (state.status !== 'ready' || !topPickFocusKey) return
+    const current = getCurrentFocusKey()
+    const holdsRealFocus = current != null && current !== BACK_FOCUS_KEY && current !== SCREEN_FOCUS_KEY && doesFocusableExist(current)
+    if (holdsRealFocus) return
+    void setFocus(topPickFocusKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status])
 
-  const { ref: backRef, focused: backFocused } = useFocusable({ focusKey: 'event-details-back', onEnterPress: onBack })
-  useFocusScrollIntoView(backRef, backFocused)
+  // DETERMINISTIC FOCUS RECOVERY AFTER A REVALIDATION.
+  //
+  // Stream rows are keyed by their group key (see groupChannelMatches), which
+  // is derived from channel identity rather than position — so a new playlist
+  // generation that merely ADDS a PPV stream leaves every existing row's
+  // focus key intact and nothing here fires. The case this handles is the
+  // other one: the provider removed the stream the viewer was standing on, so
+  // its focusable is gone and focus would be left pointing at a key that no
+  // longer resolves, which reads on a TV as "the remote stopped working".
+  //
+  // Only ever moves focus when the CURRENT key genuinely no longer exists —
+  // never on a routine revalidation, never on the first ready transition
+  // (the effect above owns that), and never while focus is legitimately on
+  // Back or the container.
+  useEffect(() => {
+    if (state.status !== 'ready' || !topPickFocusKey) return
+    const current = getCurrentFocusKey()
+    if (current == null || current === BACK_FOCUS_KEY || current === SCREEN_FOCUS_KEY) return
+    if (doesFocusableExist(current)) return
+    void setFocus(topPickFocusKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partitioned])
 
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="event-details">
         <div className="event-details-topbar">
-          <button ref={backRef} className={`event-details-back ${backFocused ? 'focused' : ''}`} onClick={onBack}>
-            ‹ Back
-          </button>
+          <BackButton onBack={onBack} />
           <span className="event-details-logo">NINETY</span>
         </div>
 
@@ -207,6 +284,30 @@ export function EventDetailsScreen({
         )}
       </main>
     </FocusContext.Provider>
+  )
+}
+
+// Its own component purely so its useFocusable() runs INSIDE the screen's
+// FocusContext.Provider and it therefore registers as a CHILD of
+// `event-details-screen`.
+//
+// It used to be a bare useFocusable() call in EventDetailsScreen's own body.
+// Hooks run before JSX, so the ambient FocusContext there is still App's —
+// Back was registering as a SIBLING of the screen container, not a child of
+// it. That quietly broke the container's `preferredChildFocusKey` fallback:
+// while matches load, the screen has no other focusable children, so
+// setFocus('event-details-screen') found no children at all and resolved to
+// the container itself — an element with no onEnterPress. Focus was
+// effectively nowhere, and reaching the on-screen Back button depended on a
+// geometric search across the whole screen root. (The hardware Back key was
+// always fine — that goes through backHandler, not focus.)
+function BackButton({ onBack }: { onBack: () => void }) {
+  const { ref, focused } = useFocusable({ focusKey: BACK_FOCUS_KEY, onEnterPress: onBack })
+  useFocusScrollIntoView(ref, focused)
+  return (
+    <button ref={ref} className={`event-details-back ${focused ? 'focused' : ''}`} onClick={onBack}>
+      ‹ Back
+    </button>
   )
 }
 

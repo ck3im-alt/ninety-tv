@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { countryNameToCode, flagSrc } from '../../data/countryCodes'
 import { toEventPlaybackGroup } from './eventPlaybackGroup'
 import type { RankedEventStreamOption } from './buildEventStreamOptions'
 import type { EventPlaybackGroup } from './eventPlaybackGroup'
+import { favoriteFocusKeyFor } from './eventDetailsFocusKeys'
 
 // 'default' — an ordinary trusted stream row, shown at full (compact)
 // density inside a country group. 'candidate' — a loose/fuzzy match (see
@@ -17,9 +18,10 @@ export type StreamRowVariant = 'default' | 'candidate'
 interface StreamRowProps {
   option: RankedEventStreamOption
   variant: StreamRowVariant
-  // The single best stream across the whole event — strongest focus/
-  // emphasis styling (a subtle accent border/tint, see the visual-redesign
-  // task's "top pick" section). Row order and country grouping already
+  // The single best stream across the whole event. Under the focus-state
+  // contract (tokens.css) this is RECOMMENDED, not focus: a "TOP PICK"
+  // badge plus a quiet dimmed-accent tint, deliberately weaker than the
+  // remote's own focus treatment. Row order and country grouping already
   // communicate rank otherwise, so this is the only row-level "this is the
   // one" signal.
   primary?: boolean
@@ -159,6 +161,14 @@ export function StreamRow({
     if (best) onWatch(toEventPlaybackGroup(option))
   }
 
+  // Derived from the row's own stable key, exactly as ChannelRow derives
+  // its star key — and for the same reason. Despite the visual nesting, the
+  // row and its star are SIBLINGS in the focus tree (StreamRow introduces no
+  // FocusContext of its own, so both register under the screen root), so
+  // geometry alone could send Right from one row to a DIFFERENT row's star,
+  // or Left from a star past its own row. With an explicit key both
+  // directions are stated, not inferred.
+  const starFocusKey = focusKey ? favoriteFocusKeyFor(focusKey) : undefined
   const { ref, focused } = useFocusable({
     focusKey,
     onEnterPress: watch,
@@ -167,11 +177,32 @@ export function StreamRow({
         onArrowUp()
         return false
       }
+      if (direction === 'right' && starFocusKey) {
+        void setFocus(starFocusKey)
+        return false
+      }
       return true
     },
   })
   const { ref: starRef, focused: starFocused } = useFocusable({
+    focusKey: starFocusKey,
     onEnterPress: () => onToggleFavoriteChannels(option.channelIds),
+    onArrowPress: (direction) => {
+      if (direction === 'left' && focusKey) {
+        void setFocus(focusKey)
+        return false
+      }
+      // Up from the FIRST row's star has nothing above it in the star
+      // column — without this it would fall through to a geometric search
+      // that can only find the row list it just left. Same destination the
+      // row itself uses (Back), so the top edge behaves identically
+      // whichever column the viewer is in.
+      if (direction === 'up' && onArrowUp) {
+        onArrowUp()
+        return false
+      }
+      return true
+    },
   })
 
   useEffect(() => {
@@ -188,6 +219,13 @@ export function StreamRow({
       <button ref={ref} className="stream-row-play" onClick={watch}>
         <LogoTile logo={option.logo} displayName={option.displayName} />
         <span className="stream-row-name">{option.displayName}</span>
+        {/* Ninety's ranking claim, STATED. It used to be carried only by an
+            accent border and glow on the row — the same green the focus
+            border uses — which meant the recommendation and the remote
+            cursor were competing for one visual channel and the
+            recommendation was winning. Words don't compete with a focus
+            ring, and they survive the row being focused. */}
+        {primary && <span className="stream-row-rank-badge">TOP PICK</span>}
         {/* ONE right-aligned metadata group rather than three independently
             fixed-width columns. Each tag is now sized by its own content —
             "8K" must not occupy the width of "FHD" — while the GROUP keeps a

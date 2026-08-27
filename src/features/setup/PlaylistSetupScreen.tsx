@@ -16,7 +16,7 @@ import type { PlaylistSourceRecord } from '../../data/session'
 import '../onboarding/onboardingShared.css'
 import './PlaylistSetupScreen.css'
 
-const ROOT_FOCUS_KEY = 'setup-screen'
+const SCREEN_FOCUS_KEY = 'setup-screen'
 const URL_FOCUS_KEY = 'setup-url'
 const FILE_FOCUS_KEY = 'setup-file'
 const SERVER_FOCUS_KEY = 'setup-server'
@@ -188,7 +188,7 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
   // this chunk finishes loading. See App.tsx's initial-focus effect for the
   // full explanation of why that race exists for lazy screens.
   const { ref: screenRef, focusKey: screenFocusKey } = useFocusable({
-    focusKey: ROOT_FOCUS_KEY,
+    focusKey: SCREEN_FOCUS_KEY,
     trackChildren: true,
     preferredChildFocusKey: URL_FOCUS_KEY,
   })

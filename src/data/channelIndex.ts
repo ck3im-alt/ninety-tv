@@ -20,6 +20,7 @@ import type { Channel } from './channel'
 import { parseCategory, isPpvCategory, type ParsedCategory } from '../features/channels/parseCategory'
 import { foldForMatching } from './fancyUnicode'
 import { markPerf, measurePerf } from '../core/perf/devPerf'
+import { yieldToMainThread } from '../core/async/yieldToMainThread'
 
 const OTHER = 'Other'
 
@@ -32,6 +33,15 @@ export interface ChannelIndexEntry {
   // semantics exactly; changing to a folded compare would be a behavior
   // change, not just a speed-up.
   foldedName: string
+  // foldForMatching(channel.name) — the fancy-Unicode-folded, UPPERCASED
+  // form every matching stage compares against. ingestOne already had to
+  // compute this to decide isPpvOrUnmapped/isLikelySport, so keeping it
+  // costs one extra reference per entry and removes a full
+  // [...text].map().join().toUpperCase() (three allocations, O(len) work)
+  // from channelMatch's per-event, per-channel inner loop — which Home ran
+  // for every near-term event on every 60 s refresh. See
+  // matchViaPpvChannelName.
+  matchName: string
   // isPpvCategory(parsed) alone — the predicate matchViaEpgAllPpv's PPV
   // candidate filter and isLikelySportChannel both use.
   isCategoryPpv: boolean
@@ -48,6 +58,8 @@ export interface ChannelIndexEntry {
   order: number
 }
 
+const EMPTY_ENTRIES: readonly ChannelIndexEntry[] = []
+
 interface CategoryBucket {
   label: string
   isPpv: boolean
@@ -57,10 +69,14 @@ interface CategoryBucket {
 export class ChannelIndex {
   private readonly entries = new Map<string, ChannelIndexEntry>()
   private readonly countryCounts = new Map<string, { code: string | null; count: number }>()
-  private readonly countryChannels = new Map<string, Channel[]>()
+  private readonly countryEntries = new Map<string, ChannelIndexEntry[]>()
   // country -> mergedLabel -> bucket
   private readonly categoryBuckets = new Map<string, Map<string, CategoryBucket>>()
-  private readonly ppvOrUnmappedChannels: Channel[] = []
+  // Stored as ENTRIES, not Channels, so the matching stages can read each
+  // candidate's precomputed matchName/parsed category without a second
+  // lookup. The public Channel[]-returning getters below still hand out
+  // defensive copies, exactly as they always did.
+  private readonly ppvOrUnmappedEntries: ChannelIndexEntry[] = []
   private readonly ppvChannels: Channel[] = []
   private readonly likelySportChannels: Channel[] = []
   // Cache per-distinct-groupTitle folding — a real playlist has vastly fewer
@@ -113,16 +129,18 @@ export class ChannelIndex {
     const isLikelySport =
       isCategoryPpv || foldedChannelName.includes('SPORT') || this.foldedGroupTitle(channel.groupTitle ?? '').includes('SPORT')
 
-    this.entries.set(channel.id, {
+    const entry: ChannelIndexEntry = {
       channel,
       parsed,
       countryKey,
       foldedName,
+      matchName: foldedChannelName,
       isCategoryPpv,
       isPpvOrUnmapped,
       isLikelySport,
       order: this.nextOrder++,
-    })
+    }
+    this.entries.set(channel.id, entry)
 
     const countryCount = this.countryCounts.get(countryKey)
     if (!countryCount) {
@@ -131,12 +149,12 @@ export class ChannelIndex {
       countryCount.count += 1
     }
 
-    let countryList = this.countryChannels.get(countryKey)
+    let countryList = this.countryEntries.get(countryKey)
     if (!countryList) {
       countryList = []
-      this.countryChannels.set(countryKey, countryList)
+      this.countryEntries.set(countryKey, countryList)
     }
-    countryList.push(channel)
+    countryList.push(entry)
 
     let countryCategories = this.categoryBuckets.get(countryKey)
     if (!countryCategories) {
@@ -150,7 +168,7 @@ export class ChannelIndex {
     }
     bucket.channels.push(channel)
 
-    if (isPpvOrUnmapped) this.ppvOrUnmappedChannels.push(channel)
+    if (isPpvOrUnmapped) this.ppvOrUnmappedEntries.push(entry)
     if (isCategoryPpv) this.ppvChannels.push(channel)
     if (isLikelySport) this.likelySportChannels.push(channel)
   }
@@ -205,8 +223,17 @@ export class ChannelIndex {
   }
 
   getChannelsForCountry(country: string): Channel[] {
-    const list = this.countryChannels.get(country)
-    return list ? [...list] : []
+    const list = this.countryEntries.get(country)
+    return list ? list.map((entry) => entry.channel) : []
+  }
+
+  // Allocation-free view of the same bucket, for the per-event matching
+  // stages. `readonly` rather than a copy is deliberate and is the whole
+  // point: matchViaBroadcasterMap walks this once per (event, country) pair
+  // and only reads. Never hand this array to anything that sorts or
+  // splices — use getChannelsForCountry for that.
+  getEntriesForCountry(country: string): readonly ChannelIndexEntry[] {
+    return this.countryEntries.get(country) ?? EMPTY_ENTRIES
   }
 
   getSiblings(channel: Channel): Channel[] {
@@ -226,7 +253,16 @@ export class ChannelIndex {
   }
 
   getPpvOrUnmappedChannels(): Channel[] {
-    return [...this.ppvOrUnmappedChannels]
+    return this.ppvOrUnmappedEntries.map((entry) => entry.channel)
+  }
+
+  // The read-only counterpart, for matchViaPpvChannelName — which iterates
+  // this bucket once per near-term event, so at 30 events and a
+  // 7,750-channel bucket the old defensive copy alone was 30 fresh arrays
+  // of 7,750 pointers per Home refresh, every 60 seconds. Same "read only,
+  // never mutate" contract as getEntriesForCountry above.
+  getPpvOrUnmappedEntries(): readonly ChannelIndexEntry[] {
+    return this.ppvOrUnmappedEntries
   }
 
   getPpvChannels(): Channel[] {
@@ -271,14 +307,6 @@ export function getChannelIndex(channels: Channel[]): ChannelIndex {
 // synchronously as it always has, and this function's own in-progress work
 // is simply discarded in favor of that result (see the cache check below).
 const DEFAULT_WARM_CHUNK_SIZE = 2000
-
-function yieldToMainThread(): Promise<void> {
-  return new Promise((resolve) => {
-    const w = globalThis as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void }
-    if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(() => resolve(), { timeout: 50 })
-    else setTimeout(resolve, 0)
-  })
-}
 
 export async function warmChannelIndexAsync(channels: Channel[], chunkSize = DEFAULT_WARM_CHUNK_SIZE): Promise<ChannelIndex> {
   const cached = indexCache.get(channels)

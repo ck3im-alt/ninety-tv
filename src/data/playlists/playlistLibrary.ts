@@ -103,49 +103,50 @@ export interface SyncedPlaylist {
   channels: Channel[]
 }
 
-// Fetches a playlist from its saved source and — only once that has fully
-// succeeded — replaces its cached channels atomically.
+// A fetched-and-stamped generation that has NOT been written to storage
+// yet. This is the unit the sync coordinator holds while playback is
+// active: fully built and ready to install, but with nothing on disk or in
+// the live tree changed by its existence. See installPreparedChannels for
+// the second half.
+export type PreparedPlaylistChannels = SyncedPlaylist
+
+// Fetches a playlist from its saved source and stamps the result as a new
+// generation — WITHOUT touching storage or the previously cached channels.
 //
-// The ordering is the whole point: fetch, parse, merge and stamp FIRST,
-// write SECOND, and return the updated definition LAST. Nothing is cleared
-// up front, so a failed sync (network down, provider rejecting the
-// credentials, an empty response) throws before a single byte of the
-// working cache has been touched. The caller keeps showing the old
-// channels and reports the failure inline.
-export async function syncPlaylist(playlist: PlaylistDefinition): Promise<SyncedPlaylist> {
+// The ordering is the whole point: fetch, parse, merge and stamp FIRST;
+// write and install SECOND, from installPreparedChannels, at a moment the
+// caller chooses. Nothing is cleared up front, so a failed sync (network
+// down, provider rejecting the credentials, an empty response) throws
+// before a single byte of the working cache has been touched. The caller
+// keeps showing the old channels and reports the failure inline.
+export async function fetchPlaylistGeneration(playlist: PlaylistDefinition): Promise<PreparedPlaylistChannels> {
   if (!isResyncable(playlist.source)) {
     throw new Error('This playlist was added from a file, so Ninety needs the file again to update it.')
   }
   const channels = await loadChannelsForSource(playlist.source as XtreamSourceRecord | M3uUrlSourceRecord)
-  return commitPlaylistChannels(playlist, playlist.source, channels)
+  return preparePlaylistChannels(playlist, playlist.source, channels)
 }
 
-// Shared tail of every "this playlist now has these channels" path: fresh
-// connect, resync, and a successful connection edit. Writes the (large)
-// channel record before returning the updated definition, so a caller that
-// persists the definition can trust the channels behind it exist.
-export async function commitPlaylistChannels(
+// Kept as the one-shot fetch+write entry point it always was, now expressed
+// as its two halves. Still used by every path that has no reason to defer
+// the write (the dev AdminPanel's resync, and anything else that wants the
+// old all-in-one behaviour).
+export async function syncPlaylist(playlist: PlaylistDefinition): Promise<SyncedPlaylist> {
+  const prepared = await fetchPlaylistGeneration(playlist)
+  await installPreparedChannels(prepared)
+  return prepared
+}
+
+// Stamps a channel array as a new generation of `playlist`. Pure apart from
+// stampPlaylistProvenance's documented in-place mutation of an array that
+// was just built for this playlist and nothing else holds.
+export function preparePlaylistChannels(
   playlist: PlaylistDefinition,
   source: PlaylistDefinition['source'],
   channels: Channel[],
-): Promise<SyncedPlaylist> {
+): PreparedPlaylistChannels {
   const generationId = generatePlaylistGenerationId()
   stampPlaylistProvenance(channels, playlist.id)
-  const written = await writePlaylistChannels({
-    version: PLAYLIST_CHANNELS_RECORD_VERSION,
-    playlistId: playlist.id,
-    generationId,
-    channels,
-  })
-  if (!written) {
-    // Reported, not thrown: the channels are correct and usable for this
-    // session, they just won't survive a restart. Throwing would discard a
-    // perfectly good playlist the user is looking at over a storage-quota
-    // problem they can do nothing about right now.
-    console.error(
-      `[playlists] Channel cache for "${playlist.name}" did not persist — it will need to be resynced after a restart.`,
-    )
-  }
   return {
     playlist: {
       ...playlist,
@@ -156,6 +157,44 @@ export async function commitPlaylistChannels(
     },
     channels,
   }
+}
+
+// Writes a prepared generation's (large) channel record. Called at INSTALL
+// time, not at fetch time, so a generation that is being held back because
+// a stream is playing leaves the on-disk cache — and therefore the next
+// cold launch — pointing at the generation the app is actually showing.
+// A prepared generation that is never installed is simply dropped.
+export async function installPreparedChannels(prepared: PreparedPlaylistChannels): Promise<void> {
+  const written = await writePlaylistChannels({
+    version: PLAYLIST_CHANNELS_RECORD_VERSION,
+    playlistId: prepared.playlist.id,
+    generationId: prepared.playlist.generationId,
+    channels: prepared.channels,
+  })
+  if (!written) {
+    // Reported, not thrown: the channels are correct and usable for this
+    // session, they just won't survive a restart. Throwing would discard a
+    // perfectly good playlist the user is looking at over a storage-quota
+    // problem they can do nothing about right now.
+    console.error(
+      `[playlists] Channel cache for "${prepared.playlist.name}" did not persist — it will need to be resynced after a restart.`,
+    )
+  }
+}
+
+// Shared tail of every "this playlist now has these channels" path that has
+// the channels in hand already: fresh connect and a successful connection
+// edit. Writes the channel record before returning the updated definition,
+// so a caller that persists the definition can trust the channels behind it
+// exist.
+export async function commitPlaylistChannels(
+  playlist: PlaylistDefinition,
+  source: PlaylistDefinition['source'],
+  channels: Channel[],
+): Promise<SyncedPlaylist> {
+  const prepared = preparePlaylistChannels(playlist, source, channels)
+  await installPreparedChannels(prepared)
+  return prepared
 }
 
 // Deletes a playlist's channel record. The library index is updated by the

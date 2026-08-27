@@ -339,6 +339,11 @@ export function CategoryChannelsScreen({
               favoriteChannels={favoriteChannels}
               selectedChannelId={selected?.id}
               focusKeyPrefix="category-channel-row"
+              // This screen is mounted once per list it shows (Favorites,
+              // Recently Watched, a country+category), so its own identity IS
+              // the list identity — which keeps a playlist refresh, or a
+              // favorite being toggled elsewhere, from resetting the scroll.
+              listKey={`${title}::${country}::${category}`}
               onSelect={(channel) => channel.sources[0] && onWatch(channel, channel.sources[0])}
               onFocusChannel={onFocusChannel}
               onToggleFavorite={onToggleFavoriteChannel}

@@ -202,7 +202,11 @@ function matchViaBroadcasterMap(event: SportEvent, channels: Channel[]): Channel
   for (const country of countriesForBroadcasterMap(event.sportKey, event.leagueId)) {
     const stationNames = broadcastersFor(event.sportKey, event.leagueId, country)
     if (stationNames.length === 0) continue
-    for (const channel of index.getChannelsForCountry(country)) {
+    // getEntriesForCountry, not getChannelsForCountry: a read-only view of
+    // the same bucket instead of a fresh copy per (event, country) pair.
+    // Home matches every near-term event in one pass, so those copies added
+    // up to real allocation churn for a loop that only ever reads.
+    for (const { channel } of index.getEntriesForCountry(country)) {
       const hit = stationNames.find((name) => namesOverlap(name, channel.name))
       if (hit) matches.push({ channel, source: 'broadcasterMap', label: hit, isExactMatch: namesExactMatch(hit, channel.name) })
     }
@@ -239,11 +243,19 @@ function matchViaPpvChannelName(event: SportEvent, channels: Channel[]): Channel
   // ChannelIndex.getPpvOrUnmappedChannels() is exactly this "isTaggedPpv ||
   // isUnmappedEntry" gate, precomputed once per playlist generation instead
   // of every channel per event — see data/channelIndex.ts.
-  for (const channel of index.getPpvOrUnmappedChannels()) {
+  for (const entry of index.getPpvOrUnmappedEntries()) {
     // The actual match still requires BOTH team names to literally appear
     // in the channel's name — that's what keeps this from false-matching
     // ordinary channels once the gate is broadened this far.
-    const foldedName = foldForMatching(channel.name)
+    //
+    // entry.matchName IS foldForMatching(channel.name), computed once when
+    // the index was built rather than once per (event, channel) here. This
+    // loop is the single hottest thing Home does: at 30 near-term events
+    // against a 7,750-channel PPV/unmapped bucket it ran 232,500 folds —
+    // three allocations each — inside one unbroken main-thread task, every
+    // 60 seconds, on every screen including full-screen playback.
+    const channel = entry.channel
+    const foldedName = entry.matchName
     if (STALE_STATUS_WORDS.test(foldedName.trim())) continue
     if (!textMatchesTeam(foldedName, event.homeTeam) || !textMatchesTeam(foldedName, event.awayTeam)) continue
 

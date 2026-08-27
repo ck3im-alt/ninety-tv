@@ -18,10 +18,10 @@
 
 import { fetchWithDevCorsFallback } from '../core/net/devCorsProxy'
 import { DEFAULT_REQUEST_TIMEOUT_MS, RequestTimeoutError } from '../core/net/fetchWithTimeout'
-import { parseM3u } from './m3u/parseM3u'
 import { getLiveCategories, getLiveStreams } from './xtream/xtreamClient'
 import { liveStreamsToChannels } from './xtream/toChannels'
-import { mergeChannelSources } from '../features/channels/mergeChannels'
+import { buildPlaylistChannels } from './playlists/playlistBuildWorkerClient'
+import { markPerf, measurePerf } from '../core/perf/devPerf'
 import type { Channel } from './channel'
 import type { M3uUrlSourceRecord, XtreamSourceRecord } from './session'
 
@@ -30,8 +30,16 @@ export async function recoverChannelsFromSource(
 ): Promise<Channel[]> {
   if (source.type === 'xtream') {
     const creds = { server: source.server, username: source.username, password: source.password }
+    markPerf('playlist:download-start')
     const [categories, streams] = await Promise.all([getLiveCategories(creds), getLiveStreams(creds)])
-    return mergeChannelSources(liveStreamsToChannels(streams, categories, creds))
+    markPerf('playlist:download-end')
+    measurePerf('playlist:download', 'playlist:download-start', 'playlist:download-end')
+    // liveStreamsToChannels stays on the main thread: it is one linear map
+    // over the panel's JSON (no regex, no folding) and it is where the
+    // Xtream credentials are turned into stream URLs, so keeping it here
+    // means the Worker request carries no separate credential object of its
+    // own. The expensive half — mergeChannelSources — is what crosses.
+    return buildChannels({ kind: 'raw-channels', raw: liveStreamsToChannels(streams, categories, creds) })
   }
   // Bounded like every other metadata fetch. This runs on STARTUP, for each
   // playlist whose channel cache needs rebuilding, and a plain M3U host that
@@ -59,5 +67,25 @@ export async function recoverChannelsFromSource(
   } finally {
     clearTimeout(timer)
   }
-  return mergeChannelSources(parseM3u(await response.text()))
+  markPerf('playlist:download-start')
+  const text = await response.text()
+  markPerf('playlist:download-end')
+  measurePerf('playlist:download', 'playlist:download-start', 'playlist:download-end')
+  // The raw playlist TEXT is what crosses into the Worker, not a parsed
+  // RawChannel[] — one string is by far the cheapest thing to structured-
+  // clone (measured: 2.3 ms for 5.35 MB, versus 23.6 ms for the equivalent
+  // 30,925 parsed objects), and it moves parseM3u off the main thread too.
+  return buildChannels({ kind: 'm3u-text', text })
+}
+
+// Parse + merge, off the main thread when the platform allows it. Bracketed
+// with its own perf marks so a physical-TV run can separate download from
+// build without any new instrumentation (see playlistBuildWorkerClient.ts
+// for the Worker/synchronous decision itself).
+async function buildChannels(input: Parameters<typeof buildPlaylistChannels>[0]): Promise<Channel[]> {
+  markPerf('playlist:parse-start')
+  const { channels, ranInWorker } = await buildPlaylistChannels(input)
+  markPerf('playlist:parse-end')
+  measurePerf(ranInWorker ? 'playlist:parse' : 'playlist:parse-main-thread', 'playlist:parse-start', 'playlist:parse-end')
+  return channels
 }

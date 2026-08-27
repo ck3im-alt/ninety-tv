@@ -103,6 +103,20 @@ function setVisibility(state: 'visible' | 'hidden') {
 // hops deep (fetch resolves -> setFetchState -> Effect 2 fires -> its own
 // matchChannelsForEvent resolves -> setState), and each hop needs its own
 // microtask turn.
+// Effect 2 hands the main thread back mid-pass once it has held it for
+// LOCAL_MATCH_SLICE_MS (see sliceWork), via requestIdleCallback with a 50 ms
+// timeout falling back to setTimeout(0). `flush` above advances by 0 ms,
+// which never reaches an idle callback's timeout — so a pass long enough to
+// yield needs real time moved forward between drains.
+async function flushChunks(rounds = 12) {
+  for (let i = 0; i < rounds; i++) {
+    // eslint-disable-next-line no-await-in-loop
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60)
+    })
+  }
+}
+
 async function flush(times = 5) {
   for (let i = 0; i < times; i++) {
     // eslint-disable-next-line no-await-in-loop
@@ -300,6 +314,74 @@ describe('useHomeFeed background refresh (stale-while-revalidate)', () => {
 
     expect(result.current.eventsById.get('ninety:evt1')?.status).toBe('complete')
     expect(result.current.eventsById.get('ninety:evt1')?.homeScore).toBe('2')
+  })
+})
+
+// SEPARATING SPORTS FRESHNESS FROM PLAYLIST FRESHNESS.
+//
+// Now that provider playlists install a new generation every ~12 minutes,
+// the two kinds of freshness have to stay independent in both directions: a
+// new generation must re-run the LOCAL broadcaster/channel availability pass
+// (that is how a newly added PPV feed makes a live card appear on Home)
+// without dragging a sports-API request along with it, and a sports refresh
+// must not depend on the playlist changing.
+describe('useHomeFeed reaction to a playlist generation install', () => {
+  it('re-runs local availability on a new channels array without issuing a single extra API request', async () => {
+    getAllEventsMock.mockResolvedValueOnce([ninetyEvent({ status: 'live' })])
+    let channels: Channel[] = []
+    const { rerender } = renderHook(() => useHomeFeed(PREFERENCES, channels, NO_XTREAM_CREDENTIALS, null))
+    await flush()
+    const apiCallsAfterLoad = getAllEventsMock.mock.calls.length
+    const matchCallsAfterLoad = matchChannelsForEventMock.mock.calls.length
+    expect(matchCallsAfterLoad).toBeGreaterThan(0)
+
+    // A generation install: a brand new combined channel array.
+    channels = []
+    await act(async () => {
+      rerender()
+    })
+    await flush()
+
+    // Matching ran again against the new generation...
+    expect(matchChannelsForEventMock.mock.calls.length).toBeGreaterThan(matchCallsAfterLoad)
+    // ...and no fixture request was made that was not otherwise due.
+    expect(getAllEventsMock.mock.calls.length).toBe(apiCallsAfterLoad)
+  })
+
+  it('matches every near-term event, not just the first slice', async () => {
+    // Deliberately more events than one slice would hold on a slow device,
+    // so a bug in the slicing loop (a wrong bound, an early return after the
+    // first yield) shows up as missing matches. The slicing RULE itself —
+    // when it yields, and that a cancellation mid-yield abandons the pass —
+    // is tested directly in core/async/sliceWork.test.ts, with the clock and
+    // the event loop injected, because neither is observable through this
+    // hook under fake timers.
+    const events = Array.from({ length: 9 }, (_, i) => ninetyEvent({ id: `evt${i}`, status: 'live' }))
+    getAllEventsMock.mockResolvedValueOnce(events)
+    const { result } = renderHook(() => useHomeFeed(PREFERENCES, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null))
+    await flushChunks()
+
+    expect(result.current.status).toBe('ready')
+    expect(matchChannelsForEventMock.mock.calls.length).toBe(events.length)
+    expect(result.current.feed.liveNow).toHaveLength(events.length)
+  })
+
+  it('a pass superseded mid-chunk does not overwrite the newer one', async () => {
+    const events = Array.from({ length: 9 }, (_, i) => ninetyEvent({ id: `evt${i}`, status: 'live' }))
+    getAllEventsMock.mockResolvedValueOnce(events)
+    const { result, unmount } = renderHook(() => useHomeFeed(PREFERENCES, STABLE_CHANNELS, NO_XTREAM_CREDENTIALS, null))
+    await flushChunks()
+    expect(result.current.status).toBe('ready')
+
+    // Unmounting mid-flight is the harshest version of "this pass was
+    // superseded": every remaining chunk must abandon rather than write.
+    const errors: unknown[] = []
+    const onError = (e: ErrorEvent) => errors.push(e.error)
+    window.addEventListener('error', onError)
+    unmount()
+    await flushChunks()
+    window.removeEventListener('error', onError)
+    expect(errors).toEqual([])
   })
 })
 

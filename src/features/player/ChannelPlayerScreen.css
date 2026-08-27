@@ -132,10 +132,17 @@
   white-space: nowrap;
 }
 
+/* ACTIVE = "this button's popup is open right now". It has to stay visible
+   while focus is down inside that popup, and it has to stay quieter than
+   focus — see the focus-state contract in tokens.css. It used to take the
+   focus border AND the focus surface, i.e. the entire focus vocabulary, so
+   an open Quality menu left two toolbar buttons looking focused: the toggle
+   that opened it and whatever the D-pad was actually on. Surface elevation
+   plus accent TEXT says the same thing in channels focus never uses. */
 .toolbar-btn.active {
   color: var(--text-primary);
-  border-color: var(--border-focus);
-  background: var(--surface-focus);
+  background: var(--surface-elevated);
+  border-color: var(--border-selected);
 }
 
 .toolbar-btn.active .toolbar-btn-icon,
@@ -147,6 +154,13 @@
   border-color: var(--border-focus);
   background: var(--surface-focus);
   color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--border-focus);
+}
+
+/* Focus wins outright on the button that opened the popup, too. */
+.toolbar-btn.active.focused {
+  border-color: var(--border-focus);
+  background: var(--surface-focus);
 }
 
 /* Source / subtitles popups — anchored directly above their own button */
@@ -192,8 +206,15 @@
   border-bottom: none;
 }
 
+/* Two channels, like every other focusable: a lone background change on a
+   list of otherwise identical rows is exactly the weak cue this pass is
+   removing. `outline` rather than `border` so the row's own 1px bottom
+   divider and its height stay untouched — no layout shift as focus moves
+   down the list. */
 .option-row.focused {
   background: var(--surface-focus);
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
 }
 
 .option-row-chip {
@@ -215,6 +236,9 @@
   text-overflow: ellipsis;
 }
 
+/* SELECTED = the quality/subtitle track currently playing. Carried by the
+   ✓ glyph and its accent colour alone — never a surface or a border, which
+   under the focus-state contract belong to focus. */
 .option-row-check {
   color: var(--accent);
   font-size: var(--font-body);

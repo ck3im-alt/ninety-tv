@@ -67,6 +67,125 @@ export interface PaneMenuProps {
   onClose: () => void
 }
 
+// The "Change source" sub-view, as its own component.
+//
+// It is a separate component rather than a branch inside PaneMenu because
+// useModalFocusScope's focusKey identifies a spatial-navigation CONTAINER,
+// and norigin registers a container in a mount-only effect (addFocusable
+// runs with a `[]` dependency list). Swapping the focusKey PROP on one
+// mounted component therefore left the container registered under the old
+// key, updateFocusable(newKey, ...) found nothing to update, and the
+// scope's own setFocus(newKey) parked spatial focus on a key with no
+// component behind it: opening "Change source" showed a list with NO
+// focused row where OK did nothing and only Back got you out. Two views,
+// two mounts, two registrations. Same reason ChannelPlayerScreen's
+// VariantPopup/SubtitlesPopup are separate components.
+function PaneSourceMenu({
+  sourcesFocusKey,
+  candidates,
+  activeSourceIndex,
+  onSelectSource,
+  onBackToMenu,
+}: {
+  sourcesFocusKey: string
+  candidates: MultiviewSourceCandidate[]
+  activeSourceIndex: number
+  onSelectSource: (index: number) => void
+  onBackToMenu: () => void
+}) {
+  const { ref, focusKey } = useModalFocusScope({
+    focusKey: sourcesFocusKey,
+    onClose: onBackToMenu,
+    preferredChildFocusKey: `${sourcesFocusKey}-${activeSourceIndex}`,
+  })
+  return (
+    <FocusContext.Provider value={focusKey}>
+      <div ref={ref} className="pane-menu">
+        {candidates.length === 0 ? (
+          <p className="pane-menu-empty">No sources available.</p>
+        ) : (
+          candidates.map((candidate, index) => (
+            <SourceOptionRow
+              key={`${candidate.channel.id}-${index}`}
+              focusKey={`${sourcesFocusKey}-${index}`}
+              candidate={candidate}
+              active={index === activeSourceIndex}
+              onSelect={() => {
+                onSelectSource(index)
+                onBackToMenu()
+              }}
+            />
+          ))
+        )}
+      </div>
+    </FocusContext.Provider>
+  )
+}
+
+function PaneActionMenu({
+  paneId,
+  menuFocusKey,
+  isMaximized,
+  isAudioPane,
+  sessionMuted,
+  canGoLive,
+  onMakeFullscreen,
+  onRestoreGrid,
+  onOpenSources,
+  onUseAudio,
+  onToggleSessionMute,
+  onReplaceEvent,
+  onRemove,
+  onRestart,
+  onGoLive,
+  onClose,
+}: {
+  paneId: string
+  menuFocusKey: string
+  isMaximized: boolean
+  isAudioPane: boolean
+  sessionMuted: boolean
+  canGoLive: boolean
+  onMakeFullscreen: () => void
+  onRestoreGrid: () => void
+  onOpenSources: () => void
+  onUseAudio: () => void
+  onToggleSessionMute: () => void
+  onReplaceEvent: () => void
+  onRemove: () => void
+  onRestart: () => void
+  onGoLive: () => void
+  onClose: () => void
+}) {
+  const { ref, focusKey } = useModalFocusScope({
+    focusKey: menuFocusKey,
+    onClose,
+    preferredChildFocusKey: isMaximized ? `${paneId}-restore-grid` : `${paneId}-fullscreen`,
+  })
+  const audioLabel = !isAudioPane ? 'Use audio' : sessionMuted ? 'Unmute' : 'Mute'
+  return (
+    <FocusContext.Provider value={focusKey}>
+      <div ref={ref} className="pane-menu">
+        {isMaximized ? (
+          <MenuRow focusKey={`${paneId}-restore-grid`} label="Restore to grid" onSelect={onRestoreGrid} />
+        ) : (
+          <MenuRow focusKey={`${paneId}-fullscreen`} label="Make fullscreen" onSelect={onMakeFullscreen} />
+        )}
+        <MenuRow focusKey={`${paneId}-change-source`} label="Change source" onSelect={onOpenSources} />
+        <MenuRow
+          focusKey={`${paneId}-audio`}
+          label={audioLabel}
+          onSelect={isAudioPane ? onToggleSessionMute : onUseAudio}
+        />
+        {canGoLive && <MenuRow focusKey={`${paneId}-golive`} label="Go Live" onSelect={onGoLive} />}
+        <MenuRow focusKey={`${paneId}-restart`} label="Restart" onSelect={onRestart} />
+        <MenuRow focusKey={`${paneId}-replace`} label="Replace event" onSelect={onReplaceEvent} />
+        <MenuRow focusKey={`${paneId}-remove`} label="Remove from Multiview" onSelect={onRemove} />
+      </div>
+    </FocusContext.Provider>
+  )
+}
+
 export function PaneMenu({
   paneId,
   isMaximized,
@@ -87,82 +206,41 @@ export function PaneMenu({
   onClose,
 }: PaneMenuProps) {
   const [view, setView] = useState<'menu' | 'sources'>('menu')
-  const menuFocusKey = `${paneId}-menu`
-  const sourcesFocusKey = `${paneId}-menu-sources`
 
-  // Back in the sources sub-view returns to the main menu instead of
-  // closing outright; Back in the main menu closes it. useBackHandler (via
-  // useModalFocusScope) always reads the LATEST closure on keypress (see its
-  // own header comment), so this correctly reflects whichever `view` is
-  // current at the moment Back is actually pressed, even though the
-  // handler itself is only pushed once per mount.
-  function handleClose() {
-    if (view === 'sources') {
-      setView('menu')
-      return
-    }
-    onClose()
-  }
-
-  const preferredChildFocusKey =
-    view === 'sources' ? `${sourcesFocusKey}-${activeSourceIndex}` : isMaximized ? `${paneId}-restore-grid` : `${paneId}-fullscreen`
-
-  const { ref, focusKey } = useModalFocusScope({
-    focusKey: view === 'sources' ? sourcesFocusKey : menuFocusKey,
-    onClose: handleClose,
-    preferredChildFocusKey,
-  })
-
+  // Back in the sources sub-view returns to the main menu; Back in the main
+  // menu closes it. Each view owns that meaning through its own
+  // useModalFocusScope, and exactly one of them is mounted at a time, so the
+  // Back stack never has to disambiguate between them.
   if (view === 'sources') {
     return (
-      <FocusContext.Provider value={focusKey}>
-        <div ref={ref} className="pane-menu">
-          {candidates.length === 0 ? (
-            <p className="pane-menu-empty">No sources available.</p>
-          ) : (
-            candidates.map((candidate, index) => (
-              <SourceOptionRow
-                key={`${candidate.channel.id}-${index}`}
-                focusKey={`${sourcesFocusKey}-${index}`}
-                candidate={candidate}
-                active={index === activeSourceIndex}
-                onSelect={() => {
-                  onSelectSource(index)
-                  setView('menu')
-                }}
-              />
-            ))
-          )}
-        </div>
-      </FocusContext.Provider>
+      <PaneSourceMenu
+        sourcesFocusKey={`${paneId}-menu-sources`}
+        candidates={candidates}
+        activeSourceIndex={activeSourceIndex}
+        onSelectSource={onSelectSource}
+        onBackToMenu={() => setView('menu')}
+      />
     )
   }
 
-  const audioLabel = !isAudioPane ? 'Use audio' : sessionMuted ? 'Unmute' : 'Mute'
-
   return (
-    <FocusContext.Provider value={focusKey}>
-      <div ref={ref} className="pane-menu">
-        {isMaximized ? (
-          <MenuRow focusKey={`${paneId}-restore-grid`} label="Restore to grid" onSelect={onRestoreGrid} />
-        ) : (
-          <MenuRow focusKey={`${paneId}-fullscreen`} label="Make fullscreen" onSelect={onMakeFullscreen} />
-        )}
-        <MenuRow
-          focusKey={`${paneId}-change-source`}
-          label="Change source"
-          onSelect={() => setView('sources')}
-        />
-        <MenuRow
-          focusKey={`${paneId}-audio`}
-          label={audioLabel}
-          onSelect={isAudioPane ? onToggleSessionMute : onUseAudio}
-        />
-        {canGoLive && <MenuRow focusKey={`${paneId}-golive`} label="Go Live" onSelect={onGoLive} />}
-        <MenuRow focusKey={`${paneId}-restart`} label="Restart" onSelect={onRestart} />
-        <MenuRow focusKey={`${paneId}-replace`} label="Replace event" onSelect={onReplaceEvent} />
-        <MenuRow focusKey={`${paneId}-remove`} label="Remove from Multiview" onSelect={onRemove} />
-      </div>
-    </FocusContext.Provider>
+    <PaneActionMenu
+      paneId={paneId}
+      menuFocusKey={`${paneId}-menu`}
+      isMaximized={isMaximized}
+      isAudioPane={isAudioPane}
+      sessionMuted={sessionMuted}
+      canGoLive={canGoLive}
+      onMakeFullscreen={onMakeFullscreen}
+      onRestoreGrid={onRestoreGrid}
+      onOpenSources={() => setView('sources')}
+      onUseAudio={onUseAudio}
+      onToggleSessionMute={onToggleSessionMute}
+      onReplaceEvent={onReplaceEvent}
+      onRemove={onRemove}
+      onRestart={onRestart}
+      onGoLive={onGoLive}
+      onClose={onClose}
+    />
   )
 }

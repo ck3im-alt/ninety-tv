@@ -115,17 +115,17 @@ describe('FootballEventHeader — competition artwork', () => {
   it('paints the Premier League banner for a Premier League fixture', () => {
     render(<FootballEventHeader event={event({ leagueId: 'football_premier_league' })} />)
     expect(backdrop().className).toContain('event-header-backdrop-photo')
-    expect(backdrop().style.backgroundImage).toContain('Match_hero/Premier_League.png')
+    expect(backdrop().style.backgroundImage).toContain('Match_hero/Premier_League.jpg')
   })
 
   it('paints the La Liga banner for a La Liga fixture', () => {
     render(<FootballEventHeader event={event({ leagueId: 'football_la_liga' })} />)
-    expect(backdrop().style.backgroundImage).toContain('Match_hero/La_liga.png')
+    expect(backdrop().style.backgroundImage).toContain('Match_hero/La_liga.jpg')
   })
 
   it('paints the Champions League banner from the matched set', () => {
     render(<FootballEventHeader event={event({ leagueId: 'football_champions_league' })} />)
-    expect(backdrop().style.backgroundImage).toContain('Match_hero/Champions_League.png')
+    expect(backdrop().style.backgroundImage).toContain('Match_hero/Champions_League.jpg')
   })
 
   // Selection is by canonical competition id, so the display name is

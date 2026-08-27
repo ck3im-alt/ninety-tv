@@ -3,6 +3,7 @@ import { ChannelIndex, getChannelIndex, warmChannelIndexAsync } from './channelI
 import { mergeChannelSources } from '../features/channels/mergeChannels'
 import type { RawChannel } from './rawChannel'
 import { generateSyntheticRawChannels } from './testUtils/syntheticPlaylist'
+import { foldForMatching } from './fancyUnicode'
 
 function raw(overrides: Partial<RawChannel> & { name: string; url: string }): RawChannel {
   return { id: overrides.name, ...overrides }
@@ -132,6 +133,24 @@ describe('ChannelIndex', () => {
     const ppvA = index.getPpvOrUnmappedChannels()
     ppvA.length = 0
     expect(index.getPpvOrUnmappedChannels().length).toBeGreaterThan(0)
+  })
+
+  // The allocation-free counterparts the per-event matching stages use.
+  // Deliberately NOT copies — matchViaPpvChannelName walks the PPV/unmapped
+  // bucket once per near-term event, and copying it there was measurable
+  // main-thread churn on every Home refresh. What must hold is that they
+  // describe exactly the same set as the copying getters.
+  it('the read-only entry views describe exactly the same channels as the copying getters', () => {
+    expect(index.getPpvOrUnmappedEntries().map((e) => e.channel)).toEqual(index.getPpvOrUnmappedChannels())
+    expect(index.getEntriesForCountry('Norway').map((e) => e.channel)).toEqual(index.getChannelsForCountry('Norway'))
+    expect(index.getEntriesForCountry('Nowhere')).toEqual([])
+  })
+
+  it('every entry carries its matching fold precomputed, identical to folding the name on demand', () => {
+    for (const channel of channels) {
+      const entry = index.getEntry(channel.id)!
+      expect(entry.matchName).toBe(foldForMatching(channel.name))
+    }
   })
 
   it('getChannelById resolves by id in O(1) and returns undefined for an unknown id', () => {
