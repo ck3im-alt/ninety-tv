@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useFocusScrollIntoView } from '../../core/platform'
+import { formatClockTime24h } from '../../core/time/clockFormat'
 import './TopNav.css'
 
 function useClock() {
@@ -9,7 +10,10 @@ function useClock() {
     const id = setInterval(() => setTime(new Date()), 1000 * 30)
     return () => clearInterval(id)
   }, [])
-  return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // 24-hour, not the device's locale format — a TV set to en-US rendered
+  // this as "7 PM" while every fixture time beside it read 19:00. See
+  // core/time/clockFormat.ts.
+  return formatClockTime24h(time)
 }
 
 // Each item's spatial-nav focus key is derived from its LABEL (`nav-${label}`

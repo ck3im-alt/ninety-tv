@@ -31,9 +31,18 @@ describe('formatEventDayLabel', () => {
 })
 
 describe('formatKickoffTime', () => {
-  it('formats a valid timestamp as a localized HH:MM time', () => {
+  // The old assertion here was /\d{1,2}:\d{2}/, which "09:00 PM" satisfies —
+  // so it passed for months on a device whose locale is en-US while the
+  // header actually read "7 PM". Anchored and hour-bounded now: 00-23 only,
+  // nothing before or after.
+  it('formats a valid timestamp as a 24-hour HH:MM time', () => {
     const time = formatKickoffTime(isoAtOffsetDays(0))
-    expect(time).toMatch(/\d{1,2}:\d{2}/)
+    expect(time).toMatch(/^([01]\d|2[0-3]):[0-5]\d$/)
+  })
+
+  it('never renders AM/PM, whatever the device locale says', () => {
+    const time = formatKickoffTime('2026-08-28T19:00:00Z')
+    expect(time).not.toMatch(/[AP]M/i)
   })
 
   it('returns an empty string for a null or invalid timestamp', () => {

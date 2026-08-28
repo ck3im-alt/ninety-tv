@@ -6,6 +6,7 @@ import { effectiveLiveState } from './liveHeuristic'
 import { normalizeVenueName } from './humanText'
 import { normalizeBroadcastAvailability } from './broadcastAvailability'
 import { competitionHomeHero } from './competitionArtwork'
+import { formatClockTime24h } from '../../core/time/clockFormat'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -30,7 +31,9 @@ function formatTimeLabel(dateTimeUtc: string | null): string {
   if (Number.isNaN(d.getTime())) return ''
   const now = new Date()
   const isToday = d.toDateString() === now.toDateString()
-  const hhmm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // 24-hour regardless of the device's locale — an en-US TV turned every
+  // card in the row into "Today 9:00 PM". See core/time/clockFormat.ts.
+  const hhmm = formatClockTime24h(d)
   if (isToday) return `Today ${hhmm}`
   return `${WEEKDAYS[d.getDay()]} ${hhmm}`
 }
