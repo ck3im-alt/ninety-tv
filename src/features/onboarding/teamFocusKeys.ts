@@ -23,8 +23,8 @@ export const teamFocusKey = (teamId: string) => `${TEAM_FOCUS_PREFIX}${teamId}`
 // the grid threw focus back to the rail, and why the press sometimes did
 // not register at all.
 //
-// The leagues step never hit this because groupExpandedLeagues removes every
-// recommended competition from the browser's groups, so one id really does
+// The leagues step never hit this because buildBrowseCatalogue removes every
+// recommended competition from the browsable lists, so one id really does
 // mean one card there. Teams cannot do the same: hiding the eight suggested
 // clubs from their own league's grid would leave a Premier League page
 // mysteriously missing Arsenal.
@@ -32,7 +32,7 @@ export const SUGGESTED_TEAM_FOCUS_PREFIX = 'suggested-team-'
 export const suggestedTeamFocusKey = (teamId: string) => `${SUGGESTED_TEAM_FOCUS_PREFIX}${teamId}`
 
 // A competition row in the team browser's rail. Distinct from the league
-// browser's `browse-` prefix so the two panels' rescue effects can't
-// mistake one another's rows.
+// browser's `browse-scope-` prefix so the two panels' rescue effects can't
+// mistake one another's chrome.
 export const TEAM_GROUP_FOCUS_PREFIX = 'teamgroup-'
 export const teamGroupFocusKey = (competitionId: string) => `${TEAM_GROUP_FOCUS_PREFIX}${competitionId || 'other'}`

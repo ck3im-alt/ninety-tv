@@ -80,6 +80,26 @@ export function ChevronUpIcon() {
   )
 }
 
+// Page affordances for the league browser's "1 / 2" indicator. Quiet, and
+// deliberately NOT focusable where they are used — the D-pad turns pages by
+// walking off the left/right edge of the grid, and these only say that
+// another page exists (and stay dim when it does not).
+export function ChevronLeftIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function ChevronRightIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 // Venue marker for anything showing SportEvent.venue — a stadium bowl
 // (pitch inside a stand ring), NOT a map pin: the field is a stadium name,
 // not a location on a map. Shared by Home's fixture meta line and Event

@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchNextEventsForLeague, fetchPastEventsForLeague } from './theSportsDbClient'
-import { getAllEvents } from './ninetyApiClient'
+import { getAllEvents, type GetEventsParams, type NinetyEvent } from './ninetyApiClient'
 import { fallbackFootballLeague, footballLeaguesForPreferences, otherLeaguesForPreferences } from './leagues'
 import { loadFootballCompetitions } from './competitionsCatalog'
-import { localDayRange } from './localDay'
+import { localDayRange, localDayRangeAhead } from './localDay'
 import { deriveViewerMarkets } from './viewerMarket'
 import { mapNinetyEvent, mapEvent } from './mapEvent'
 import { isHeuristicallyLive } from './liveHeuristic'
 import { buildPersonalizationContext } from './homePersonalization'
+import { describeHomeContentDecision, filterHomeEventsByMode } from './homeContentPolicy'
+import {
+  FORWARD_EXPANSION_DAYS,
+  MIN_VISIBLE_UPCOMING_FOOTBALL,
+  countVisibleUpcomingFootball,
+  forwardExpansionShortfall,
+  selectForwardExpansion,
+  type HomeDensityInput,
+} from './homeFeedDensity'
 import { describeRanking, eventTiming, rankHomeFeed, selectHero, type EventTiming, type HomeFeedItem } from './homeRanking'
 import { loadWatchAffinity } from './watchAffinity'
 import { matchChannelsForEvent } from './channelMatch'
@@ -58,12 +67,6 @@ const EMPTY_EVENTS_BY_ID: ReadonlyMap<string, SportEvent> = new Map()
 // half-time), short enough not to drag in a whole afternoon of finished
 // fixtures.
 const URGENT_LOOKBACK_MS = 3 * 60 * 60 * 1000
-
-// Only used when the viewer's day is genuinely out of football — see the
-// fallback fetch in load(). Narrow AND favorite-filtered on purpose: it
-// exists so Home isn't empty at 23:40, not so it can list a month of
-// fixtures.
-const FALLBACK_LOOKAHEAD_DAYS = 3
 
 // Shared by every HomeFeedState variant — see the union below. `eventsById`
 // is every event this hook has fetched (football + F1, live and upcoming
@@ -118,13 +121,26 @@ export function useHomeFeed(
   // doesn't actually change which EPG markets are requested (e.g. adding a
   // country with no EPG coverage) doesn't trigger a needless refetch.
   //
-  // Deliberately does NOT include favoriteTeamIds, and no longer depends on
-  // footballLeagueIds for the primary fetch: since candidate generation
-  // stopped filtering by followed competitions (see load() below), those
-  // preferences only affect ORDER. Re-ordering is local and instant — it
-  // happens in the derivation memo, with no network round-trip at all.
+  // Deliberately does NOT include favoriteTeamIds, and the primary
+  // all-competitions request does not depend on footballLeagueIds either
+  // (only the density expansion below still does, which is why the ids are
+  // here at all).
+  //
+  // homeContentMode is deliberately ABSENT. It governs which already-fetched
+  // events may be SHOWN, which is a local derivation — changing it in
+  // Settings must re-shape Home instantly, with no network round-trip and no
+  // loading state, exactly like changing a favorite does. The one place the
+  // mode does reach the network is the density expansion's trigger inside
+  // load() below, which is re-evaluated on every real fetch (including the
+  // ~60s silent refresh) rather than being worth re-downloading the whole
+  // day's fixtures for the moment a radio button moves.
   const viewerMarkets = deriveViewerMarkets(preferences.favoriteCountries)
   const fetchKey = `${preferences.sports.join(',')}|${preferences.footballLeagueIds.join(',')}|${viewerMarkets.join(',')}`
+
+  // The mode itself, read once per render. Effect 2's dependency list names
+  // it directly (a primitive, so it is stable across renders unlike the
+  // preferences object it comes from).
+  const homeContentMode = preferences.homeContentMode
 
   const [fetchState, setFetchState] = useState<FetchState>({ status: 'loading' })
 
@@ -141,6 +157,32 @@ export function useHomeFeed(
   // discard its now-stale result instead of overwriting newer data.
   const fetchKeyRef = useRef(fetchKey)
   fetchKeyRef.current = fetchKey
+
+  // THE DENSITY EXPANSION'S OWN CACHE.
+  //
+  // The forward request (see load() below) asks an identical question on
+  // every refresh: the same followed competitions, over a window anchored to
+  // local calendar days rather than to `now`, in the same markets. Unlike
+  // the primary request there is nothing to revalidate in its answer —
+  // everything it returns starts tomorrow at the earliest, so it carries no
+  // live score and no in-play status — while the state that triggers it (a
+  // quiet week for this viewer's competitions) persists for hours. Left
+  // uncached it would therefore issue a paginated week-long fetch every
+  // sixty seconds, all evening, to receive the same fixtures back.
+  //
+  // A ref rather than a module-level cache so it lives and dies with the
+  // hook instance, and keyed on the request itself so a preference change
+  // (or midnight) simply misses rather than needing an invalidation rule.
+  const forwardCacheRef = useRef<{ key: string; fetchedAt: number; events: NinetyEvent[] } | null>(null)
+  async function forwardEvents(params: GetEventsParams): Promise<NinetyEvent[]> {
+    const key = JSON.stringify([params.competitionId, params.from, params.to, params.country])
+    const now = Date.now()
+    const cached = forwardCacheRef.current
+    if (cached && cached.key === key && now - cached.fetchedAt < FORWARD_EXPANSION_CACHE_MS) return cached.events
+    const events = await getAllEvents(params)
+    forwardCacheRef.current = { key, fetchedAt: now, events }
+    return events
+  }
 
   // Extracted out of Effect 1 (unlike before) so silentRefresh (see below)
   // can run the exact same fetch logic for a background revalidation — only
@@ -200,31 +242,78 @@ export function useHomeFeed(
           await getAllEvents({ from: new Date(now - URGENT_LOOKBACK_MS).toISOString(), to: day.toUtc, country }),
         )
 
-        // Late in the evening "the rest of today" is legitimately empty,
-        // and a Home screen with nothing coming up is a worse answer than
-        // looking slightly further ahead. This second request only fires in
-        // that case, and unlike the primary one it IS favorite-filtered and
-        // day-bounded: it is a small courtesy fetch, not part of the
-        // candidate architecture. Skipped entirely with no followed
-        // competitions — an empty competition_id would be read by the
-        // backend as "no filter", i.e. every tracked competition for three
-        // days, which is precisely what must not happen here.
-        const hasUpcoming = footballCandidates.some(
-          (ev) => !ev.isLive && ev.dateTimeUtc != null && new Date(ev.dateTimeUtc).getTime() > now,
-        )
-        if (!hasUpcoming) {
+        // DENSITY EXPANSION — the second, targeted request.
+        //
+        // NOT AN EMPTY-STATE FALLBACK ANY MORE. The old rule fired only
+        // when nothing at all was coming up, which reads a Home screen
+        // holding one qualifying fixture as a success; on 'favorites_only'
+        // with three followed competitions that is the ordinary quiet
+        // Tuesday, not an edge case. The question asked here is how much
+        // upcoming football the viewer can actually SEE (their content mode
+        // and the backend's broadcast verdict both applied — see
+        // homeFeedDensity.ts), and the answer is a count against one
+        // screenful of Home rather than a boolean.
+        //
+        // Everything that kept the old fetch small is kept, and for the same
+        // reasons. It is competition-filtered (the primary request must
+        // stay the unfiltered one — that is what finds a favourite club
+        // playing abroad), it starts where today ends so the two windows
+        // cannot overlap, and it is skipped entirely when the viewer follows
+        // nothing: an empty competition_id reads to the backend as "no
+        // filter", i.e. every tracked competition for a week, which is
+        // precisely what must not happen here. What comes back is then
+        // capped at the measured shortfall (selectForwardExpansion), so this
+        // tops Home up to a full screen and never turns it into Schedule.
+        const contentContext = buildPersonalizationContext({
+          favoriteTeamIds: preferences.favoriteTeamIds,
+          favoriteCompetitionIds: preferences.footballLeagueIds,
+        })
+        const density: HomeDensityInput = { now, mode: preferences.homeContentMode, context: contentContext }
+        const shortfall = forwardExpansionShortfall(footballCandidates, density)
+        let added: SportEvent[] = []
+        let received = 0
+        if (shortfall > 0) {
           const followed = footballLeaguesForPreferences(preferences.footballLeagueIds, catalog)
           if (followed.length > 0) {
-            const ahead = new Date(now + FALLBACK_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000).toISOString()
+            const horizon = localDayRangeAhead(FORWARD_EXPANSION_DAYS, new Date(now))
             const extra = toEvents(
-              await getAllEvents({
+              await forwardEvents({
                 competitionId: followed.map((l) => l.id),
                 from: new Date(day.endMs).toISOString(),
-                to: ahead,
+                to: horizon.toUtc,
                 country,
               }),
             )
-            footballCandidates = [...footballCandidates, ...extra]
+            received = extra.length
+            added = selectForwardExpansion(extra, footballCandidates, density, shortfall)
+            footballCandidates = [...footballCandidates, ...added]
+          }
+        }
+
+        // "Why is Home so empty?" and its mirror, "why is next Tuesday on
+        // my Home screen?", answerable in one console read — same
+        // convention as the three diagnostics Effect 2 parks on `window`
+        // below, and the only one of the four that can be recorded here,
+        // since this decision is made at fetch time.
+        //
+        // It is also what MIN_VISIBLE_UPCOMING_FOOTBALL has to be
+        // calibrated against: how often a real viewer's real day actually
+        // falls short, and how much of a week-long window a top-up spends
+        // to fill it.
+        if (import.meta.env.DEV) {
+          ;(window as unknown as { __ninetyHomeDensity?: unknown }).__ninetyHomeDensity = {
+            now,
+            mode: preferences.homeContentMode,
+            target: MIN_VISIBLE_UPCOMING_FOOTBALL,
+            // Recounted rather than derived from the shortfall: the
+            // shortfall saturates at 0, so a busy day would otherwise
+            // report exactly the target however much football was on.
+            visibleUpcoming: countVisibleUpcomingFootball(footballCandidates, density),
+            shortfall,
+            expansion:
+              shortfall === 0
+                ? 'not needed'
+                : { days: FORWARD_EXPANSION_DAYS, received, added: added.map((ev) => ({ id: ev.id, title: ev.title, kickoff: ev.dateTimeUtc })) },
           }
         }
       } catch (err) {
@@ -422,8 +511,11 @@ export function useHomeFeed(
   const [state, setState] = useState<HomeFeedState>({ status: 'loading', feed: EMPTY_FEED, eventsById: EMPTY_EVENTS_BY_ID, refresh: silentRefresh })
 
   // Effect 2 — local derivation. Deps: [fetchState, personalization,
-  // channels, xtream, identityIndex]. Re-runs whenever the identity index
-  // (or the playlist, or a favorite) changes WITHOUT any network call.
+  // homeContentMode, channels, xtream, identityIndex]. Re-runs whenever the
+  // identity index (or the playlist, or a favorite, or the Home content
+  // mode) changes WITHOUT any network call — which is precisely what makes
+  // changing the mode in Settings re-shape Home the moment the viewer comes
+  // back to it.
   // Channel-matching here never sets allowNetworkFallback, so this is
   // purely local/free-stage matching (see channelMatch.ts) — safe to run
   // for every watchable-now candidate via Promise.all.
@@ -443,6 +535,23 @@ export function useHomeFeed(
     ;(async () => {
       const now = Date.now()
 
+      // THE HOME CONTENT POLICY, APPLIED FIRST AND EXACTLY ONCE.
+      //
+      // Everything below — the broadcast gate, the channel-matching pass,
+      // the feed ranking and the hero selection — works off `allowed`
+      // rather than `candidates`. That is the invariant: hero and feed
+      // receive the same pool, so a competition the viewer's mode removes
+      // from the row can never reappear as the thing Home is featuring at
+      // the top of the screen. It also means an excluded LIVE match stays
+      // excluded: being live decides ranking and eligibility AMONG allowed
+      // candidates, it is never a way past this gate.
+      //
+      // Note what is NOT filtered: `eventsById` (built at fetch time from
+      // every candidate) is untouched, so Event Details opened from
+      // Schedule or Channels still resolves its freshest event by id. The
+      // mode governs Home's recommendations, not the rest of the app.
+      const allowed = filterHomeEventsByMode(candidates, homeContentMode, personalization)
+
       // WHICH EVENTS CAN THIS VIEWER ACTUALLY PLAY?
       //
       // A separate question from which are relevant, and answered only for
@@ -459,7 +568,7 @@ export function useHomeFeed(
       // matched exactly as before: absence of evidence is not a negative,
       // and short-circuiting it would make every event from a
       // not-yet-upgraded backend unplayable.
-      const nearTerm = candidates.filter(
+      const nearTerm = allowed.filter(
         (ev) => ev.sportKey === 'football' && isChannelMatchBroadcastEligible(ev) && isNearTerm(ev, now),
       )
       // TIME-SLICED, NOT ONE Promise.all. With allowNetworkFallback unset
@@ -512,7 +621,7 @@ export function useHomeFeed(
       // stays, as an informational card (see homeBroadcastEligibility.ts).
       // Absent/UNKNOWN keeps everything, so against a backend that does not
       // send the field this line removes precisely nothing.
-      const broadcastEligible = candidates.filter((ev) => isHomeFeedBroadcastEligible(ev, personalization))
+      const broadcastEligible = allowed.filter((ev) => isHomeFeedBroadcastEligible(ev, personalization))
 
       // Second, personally: a LIVE football card with nowhere to watch it
       // defeats the point of the row, so those stay out of the feed — the
@@ -531,14 +640,14 @@ export function useHomeFeed(
       const feedEvents = broadcastEligible.filter((ev) => !(ev.isLive && ev.sportKey === 'football' && !playableIds.has(ev.id)))
 
       const items = rankHomeFeed(feedEvents, personalization, now)
-      // The hero ranks over the FULL candidate pool, including live events
+      // The hero ranks over the full ALLOWED pool, including live events
       // with no playable stream — see selectHero: it prefers a playable
       // candidate, and falls back to showing the most relevant one as a
       // preview rather than to nothing. selectHero applies the broadcast
       // gate itself (to both its watchable-now pool and its earliest-kickoff
       // fallback), so the pool is deliberately NOT pre-filtered here — one
       // rule, in one place.
-      const { hero, isWatchableNow } = selectHero(candidates, personalization, now, (ev) =>
+      const { hero, isWatchableNow } = selectHero(allowed, personalization, now, (ev) =>
         ev.sportKey === 'football' ? playableIds.has(ev.id) : true,
       )
 
@@ -563,7 +672,7 @@ export function useHomeFeed(
       // suppressed under `vitest` (MODE === 'test'), where it would bury
       // real test output; a packaged production build runs none of it.
       if (import.meta.env.DEV) {
-        const explained = describeRanking(candidates, personalization, now)
+        const explained = describeRanking(allowed, personalization, now)
         ;(window as unknown as { __ninetyHomeRanking?: unknown }).__ninetyHomeRanking = {
           now,
           hero: hero?.id ?? null,
@@ -585,7 +694,7 @@ export function useHomeFeed(
           // How much local matching the broadcast gate actually saved, which
           // is the other half of what this feature is for.
           channelMatchesRun: nearTerm.length,
-          channelMatchesSkipped: candidates.filter(
+          channelMatchesSkipped: allowed.filter(
             (ev) => ev.sportKey === 'football' && !isChannelMatchBroadcastEligible(ev) && isNearTerm(ev, now),
           ).length,
           events: candidates.map((ev) => ({
@@ -595,6 +704,27 @@ export function useHomeFeed(
             ...homeBroadcastEligibility(ev, personalization),
             includedInHome: feedIds.has(ev.id),
             isHero: hero?.id === ev.id,
+          })),
+        }
+
+        // "I set My leagues only — why is that still there?" and its mirror,
+        // "why did that disappear?", answerable in one console read. A THIRD
+        // array rather than a column on either of the two above, for the same
+        // reason the broadcast one is separate from the ranking one: this
+        // covers every fetched candidate INCLUDING the ones the content mode
+        // removed, which by definition cannot be inspected through a list of
+        // what survived it. Each row states which rule (if any) let the event
+        // through.
+        ;(window as unknown as { __ninetyHomeContentPolicy?: unknown }).__ninetyHomeContentPolicy = {
+          now,
+          mode: homeContentMode,
+          allowed: allowed.length,
+          removed: candidates.length - allowed.length,
+          events: candidates.map((ev) => ({
+            id: ev.id,
+            title: ev.title,
+            competition: ev.league,
+            ...describeHomeContentDecision(ev, homeContentMode, personalization),
           })),
         }
 
@@ -615,7 +745,7 @@ export function useHomeFeed(
     return () => {
       cancelled = true
     }
-  }, [fetchState, personalization, channels, xtream, identityIndex, silentRefresh])
+  }, [fetchState, personalization, homeContentMode, channels, xtream, identityIndex, silentRefresh])
 
   return state
 }
@@ -631,6 +761,14 @@ export function useHomeFeed(
 // against THIS playlist, instead of being tuned against one machine's
 // numbers, and it costs a short list nothing at all.
 const LOCAL_MATCH_SLICE_MS = 8
+
+// How long one density-expansion answer may be reused (see forwardEvents).
+// Long enough to collapse a whole evening of ~60s refreshes into a handful
+// of requests, short enough that a postponement, a kickoff-time change or a
+// newly added fixture inside the window reaches Home the same session —
+// nothing it returns is live, so there is nothing else in it that can go
+// stale faster than this.
+const FORWARD_EXPANSION_CACHE_MS = 10 * 60 * 1000
 
 // Live, or kicking off within the next few hours — the band worth spending
 // a channel lookup on. Wider than the hero's own 60-minute window so a

@@ -53,7 +53,8 @@ references.
 npm run build:tizen
 # → dist-tizen/ninety-tv.wgt
 
-# 2. Sign it (repack in place with the ninety-tv profile's certs)
+# 2. Sign it (repack with the Samsung author + distributor certs)
+#    THIS command, not `tizen package` — see the certificate gotcha below.
 ~/.tizen-extension-platform/server/sdktools/data/tools/tizen-core/tz \
   pack -b dist-tizen/ninety-tv.wgt -t wgt -s ninety-tv \
   -o dist-tizen/ninety-tv-signed.wgt
@@ -67,7 +68,7 @@ npm run build:tizen
 
 # 5. Launch (app id is fixed — see config.xml)
 ~/tizen-studio/tools/ide/bin/tizen run \
-  -p AbCdEfGhIj.NinetyTV -s <TV_IP>:26101
+  -p NinetyTvAp.NinetyTV -s <TV_IP>:26101
 ```
 
 Once installed, the app also just sits in the TV's app list like any other
@@ -89,6 +90,16 @@ enough.
 
 ## 3. Gotchas specific to this TV setup
 
+- **Two `ninety-tv` profiles exist, and they hold different certificates.**
+  `tz` reads `~/.tizen-extension-platform/server/sdktools/sdk-data/profile/`
+  and signs with `~/SamsungCertificate/ninety-tv/` — a *Samsung VD Author*
+  cert plus a *VD DEVELOPER Public CA* distributor cert, which is the
+  DUID-bound pair a retail TV requires. `tizen package -s ninety-tv` reads
+  `~/tizen-studio-data/profile/` and signs with the generic **Tizen Public
+  Distributor Test** signer, which the TV rejects. Both commands succeed and
+  produce a `.wgt`; only one of them installs. Read the certificate paths the
+  command prints — that is the only reliable check. (`scripts/build-tizen.mjs`
+  prints the `tz pack` line for this reason.)
 - **Use the classic `tizen install`/`tizen run` — never `sdb install` or
   `tz install`/`tz run`.** Non-Partner-tier Samsung dev accounts have
   `sdb shell` hard-blocked (an intentional Samsung restriction, confirmed
@@ -104,13 +115,26 @@ enough.
   *entire* working directory — `.env`, `.git/`, `node_modules`, everything.
   If you see a stray `tizen_web_project.yaml` or `Debug/` folder appear at
   the repo root, delete it — don't let that build reach the TV.
-- **No devtools on-device.** If a build installs but shows a blank/blue
-  screen with no other symptom, that's a boot-time JS error you can't see
-  normally. Check whether `index.html` still has the temporary boot-diag
-  overlay (`grep -r "boot-diag" src/ index.html`) — if present, it renders
-  any `window.onerror`/render-phase exception straight onto the TV screen
-  as text. If it's been removed, re-add similar instrumentation temporarily
-  rather than guessing.
+- **No devtools on-device — use a diagnostic BUILD, never ad-hoc
+  instrumentation.** If a build installs but shows a blank/blue screen with
+  no other symptom, that's a boot-time JS error you cannot see any other
+  way. The overlay that shows it is a permanent, supported build mode now
+  (it stopped being a temporary hack in the pre-beta pass), so rebuild with
+  the flag rather than editing `index.html`:
+
+  ```sh
+  VITE_PERF_DIAGNOSTICS=1 npm run build:tizen
+  ```
+
+  That switches on both the on-screen boot log (`index.html`'s
+  `@diagnostics-only` block) and the perf instrumentation
+  (`src/core/perf/devPerf.ts`) — one flag, because there is one way to ask
+  for on-device diagnostics. A **normal** build has neither: `vite.config.ts`
+  strips the overlay block out of `index.html` entirely rather than leaving
+  it behind a false flag, and a boot failure shows a branded crash panel
+  with a Restart button instead. Confirm which one you are holding with
+  `grep -c "boot-diag" .tizen-staging/index.html` — `1` is a diagnostic
+  build, `0` is a release build. **Never hand a tester a diagnostic build.**
 - **`registerTizenRemoteKeys()`** (`src/core/platform/keys.ts`) needs the
   `http://tizen.org/privilege/tvinputdevice` privilege in `config.xml` —
   without it, Back/media remote keys silently don't register (arrow/Enter

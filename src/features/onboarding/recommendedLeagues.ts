@@ -5,21 +5,13 @@
 // resolves every name/badge/country/tier from that catalog. It deliberately
 // hardcodes no competition metadata of its own; a competition missing from
 // the catalog simply doesn't appear.
+import { BIG_FIVE_COMPETITION_IDS } from '../../data/sports/editorialCompetitions'
 import type { LeagueDef } from '../../data/sports/leagues'
 
-// The product's editorial "Big Five" definition. An explicit id list is
-// correct here (unlike names/badges/tiers, which must come from the
-// catalog): "the big five European domestic leagues" is a curatorial
-// judgement, not something derivable from tier/country metadata — La Liga
-// and the Eredivisie are both a country's top flight, and only one of them
-// belongs in this row.
-export const BIG_FIVE_COMPETITION_IDS: readonly string[] = [
-  'football_premier_league',
-  'football_la_liga',
-  'football_bundesliga',
-  'football_serie_a',
-  'football_ligue_1',
-]
+// The Big Five id list moved to data/sports/editorialCompetitions.ts on
+// 2026-08-28: Home's content policy needs the same editorial definition to
+// decide what counts as a marquee outside fixture, and the data layer
+// cannot import from an onboarding feature. One definition, two consumers.
 
 // A supranational European competition, as the catalog itself describes it:
 // no country of its own (countryCode null — see ninety-api's LeagueConfig)

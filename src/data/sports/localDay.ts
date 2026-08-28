@@ -36,8 +36,25 @@ export interface LocalDayRange {
 // transitions are handled by the platform (a 23- or 25-hour day still runs
 // from local midnight to local midnight).
 export function localDayRange(now: Date = new Date()): LocalDayRange {
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
+  return localDayRangeAhead(0, now)
+}
+
+// The viewer's local day `days` from today, on exactly the same rules —
+// localDayRange is this function at 0.
+//
+// Added for Home's forward expansion (see homeFeedDensity.ts), which asks
+// for the next FORWARD_EXPANSION_DAYS days and needs that phrase to mean
+// local CALENDAR days rather than `now + n * 24h`. Two things follow from
+// the difference, and both matter:
+//
+//   - the requested window is identical for every refresh within the same
+//     local day, which is what makes the expansion request cacheable at all
+//     (see useHomeFeed's forward-expansion cache);
+//   - a DST transition inside the window cannot shift its far end by an
+//     hour, so the last day is whole in either direction.
+export function localDayRangeAhead(days: number, now: Date = new Date()): LocalDayRange {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 0, 0, 0, 0)
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days + 1, 0, 0, 0, 0)
   const startMs = start.getTime()
   const endMs = end.getTime()
   return {

@@ -177,7 +177,7 @@ export function OnboardingCountriesScreen({
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="onboarding-screen">
-        <OnboardingTopBar current={4} />
+        <OnboardingTopBar current={5} />
 
         <div className="onboarding-heading">
           <h1 className="onboarding-headline">

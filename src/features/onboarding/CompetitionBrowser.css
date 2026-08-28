@@ -1,0 +1,252 @@
+/* The "Browse more competitions" panel on onboarding step 2.
+
+   AN APP PANEL, NOT DOCUMENT CONTENT. Its whole reason to exist is that
+   the catalogue must not make the page taller: it takes exactly the height
+   left over between the recommendations and the footer (`flex: 1 1 0` from
+   onboardingShared.css's .onboarding-body.browsing rule) and sizes its own
+   insides to that. Nothing here has an intrinsic height that could push the
+   footer off screen, and nothing here scrolls — the catalogue PAGES.
+
+       ┌ BROWSE MORE COMPETITIONS  [Domestic][International]     1 / 2 ┐
+       │ [◆ Championship ] [◆ FA Cup     ] [◆ …  ] … six across        │
+       │ [◆ Eredivisie   ] [◆ Pro League ]                             │
+       │ [◆ Allsvenskan  ] [◆ Superettan ]                             │
+       └───────────────────────────────────────────────────────────────┘
+
+   THIS IS NOT THE TEAMS BROWSER. The Teams step still uses the master/
+   detail panel (.league-browser and friends, now in TeamBrowser.css) that
+   the leagues step used until 2026-08-28. The two genuinely are different
+   layouts now, so they are two stylesheets rather than one with modifiers.
+
+   THE HEIGHT BUDGET, since every number below comes out of it. At
+   1920x1080 the screen's 984px of content is spent on the top bar (~51px
+   incl. margin), the heading (~99px), the sports row section (~119px), the
+   recommendations section (~147px), two 16px body gaps and the footer
+   (~97px) — leaving this panel about 438px. The header takes ~59px, its own
+   padding 24px, so the grid gets ~353px: three ~110px rows with two 12px
+   gaps, at the SAME type sizes the recommendations use. No font was shrunk
+   to make three rows fit. The column/row counts live in
+   browseCompetitions.ts (BROWSE_GRID_COLUMNS / BROWSE_GRID_ROWS) and are
+   mirrored here — change both together. */
+
+.competition-browser {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ---- Header: title, scope tabs, page indicator ---- */
+
+.competition-browser-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--divider);
+}
+
+.competition-browser-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-meta);
+  font-weight: var(--weight-medium);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* A segmented control, not two cards. Two scopes is a VIEW switch, and
+   giving it card-sized tiles would make it compete with the competitions
+   below — which are the things the viewer is actually here to pick. */
+.competition-browser-scopes {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--divider);
+  background: var(--surface-secondary);
+}
+
+.competition-browser-scope {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  /* Transparent at rest so colouring it on focus never shifts layout. */
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: var(--font-meta);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--motion-focus) var(--motion-ease), border-color var(--motion-focus) var(--motion-ease),
+    color var(--motion-focus) var(--motion-ease);
+}
+
+/* ACTIVE — the scope currently in the grid. Stays visible while focus is
+   down in the cards, and stays QUIETER than focus: surface elevation plus
+   accent TEXT, never the focus border. See the focus-state contract in
+   tokens.css. */
+.competition-browser-scope.active {
+  background: var(--surface-elevated);
+  color: var(--accent);
+}
+
+/* FOCUSED — two channels at once (background AND border), so it can never
+   be neutralised by the active state sitting on the same element. */
+.competition-browser-scope.focused {
+  background: var(--surface-focus);
+  border-color: var(--border-focus);
+}
+
+.competition-browser-scope.focused:not(.active) {
+  color: var(--text-primary);
+}
+
+/* Pushed to the far right of the header. */
+.competition-browser-pager {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.competition-browser-page-count {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Not focusable (see CompetitionBrowser.tsx) — an affordance and a hint,
+   dimmed at the ends of the catalogue so "another page exists that way" is
+   readable without pressing anything. */
+.competition-browser-page-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.competition-browser-page-arrow.disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.competition-browser-page-arrow svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- The competition grid ----
+
+   FIXED ROW COUNT, deliberately. The rows are declared rather than let to
+   flow so a half-full page renders cards at exactly the same size as a full
+   one, in exactly the same places: the tile under the highlight must not
+   resize or move when the viewer turns a page or switches scope. `minmax`
+   floors each row at a readable height and lets the rest of the panel's
+   leftover height be shared out evenly.
+
+   THE COST, so it is not "fixed" by accident. A short page — International
+   is six competitions, i.e. one row — leaves the bottom two rows of the
+   panel empty. The two obvious cures are both worse: letting the panel
+   shrink to its content moves the footer every time the scope changes,
+   which is precisely the layout-jump class of bug the browsing layout
+   exists to make impossible (see onboardingShared.css); and letting the
+   rows grow to fill turns six cards into six 300px slabs. Top-aligned with
+   room to spare is the honest reading of "that is all there is", and it
+   keeps the first card in the same physical place on every page.
+
+   `overflow: hidden` is a guarantee, not a scroller: the page size
+   (BROWSE_PAGE_SIZE) is exactly columns x rows, so a page can never have
+   more cards than tracks. */
+.competition-browser-grid {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(3, minmax(84px, 1fr));
+  gap: var(--space-3);
+  overflow: hidden;
+}
+
+/* ---- The compact competition card ----
+
+   LeagueCard's 'compact' variant. It lives here rather than beside
+   `.pick-card` in onboardingShared.css because this panel is its only
+   consumer and because its proportions are decided by the grid directly
+   above: ~273px wide against a ~110px row is what makes a landscape card
+   the right answer here and the wrong one in the 8-across recommendations
+   row.
+
+   Everything about SELECTION and FOCUS is inherited from `.pick-card`
+   untouched — quiet tinted surface plus a green check when selected, the
+   full two-channel focus treatment when focused. A selected card must never
+   go bright green: on a step where the viewer may tick a dozen
+   competitions, that would leave focus with nothing louder to be. */
+.pick-card-compact {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  gap: var(--space-3);
+  /* Well below the grid's own row floor — the row sizes the card, this only
+     stops it collapsing if the panel is ever squeezed. */
+  min-height: 76px;
+  padding: var(--space-3);
+  /* Room for the checkbox, so a long name never runs underneath it. */
+  padding-right: 40px;
+}
+
+.pick-card-compact .pick-card-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.pick-card-compact .pick-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Lets the two children actually clip instead of forcing the card wider. */
+  min-width: 0;
+}
+
+/* Long names wrap to a SECOND line and then clamp, rather than ellipsing on
+   the first: "Canadian Premier League" and "Portuguese Super Cup" are real
+   entries and both deserve to be readable. Two lines plus the region still
+   fit the row, so no card ever changes height because of its name. */
+.pick-card-compact .pick-card-label {
+  text-align: left;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.pick-card-compact .pick-card-sublabel {
+  text-align: left;
+  margin-top: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Centred on the card's own axis rather than tucked into the top-right
+   corner — on a landscape tile the corner reads as unrelated to the row. */
+.pick-card-compact .pick-card-checkbox {
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+}

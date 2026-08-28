@@ -23,6 +23,7 @@
 //    exists to widen. Country stays in stream selection; it is not an
 //    input here and must not become one.
 import { competitionPrestige, parseRoundStage, type RoundStage } from './heroScoring'
+import { effectiveLiveState } from './liveHeuristic'
 import type { SportEvent } from './types'
 
 // ---------------------------------------------------------------------------
@@ -190,11 +191,31 @@ export function kickoffMs(event: Pick<SportEvent, 'dateTimeUtc'>): number | null
 // than rounded minutes is what makes that testable at all: rounding to
 // whole minutes first would make the 60m/61m distinction depend on the
 // seconds component of `now`.
-export function eventTiming(event: Pick<SportEvent, 'dateTimeUtc' | 'isLive'>, now: number): EventTiming {
+export function eventTiming(
+  event: Pick<SportEvent, 'dateTimeUtc' | 'isLive' | 'sportKey' | 'title'> & { status?: string },
+  now: number,
+): EventTiming {
   if (event.isLive) return 'live'
   const start = kickoffMs(event)
   if (start == null) return 'unknown'
-  if (start <= now) return 'past'
+  if (start <= now) {
+    // KICKOFF HAS PASSED IS NOT THE SAME AS OVER, and this line is the
+    // reason that invariant holds no matter which code path asks.
+    //
+    // `event.isLive` above is frozen at MAPPING time (mapEvent.ts), which
+    // is up to one background-refresh cycle old; this function is the one
+    // that runs against the live clock on every derivation. Deciding
+    // 'past' from the kickoff timestamp alone therefore had two ways to
+    // lose the same match: a provider that never advanced its status out
+    // of 'scheduled' (the Lillestrøm - Egnatia case, 2026-08-27), and the
+    // ordinary gap between a match kicking off and the next refetch.
+    //
+    // Same shared rule as the mapper — see liveHeuristic.ts. It speaks
+    // only over 'scheduled'/absent statuses inside a sport-specific
+    // in-play window, so 'complete', 'cancelled', 'postponed',
+    // 'abandoned' and anything unrecognized still land squarely on 'past'.
+    return effectiveLiveState(event, now).isLive ? 'live' : 'past'
+  }
   return start - now <= STARTING_SOON_WINDOW_MS ? 'starting-soon' : 'upcoming'
 }
 
@@ -227,24 +248,41 @@ export function stageImportance(round: string | undefined): number {
 }
 
 // True when the event's OWN competition is one the viewer follows.
-function isFavoriteCompetition(event: SportEvent, context: PersonalizationContext): boolean {
+//
+// Exported since 2026-08-28: Home's content policy (homeContentPolicy.ts)
+// asks exactly this question — it is the ONLY thing 'favorites_only' lets
+// through — and a second `favoriteCompetitionIds.has(event.leagueId)`
+// written there would be free to drift from this one.
+export function isFavoriteCompetitionEvent(event: SportEvent, context: PersonalizationContext): boolean {
   return context.favoriteCompetitionIds.has(event.leagueId)
 }
 
-// True when a participant's DOMESTIC league is followed while this fixture
-// is being played somewhere else — the Bodø/Glimt-in-the-Champions-League
-// case. Explicitly false when the event's own competition is already a
-// favorite: that is the same interest, already paid for by
-// favoriteCompetition above, and counting it twice would make a Premier
-// League fixture between two Premier League clubs score as if the viewer
-// had expressed two separate preferences.
-function hasDomesticAffinity(event: SportEvent, context: PersonalizationContext): boolean {
-  if (isFavoriteCompetition(event, context)) return false
+// True when a PARTICIPANT plays its league football in a competition the
+// viewer follows — the Bodø/Glimt-in-the-Champions-League case. The raw
+// membership test, with no regard for what competition this fixture itself
+// is in.
+//
+// Exported for the content policy, which needs the raw question ("does this
+// event reach the viewer through a league they follow?") rather than the
+// scoring one below.
+export function hasDomesticCompetitionMembership(event: SportEvent, context: PersonalizationContext): boolean {
   const { favoriteCompetitionIds } = context
   return (
     (event.homeDomesticCompetitionId != null && favoriteCompetitionIds.has(event.homeDomesticCompetitionId)) ||
     (event.awayDomesticCompetitionId != null && favoriteCompetitionIds.has(event.awayDomesticCompetitionId))
   )
+}
+
+// The SCORING form of the same signal. Explicitly false when the event's own
+// competition is already a favorite: that is the same interest, already paid
+// for by favoriteCompetition above, and counting it twice would make a
+// Premier League fixture between two Premier League clubs score as if the
+// viewer had expressed two separate preferences. Inclusion has no such
+// double-counting problem, which is why the policy uses the raw test and
+// this one stays private to scoring.
+function hasDomesticAffinity(event: SportEvent, context: PersonalizationContext): boolean {
+  if (isFavoriteCompetitionEvent(event, context)) return false
+  return hasDomesticCompetitionMembership(event, context)
 }
 
 // Is one of the viewer's EXPLICITLY favorited clubs playing in this event?
@@ -343,7 +381,7 @@ function temporalPoints(event: SportEvent, now: number): number {
 // contribute points at all.
 function scoreEvent(event: SportEvent, context: PersonalizationContext, temporalWeight: 0 | 1, now = 0): ScoreBreakdown {
   const favoriteTeam = isFavoriteTeamEvent(event, context) ? HOME_WEIGHTS.favoriteTeam : 0
-  const favoriteCompetition = isFavoriteCompetition(event, context) ? HOME_WEIGHTS.favoriteCompetition : 0
+  const favoriteCompetition = isFavoriteCompetitionEvent(event, context) ? HOME_WEIGHTS.favoriteCompetition : 0
   const domesticAffinity = hasDomesticAffinity(event, context) ? HOME_WEIGHTS.domesticAffinity : 0
 
   const learnedTeam = learnedTeamAffinity(event, context) * HOME_WEIGHTS.learnedTeamMax

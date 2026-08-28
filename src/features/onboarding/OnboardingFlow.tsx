@@ -3,22 +3,27 @@ import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { PlaylistSetupScreen } from '../setup/PlaylistSetupScreen'
 import { OnboardingSportsScreen } from './OnboardingSportsScreen'
 import { OnboardingTeamsScreen } from './OnboardingTeamsScreen'
+import { OnboardingHomeScreen } from './OnboardingHomeScreen'
 import { OnboardingCountriesScreen } from './OnboardingCountriesScreen'
 import { pickInitialPrimaryCountry } from './recommendedCountries'
 import { DEFAULT_PREFERENCES, markOnboardingComplete, savePreferences, withCountryToggled } from '../../data/preferences'
+import type { HomeContentMode } from '../../data/preferences'
 import { useViewerCountry } from '../../data/useViewerCountry'
 import { playlistCountries } from '../../data/viewerCountry'
 import type { SportKey } from '../../data/sports/types'
 import type { Channel } from '../../data/channel'
 import type { PlaylistSourceRecord } from '../../data/session'
 
-// Four steps: Playlist, Sports & leagues, Teams, Countries. There is still
-// no "You're all set" summary — finishing Countries IS finishing onboarding
-// (the 2026-08-25 restructure removed that screen).
+// Five steps: Playlist, Sports & leagues, Teams, Home personalisation,
+// Countries. There is still no "You're all set" summary — finishing
+// Countries IS finishing onboarding (the 2026-08-25 restructure removed
+// that screen).
 //
-// Teams became step 3 in the 2026-08-26 pass; it used to be a cramped
-// expandable section inside step 2. See ONBOARDING_STEPS for why.
-type Step = 1 | 2 | 3 | 4
+// Teams became step 3 in the 2026-08-26 pass and Home personalisation
+// became step 4 on 2026-08-28; both used to be (or were candidates to be) a
+// cramped section inside another step. See ONBOARDING_STEPS for why neither
+// is.
+type Step = 1 | 2 | 3 | 4 | 5
 
 // Each step screen's own root focusKey. Targeted directly (rather than
 // ROOT_FOCUS_KEY) for the same reason App.tsx targets a screen's own key
@@ -30,21 +35,23 @@ const STEP_FOCUS_KEYS: Record<Step, string> = {
   1: 'setup-screen',
   2: 'onboarding-sports',
   3: 'onboarding-teams',
-  4: 'onboarding-countries',
+  4: 'onboarding-home',
+  5: 'onboarding-countries',
 }
 
 interface Props {
-  // Called once, from step 4's Finish setup, after preferences are saved
+  // Called once, from the last step's Finish setup, after preferences are saved
   // and onboarding is marked complete. `channels` is empty (and `source`
   // null) when the user skipped step 1 — App.tsx must not treat that as a
   // playlist to install.
   onDone: (channels: Channel[], source: PlaylistSourceRecord | null) => void
 }
 
-// Owns state across all four onboarding steps (playlist connect → sports &
-// leagues → teams → countries) so nothing is persisted piecemeal — only
-// Finish setup actually writes to storage. Each step screen stays a plain
-// controlled component with no storage awareness of its own.
+// Owns state across all five onboarding steps (playlist connect → sports &
+// leagues → teams → Home personalisation → countries) so nothing is
+// persisted piecemeal — only Finish setup actually writes to storage. Each
+// step screen stays a plain controlled component with no storage awareness
+// of its own.
 export function OnboardingFlow({ onDone }: Props) {
   const [step, setStep] = useState<Step>(1)
   const [channels, setChannels] = useState<Channel[]>([])
@@ -55,6 +62,14 @@ export function OnboardingFlow({ onDone }: Props) {
   // sports and leagues there is no defensible default here — guessing which
   // clubs someone supports would be worse than asking nothing at all.
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set(DEFAULT_PREFERENCES.favoriteTeamIds))
+  // How broad Home should be. Starts on DEFAULT_PREFERENCES' value, which
+  // is RECOMMENDED_HOME_CONTENT_MODE ('highlights') — so the recommended
+  // answer is pre-selected and there is always exactly one option chosen,
+  // and so the badge on the step can never disagree with the default. Note
+  // this is deliberately NOT the value a pre-existing install normalizes to
+  // on upgrade (see LEGACY_HOME_CONTENT_MODE): someone standing in
+  // onboarding is being ASKED the question.
+  const [homeContentMode, setHomeContentMode] = useState<HomeContentMode>(DEFAULT_PREFERENCES.homeContentMode)
   // ORDERED, capped at MAX_PREFERRED_COUNTRIES — selection order is
   // priority order and the first pick is the user's primary country (see
   // SportPreferences.favoriteCountries / withCountryToggled).
@@ -151,6 +166,10 @@ export function OnboardingFlow({ onDone }: Props) {
       // viewer who skipped or couldn't load it finishes with an empty list
       // and can add teams later in Settings.
       favoriteTeamIds: selectedSports.has('football') ? [...selectedTeams] : [],
+      // Written whatever the sport selection is, unlike leagues and teams:
+      // this is a standing answer about Home's breadth, not a football
+      // selection that would be stale if football were turned back on later.
+      homeContentMode,
     })
     markOnboardingComplete()
     onDone(channels, source)
@@ -203,6 +222,17 @@ export function OnboardingFlow({ onDone }: Props) {
     )
   }
 
+  if (step === 4) {
+    return (
+      <OnboardingHomeScreen
+        selected={homeContentMode}
+        onSelect={setHomeContentMode}
+        onBack={() => setStep(3)}
+        onContinue={() => setStep(5)}
+      />
+    )
+  }
+
   return (
     <OnboardingCountriesScreen
       availableCountries={availableCountries}
@@ -215,7 +245,7 @@ export function OnboardingFlow({ onDone }: Props) {
         countriesSeededRef.current = true
         setSelectedCountries([])
       }}
-      onBack={() => setStep(3)}
+      onBack={() => setStep(4)}
       onFinish={finish}
     />
   )

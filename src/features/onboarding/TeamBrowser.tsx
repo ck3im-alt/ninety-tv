@@ -7,16 +7,19 @@ import { chunkIntoRows, isRowEdge, verticalNeighbour, type FocusChain } from './
 import { BLOCK_ARROW } from './SelectableCard'
 import { teamFocusKey, teamGroupFocusKey } from './teamFocusKeys'
 import { TeamCard } from './TeamCard'
+import './TeamBrowser.css'
 
-// The club browser on onboarding's Teams step — the same master/detail
-// panel as LeagueBrowser, with competitions down the rail and one
-// competition's clubs in the grid.
+// The club browser on onboarding's Teams step: a master/detail panel with
+// competitions down the rail and one competition's clubs in the grid.
 //
-// It shares LeagueBrowser's stylesheet (.league-browser and friends) rather
-// than duplicating it: this IS the same panel holding a different
-// catalogue, and a second near-identical stylesheet would be two things to
-// keep in sync for no visual difference. The `team-browser` class exists
-// only so layout rules can name both.
+// Its stylesheet was LeagueBrowser.css until 2026-08-28 — the leagues step
+// used the identical panel with countries down the rail and the two
+// deliberately shared one vocabulary. The leagues step now has a paginated
+// full-width browser instead (CompetitionBrowser.tsx), so this panel is the
+// stylesheet's only consumer and owns it; the `.league-browser*` class
+// names stayed as they were rather than churning a step that redesign was
+// not touching. The `team-browser` class exists so layout rules can name
+// this one specifically.
 //
 // LAZY, AND THAT IS THE POINT. The rail lists every competition Ninety
 // tracks, not only the ones the viewer selected — league selection
@@ -80,8 +83,13 @@ export function TeamBrowser({
   exitDownFocusKey,
   onExitDown,
 }: Props) {
-  // Two chains, one per column — see LeagueBrowser for why a single chain
-  // can't describe a side-by-side master/detail panel.
+  // Two chains, one per column. focusChain.ts models a STACK of rows,
+  // which is exactly what each column of this panel is — the rail is a
+  // column of one-cell rows, the grid a column of BROWSER_GRID_COLUMNS-cell
+  // rows — but the two sit side by side, so a single chain could not
+  // describe them. Left and Right cross between the columns explicitly
+  // below; everything vertical falls out of the model, partly-filled last
+  // grid row included.
   const railChain = useMemo<FocusChain>(() => groups.map((group) => [teamGroupFocusKey(group.competitionId)]), [groups])
   const gridChain = useMemo<FocusChain>(
     () => chunkIntoRows(teams.map((team) => teamFocusKey(team.id)), BROWSER_GRID_COLUMNS),
@@ -167,9 +175,15 @@ export function TeamBrowser({
   )
 }
 
-// Same compact navigation row as the league browser's region rail — see
-// RegionRow there for why focus alone browses (no OK press needed just to
-// look at a competition).
+// A compact navigation row, deliberately NOT a card: this is what you move
+// through to browse, and it has to stay small enough that fifty of them fit
+// in a panel that also has to hold a club grid.
+//
+// FOCUS ALONE BROWSES — moving through the rail loads and shows the
+// competition immediately, with no OK press needed just to look at one,
+// which is what makes this feel like a TV master/detail rather than a menu
+// of links. Nothing is persisted by focusing; only the cards on the right
+// toggle a preference.
 function CompetitionRow({
   group,
   active,

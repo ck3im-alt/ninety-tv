@@ -2,19 +2,27 @@ import type { RawSportsDbEvent } from './theSportsDbClient'
 import type { NinetyEvent } from './ninetyApiClient'
 import type { LeagueDef } from './leagues'
 import type { SportEvent } from './types'
-import { isHeuristicallyLive } from './liveHeuristic'
+import { effectiveLiveState } from './liveHeuristic'
 import { normalizeVenueName } from './humanText'
 import { normalizeBroadcastAvailability } from './broadcastAvailability'
+import { competitionHomeHero } from './competitionArtwork'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-// Last-resort background for any event with neither a league-level curated
-// image (leagues.ts's staticBackground, e.g. Premier League/F1/golf) nor
-// an API-provided one (TheSportsDB banners, sparse outside football;
-// api-football's free tier has none at all) — user-provided generic
-// "games" photo, replaces what used to fall through to a plain CSS
-// gradient for e.g. Eredivisie/MLS/tennis/MMA/NBA fixtures.
-const GENERAL_BACKGROUND = `${import.meta.env.BASE_URL}backgrounds/test_image.jpg`
+// Last-resort background for any event with neither a curated image — its
+// competition's own Home hero (competitionArtwork.ts) or a league-level
+// staticBackground (leagues.ts, e.g. F1) — nor an API-provided one
+// (TheSportsDB banners, sparse outside football; api-football's free tier
+// has none at all), so no fixture ever falls through to a plain CSS
+// gradient on Home's hero (e.g. Eredivisie/MLS/Superliga).
+//
+// Deliberately an UNBRANDED stadium, from the same League_main_hero
+// composition family (dark and empty on the left, lit stand on the right,
+// cropped cover/centre by .hero-background-image): every competition
+// photo in that directory is recognisably one specific league's ground,
+// so using any of them here would caption an Eredivisie fixture with,
+// say, the Premier League's stadium.
+const GENERAL_BACKGROUND = `${import.meta.env.BASE_URL}backgrounds/League_main_hero/fallback.jpg`
 
 function formatTimeLabel(dateTimeUtc: string | null): string {
   if (!dateTimeUtc) return ''
@@ -53,12 +61,13 @@ export function mapEvent(ev: RawSportsDbEvent, league: LeagueDef): SportEvent {
     round: ev.intRound ?? undefined,
     dateTimeUtc,
     timeLabel: formatTimeLabel(dateTimeUtc),
-    // A league-level curated background (currently just Premier League)
-    // wins over whatever TheSportsDB provides per-event — otherwise prefer
-    // a wide banner, falling back to thumb/poster, falling back to the
-    // generic "games" photo so no fixture is left with only the plain CSS
-    // gradient.
-    backgroundUrl: league.staticBackground ?? ev.strBanner ?? ev.strThumb ?? ev.strPoster ?? GENERAL_BACKGROUND,
+    // Curated artwork wins over whatever TheSportsDB provides per-event:
+    // first the league's own staticBackground (F1), then this
+    // competition's Home hero — otherwise prefer a wide banner, falling
+    // back to thumb/poster, falling back to the generic stadium so no
+    // fixture is left with only the plain CSS gradient.
+    backgroundUrl:
+      league.staticBackground ?? competitionHomeHero(league.id) ?? ev.strBanner ?? ev.strThumb ?? ev.strPoster ?? GENERAL_BACKGROUND,
     isLive: false,
   }
 }
@@ -90,18 +99,30 @@ function optionalId(value: string | null | undefined): string | undefined {
 // As of 2026-08-24, ninety-api DOES have a real live match-state feed
 // (its own liveScoreScheduler.ts polls footballdata.io's GET
 // /fixtures/live) — status/home_score/away_score are real, server-tracked
-// data, not a guess, so the time-window heuristic (liveHeuristic.ts) is
-// only used as a defensive fallback for the (in practice essentially
-// never, post-backfill) case of a null status. footballdata.io has no
-// match-minute/clock field in any endpoint (confirmed live) — liveClock
-// is only ever set to 'HT' for a halftime status, itself unconfirmed
-// against a real payload (see ninety-api's liveScores.ts).
+// data, not a guess. It is not COMPLETE, though: a fixture the provider
+// simply never advances out of 'scheduled' used to fall straight through
+// to `past` and vanish from Home while being played (observed live,
+// 2026-08-27 — see liveHeuristic.ts's header). So the live/not-live
+// decision is delegated to effectiveLiveState, which speaks over
+// 'scheduled'/absent statuses inside a plausible in-play window and over
+// nothing else.
+//
+// `status` below is UNTOUCHED by any of that: the provider's canonical
+// verdict is passed through exactly as received, and the fact that the
+// state was inferred lives in isLiveHeuristic instead.
+//
+// footballdata.io has no match-minute/clock field in any endpoint
+// (confirmed live) — liveClock is only ever set to 'HT' for a halftime
+// status, itself unconfirmed against a real payload (see ninety-api's
+// liveScores.ts).
 export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
   const title = ev.home_team_name && ev.away_team_name ? `${ev.home_team_name} vs ${ev.away_team_name}` : ev.competition_name ?? 'Match'
-  const isLive =
-    ev.status != null
-      ? ev.status === 'live' || ev.status === 'halftime'
-      : isHeuristicallyLive(league.sportKey, title, ev.start_time_utc)
+  const { isLive, isLiveHeuristic } = effectiveLiveState({
+    sportKey: league.sportKey,
+    title,
+    dateTimeUtc: ev.start_time_utc,
+    status: ev.status,
+  })
   return {
     id: `ninety:${ev.id}`,
     sportKey: league.sportKey,
@@ -132,9 +153,12 @@ export function mapNinetyEvent(ev: NinetyEvent, league: LeagueDef): SportEvent {
     round: ev.round_code ?? undefined,
     dateTimeUtc: ev.start_time_utc,
     timeLabel: formatTimeLabel(ev.start_time_utc),
-    backgroundUrl: league.staticBackground ?? GENERAL_BACKGROUND,
+    // ninety-api sends no event artwork at all (footballdata.io has none),
+    // so Home's hero is entirely ours: the competition's curated photo
+    // where one exists, the unbranded stadium everywhere else.
+    backgroundUrl: league.staticBackground ?? competitionHomeHero(league.id) ?? GENERAL_BACKGROUND,
     isLive,
-    isLiveHeuristic: ev.status == null ? isLive : undefined,
+    isLiveHeuristic,
     status: ev.status ?? undefined,
     homeScore: ev.home_score != null ? String(ev.home_score) : undefined,
     awayScore: ev.away_score != null ? String(ev.away_score) : undefined,

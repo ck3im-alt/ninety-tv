@@ -67,9 +67,37 @@ describe('eventTiming — the hero eligibility boundary', () => {
     expect(eventTiming(event({ dateTimeUtc: at(59) }), NOW)).toBe('starting-soon')
   })
 
-  it('treats a kickoff already passed with no live signal as past, not starting soon', () => {
-    expect(eventTiming(event({ dateTimeUtc: at(-1) }), NOW)).toBe('past')
+  // CHANGED 2026-08-27. This test used to assert that ANY passed kickoff
+  // with isLive: false was 'past', which is the bug: a football fixture the
+  // provider never advanced out of 'scheduled' (Lillestrøm - Egnatia,
+  // observed live) was classified past while being played, and
+  // feedGroupFor('past') is null — the match disappeared from Home. The
+  // rule it now pins is the corrected one: past kickoff plus a status that
+  // permits inference plus inside the in-play window means live. The
+  // "kickoff passed therefore past" half survives below, stated against a
+  // kickoff outside the window and against terminal statuses, which is
+  // where it was always the right answer.
+  it('treats a kickoff passed LONG ago with no live signal as past', () => {
+    expect(eventTiming(event({ dateTimeUtc: at(-151) }), NOW)).toBe('past')
   })
+
+  it('treats a just-kicked-off scheduled fixture as live, not past — a provider that never says "live" must not erase it', () => {
+    expect(eventTiming(event({ dateTimeUtc: at(-1), status: 'scheduled' }), NOW)).toBe('live')
+  })
+
+  it('keeps a scheduled fixture live right up to the edge of football\'s in-play window', () => {
+    expect(eventTiming(event({ dateTimeUtc: at(-150), status: 'scheduled' }), NOW)).toBe('live')
+    expect(eventTiming(event({ dateTimeUtc: at(-151), status: 'scheduled' }), NOW)).toBe('past')
+  })
+
+  // The inference is about a MISSING update, never about contradicting one
+  // the provider actually made.
+  it.each(['complete', 'cancelled', 'postponed', 'abandoned'])(
+    'never infers live over the terminal status "%s", even one minute after kickoff',
+    (status) => {
+      expect(eventTiming(event({ dateTimeUtc: at(-1), status }), NOW)).toBe('past')
+    },
+  )
 
   it('reports an event with no kickoff time as unknown rather than guessing', () => {
     expect(eventTiming(event({ dateTimeUtc: null }), NOW)).toBe('unknown')

@@ -2,10 +2,11 @@
 //
 // This is a Settings-shaped surface over the EXISTING connection
 // architecture, not a second one: every field below ends up in
-// data/playlists/connectPlaylist.ts, which is the same sourceFromUrl /
-// buildXtreamUrl / recoverChannelsFromSource / parseM3u + mergeChannelSources
-// path the first-run setup screen uses. No second parser, no second idea of
-// what an Xtream URL looks like, no second definition of a valid playlist.
+// data/playlists/connectPlaylist.ts, which is the same
+// connectPlaylistFromUrl / buildXtreamUrl / recoverChannelsFromSource /
+// parseM3u + mergeChannelSources path the first-run setup screen uses. No
+// second parser, no second idea of what an Xtream URL looks like, no second
+// definition of a valid playlist.
 //
 // It is a Settings component rather than a reuse of PlaylistSetupScreen for
 // two reasons: that screen is a full-bleed onboarding step (its own stepper,
@@ -20,10 +21,10 @@ import { ackPairing, usePairingSession } from '../setup/usePairingSession'
 import {
   EmptyPlaylistError,
   buildXtreamUrl,
-  loadChannelsForSource,
+  connectPlaylistFromUrl,
   loadChannelsFromFile,
-  sourceFromUrl,
 } from '../../data/playlists/connectPlaylist'
+import { ConnectionError } from '../../data/playlists/connectionError'
 import { SettingsAction } from './settingsPrimitives'
 import type { Channel } from '../../data/channel'
 import type { PlaylistSourceRecord } from '../../data/session'
@@ -85,8 +86,10 @@ export function PlaylistConnectDialog({ mode, existing, onConnected, onCancel }:
     if (!url.trim()) return false
     setState({ status: 'loading' })
     try {
-      const source = sourceFromUrl(url.trim())
-      const channels = await loadChannelsForSource(source)
+      // A get.php URL is tried as an Xtream panel first and retried as a
+      // plain M3U if that endpoint turns out to be unusable — `source` is
+      // whichever won, so what gets stored is the path known to work.
+      const { source, channels } = await connectPlaylistFromUrl(url)
       // Reported only after a successful fetch/parse/merge. The caller
       // replaces the old playlist at THIS point and not a moment earlier,
       // which is what makes a failed edit a no-op rather than a loss.
@@ -127,7 +130,7 @@ export function PlaylistConnectDialog({ mode, existing, onConnected, onCancel }:
     if (!canConnect) return
     if (connectMode === 'xtream') {
       const effectivePassword = password.trim() || keptPassword
-      // Built as a get.php URL and re-parsed by sourceFromUrl so the
+      // Built as a get.php URL and handed to connectPlaylistFromUrl so the
       // provider-login form and the pasted-URL form converge on one code
       // path — and so a server address that turns out not to be an Xtream
       // panel still degrades to a plain M3U URL exactly as it does on the
@@ -294,7 +297,17 @@ export function PlaylistConnectDialog({ mode, existing, onConnected, onCancel }:
 
 // Consumer wording, and never the URL itself — a failed connect message must
 // not put a credential-bearing get.php link on screen.
+//
+// Rejected credentials get their own line because "couldn't reach that
+// playlist" sends the user looking for an outage when the provider has in
+// fact answered, clearly, that the login is wrong. Every other category
+// keeps the single generic message: the difference between a provider error
+// and an unsupported response is not something a viewer can act on.
 function connectErrorMessage(err: unknown): string {
+  if (err instanceof ConnectionError && err.code === 'AUTH_FAILED') {
+    return 'Incorrect username or password. Check the details and try again.'
+  }
   if (err instanceof EmptyPlaylistError) return 'That playlist has no channels.'
+  if (err instanceof ConnectionError && err.code === 'EMPTY_PLAYLIST') return 'That playlist has no channels.'
   return "Couldn't reach that playlist. Check the details and try again."
 }

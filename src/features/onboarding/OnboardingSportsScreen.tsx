@@ -5,12 +5,21 @@ import type { SportKey } from '../../data/sports/types'
 import type { LeagueDef } from '../../data/sports/leagues'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
 import { buildRecommendedLeagues } from './recommendedLeagues'
-import { groupExpandedLeagues } from './groupExpandedLeagues'
-import { resolveActiveGroup } from './leagueBrowserState'
+import {
+  BROWSE_GRID_COLUMNS,
+  availableScopes,
+  browsePage,
+  browsePageCount,
+  buildBrowseCatalogue,
+  clampBrowsePage,
+  competitionsIn,
+  resolveScope,
+  type BrowseScope,
+} from './browseCompetitions'
 import { chunkIntoRows, isRowEdge, lastRowEntry, verticalNeighbour, type FocusChain } from './focusChain'
-import { LeagueBrowser } from './LeagueBrowser'
+import { CompetitionBrowser, type PageEntry } from './CompetitionBrowser'
 import { LeagueCard } from './LeagueCard'
-import { LEAGUE_FOCUS_PREFIX, REGION_FOCUS_PREFIX, leagueFocusKey, regionFocusKey } from './leagueFocusKeys'
+import { LEAGUE_FOCUS_PREFIX, SCOPE_FOCUS_PREFIX, leagueFocusKey, scopeFocusKey } from './leagueFocusKeys'
 import { OnboardingTopBar } from './OnboardingStepper'
 import { useOnboardingLanding } from './useOnboardingLanding'
 import { BLOCK_ARROW, SelectableCard } from './SelectableCard'
@@ -47,15 +56,27 @@ const sportKey = (id: SportKey) => `sport-${id}`
 // plain no, rather than throwing on null.startsWith.
 const currentFocusKey = (): string => (getCurrentFocusKey() as string | null) ?? ''
 
+// Which slice of the browsable catalogue the panel is showing. Scope and
+// page are ONE piece of state rather than two because the rule that binds
+// them -- switching scope starts again at page 0, re-activating the scope
+// you are already on does NOT -- is only expressible if both are decided in
+// the same update. (Focusing a tab activates its scope, and the viewer
+// focuses the active tab every time they step Up out of the grid; two
+// independent useStates reset their page on every one of those presses.)
+interface BrowseState {
+  scope: BrowseScope | null
+  page: number
+}
+
 interface Props {
   selectedSports: Set<SportKey>
   selectedLeagues: Set<string>
   // Canonical ISO2-ish code for the TV's own country, or null when nothing
   // could be detected -- see data/viewerCountry.ts. Adds the viewer's top
-  // domestic league to the recommendations, and makes their own region both
-  // the first row of the browser's rail and the region it opens on;
-  // detection failing just means one fewer card and a browser that opens on
-  // the international competitions instead.
+  // domestic league to the recommendations, and floats whatever else Ninety
+  // tracks in their own country to the front of the browser's Domestic
+  // list; detection failing just means one fewer card and a catalogue
+  // ordered by tier alone.
   viewerCountryCode: string | null
   onToggleSport: (id: SportKey) => void
   onToggleLeague: (id: string) => void
@@ -65,23 +86,22 @@ interface Props {
 
 // ONBOARDING STEP 2 — SPORTS & LEAGUES.
 //
-// THE 2026-08-26 PASS: no expander, no nesting, no page scroll.
+// Three fixed things, no expander, no nesting, no page scroll: the sports
+// row, the pinned recommendations, and the whole remaining catalogue as an
+// always-open browser panel that takes exactly the leftover height.
 //
-// This screen used to be a stack of expandable sections — recommended
-// leagues, then a "Browse all leagues (42)" toggle that appended a panel,
-// then a "Teams you follow" row, then a "Browse all teams" toggle that
-// appended a SECOND panel (and closed the first, because two would not
-// fit). Every one of those toggles moved the page under the viewer's
-// thumb, each needed its own focus-rescue effect for the cards it
-// unmounted, and reaching a Belgian second division from the top of the
-// screen meant expand, scroll, rail, scroll.
+// THE 2026-08-28 PASS replaced that panel's insides. It used to be a
+// master/detail browser — a scrolling rail of ~19 countries, one country's
+// competitions at a time — which kept the page one screen tall but made
+// COUNTRY the primary navigation level. That is the wrong level: 13 of the
+// 21 countries in the real catalogue track exactly one competition, so
+// picking Argentina cost find country → enter country → pick its only
+// league → walk back out, and left a mostly-empty detail pane. The rail is
+// gone; the competition is now the primary selectable object, in a
+// full-width paginated grid under two scopes (Domestic / International).
+// See CompetitionBrowser.tsx and browseCompetitions.ts.
 //
-// Now it is three fixed things: the sports row, the pinned recommendations,
-// and the full catalogue as an always-open master/detail panel that takes
-// exactly the leftover height. Nothing expands, nothing collapses, the page
-// never scrolls, and every competition Ninety tracks is two directions away
-// (rail down, right into the grid). Teams moved to a step of their own —
-// see OnboardingTeamsScreen.
+// Teams live on a step of their own — see OnboardingTeamsScreen.
 export function OnboardingSportsScreen({
   selectedSports,
   selectedLeagues,
@@ -121,47 +141,71 @@ export function OnboardingSportsScreen({
   // never scrolls these away and never contains them.
   const recommended = useMemo(() => buildRecommendedLeagues(catalog, viewerCountryCode), [catalog, viewerCountryCode])
 
-  // The rest of the catalog, grouped by region and ordered home-first, with
-  // every recommended id removed so no competition renders twice (which
-  // would also mean two focusables fighting over one `league-<id>` key) and
-  // with no empty group.
-  const groups = useMemo(
+  // The rest of the catalog as two flat, deterministically ordered lists,
+  // with every recommended id removed so no competition renders twice
+  // (which would also mean two focusables fighting over one `league-<id>`
+  // key) and duplicate ids dropped.
+  const catalogue = useMemo(
     () =>
-      groupExpandedLeagues({
+      buildBrowseCatalogue({
         leagues: catalog,
         recommendedLeagueIds: recommended.map((l) => l.id),
         viewerCountryCode,
       }),
     [catalog, recommended, viewerCountryCode],
   )
+
+  const [browseState, setBrowseState] = useState<BrowseState>({ scope: null, page: 0 })
+
+  // Only scopes that still have something in them get a tab -- the same
+  // rule the old rail used for a region whose every competition was
+  // recommended.
+  const scopes = useMemo(() => availableScopes(catalogue), [catalogue])
+  // Null until the user moves; resolveScope answers with Domestic from the
+  // very first render, so this state never has to be seeded by an effect.
+  const scope = useMemo(() => resolveScope(catalogue, browseState.scope), [catalogue, browseState.scope])
+  const scopeCompetitions = useMemo(
+    () => (scope ? competitionsIn(catalogue, scope) : []),
+    [catalogue, scope],
+  )
+  const pageCount = browsePageCount(scopeCompetitions)
+  const page = clampBrowsePage(browseState.page, scopeCompetitions)
+  // THE ONLY COMPETITIONS THE BROWSER MOUNTS. Everything downstream --
+  // the grid's focus chain, the mounted-key set, the rescue effect --
+  // derives from this one slice.
+  const pageCompetitions = useMemo(() => browsePage(scopeCompetitions, page), [scopeCompetitions, page])
+
   const hasLeagueGrid = footballSelected && recommended.length > 0
   // The browser is open whenever there is anything to put in it. There is
-  // no viewer-facing toggle any more — see this component's header.
-  const browsing = hasLeagueGrid && groups.length > 0
-
-  // Which region the browser is showing. Null until the user moves in the
-  // rail -- resolveActiveGroup then answers with the default region, so the
-  // browser has an active region from the very first render and this state
-  // never has to be seeded by an effect.
-  const [activeRegionKey, setActiveRegionKey] = useState<string | null>(null)
-  const activeGroup = useMemo(() => resolveActiveGroup(groups, activeRegionKey), [groups, activeRegionKey])
+  // no viewer-facing toggle — see this component's header.
+  const browsing = hasLeagueGrid && scopes.length > 0 && scope != null
 
   // THE VERTICAL model for the page above the browser: the sports row, the
   // recommendations row(s), and -- when the browser is showing -- one final
-  // row standing for the panel itself, entered at its active region. Up/Down
-  // for every card is answered by looking the current key up in here
-  // (focusChain.ts) rather than each card naming a neighbour, so a partial
-  // last row or a differently-sized recommendation set needs no special
-  // case. The browser's own two columns have their own chains -- see
-  // LeagueBrowser.
+  // row standing for the panel itself, entered at its ACTIVE scope tab
+  // (never at whichever tab happens to share the column the viewer came
+  // down in). Up/Down for every card is answered by looking the current key
+  // up in here (focusChain.ts) rather than each card naming a neighbour, so
+  // a partial last row or a differently-sized recommendation set needs no
+  // special case. The panel's own grid has its own chain, below.
   const chain = useMemo<FocusChain>(() => {
     const rows: string[][] = [POPULAR_SPORTS.map((sport) => sportKey(sport.id))]
     if (hasLeagueGrid) {
       rows.push(...chunkIntoRows(recommended.map((l) => leagueFocusKey(l.id)), RECOMMENDED_GRID_COLUMNS))
-      if (browsing && activeGroup) rows.push([regionFocusKey(activeGroup.key)])
+      if (browsing && scope) rows.push([scopeFocusKey(scope)])
     }
     return rows
-  }, [hasLeagueGrid, recommended, browsing, activeGroup])
+  }, [hasLeagueGrid, recommended, browsing, scope])
+
+  // The browser grid's own row model, owned HERE rather than inside the
+  // panel: the page-turn rescue below has to resolve a geometry ("row 1,
+  // first column") against the page that just mounted, and it and the
+  // panel's arrow handlers must not be able to disagree about the shape of
+  // that page.
+  const gridChain = useMemo<FocusChain>(
+    () => chunkIntoRows(pageCompetitions.map((l) => leagueFocusKey(l.id)), BROWSE_GRID_COLUMNS),
+    [pageCompetitions],
+  )
 
   // One set of arrow handlers for every card on the page above the browser,
   // derived from the model above. Down past the last row is the footer; Up
@@ -185,15 +229,15 @@ export function OnboardingSportsScreen({
 
   // Every focus key the browser currently has mounted. Used only to
   // validate the remembered return key below -- a remembered key whose card
-  // has since been unmounted (the region changed, the catalog reloaded)
-  // must never be a setFocus target.
+  // has since been unmounted (the page turned, the scope changed, the
+  // catalog reloaded) must never be a setFocus target.
   const browserFocusKeys = useMemo(() => {
     const keys = new Set<string>()
     if (!browsing) return keys
-    for (const group of groups) keys.add(regionFocusKey(group.key))
-    for (const league of activeGroup?.leagues ?? []) keys.add(leagueFocusKey(league.id))
+    for (const tab of scopes) keys.add(scopeFocusKey(tab))
+    for (const league of pageCompetitions) keys.add(leagueFocusKey(league.id))
     return keys
-  }, [browsing, groups, activeGroup])
+  }, [browsing, scopes, pageCompetitions])
 
   // Where the user stepped DOWN out of the browser into the footer. Up from
   // Continue returns there rather than to a fixed entry point, so leaving to
@@ -205,10 +249,37 @@ export function OnboardingSportsScreen({
   const footerUpFocusKey = useCallback(() => {
     const remembered = browserReturnKeyRef.current
     if (remembered && browserFocusKeys.has(remembered)) return remembered
-    // Otherwise the last row of the page model: the browser's active region
-    // when it is showing, the recommendations when it is not.
+    // Otherwise the last row of the page model: the browser's active scope
+    // tab when it is showing, the recommendations when it is not.
     return lastRowEntry(chain) ?? FOOTBALL_FOCUS_KEY
   }, [browserFocusKeys, chain])
+
+  // Focusing a tab browses that scope. Switching scope starts again at page
+  // 0 (page 2 of Domestic means nothing in International); re-activating
+  // the scope already on screen changes nothing at all, which is what makes
+  // stepping Up to the tab and back Down safe on any page.
+  const activateScope = useCallback(
+    (next: BrowseScope) => {
+      setBrowseState((prev) =>
+        resolveScope(catalogue, prev.scope) === next ? { ...prev, scope: next } : { scope: next, page: 0 },
+      )
+    },
+    [catalogue],
+  )
+
+  // WHERE FOCUS GOES ON THE PAGE THAT HAS NOT RENDERED YET. Turning a page
+  // unmounts the card the viewer is standing on and mounts eighteen that
+  // did not exist a moment ago, so the target cannot be named at press
+  // time -- only its geometry can. Recorded here and resolved by the one
+  // rescue effect below, deliberately in the SAME place as the "focus is on
+  // something that just disappeared" rule: norigin's setFocus is async, so
+  // two components each calling it in their own effect would race, and the
+  // parent's rescue would win and drag focus back out of the new page.
+  const pageEntryRef = useRef<PageEntry | null>(null)
+  const turnPage = useCallback((next: number, entry: PageEntry) => {
+    pageEntryRef.current = entry
+    setBrowseState((prev) => ({ ...prev, page: next }))
+  }, [])
 
   // Deselecting Football unmounts the whole league section -- grid and
   // browser. Only redirects when focus actually WAS on something that just
@@ -217,23 +288,41 @@ export function OnboardingSportsScreen({
   useEffect(() => {
     if (footballSelected) return
     const current = currentFocusKey()
-    if (current.startsWith(LEAGUE_FOCUS_PREFIX) || current.startsWith(REGION_FOCUS_PREFIX)) {
+    if (current.startsWith(LEAGUE_FOCUS_PREFIX) || current.startsWith(SCOPE_FOCUS_PREFIX)) {
       void setFocus(FOOTBALL_FOCUS_KEY)
     }
   }, [footballSelected])
 
-  // Changing region swaps the entire detail pane. Focus normally sits in the
-  // rail while that happens (focusing a region row is what changes it), but
-  // a mouse/click route can leave it on a card that is no longer rendered --
-  // hand it back to the region that now owns the pane.
+  // THE SINGLE OWNER of "the browser's contents just changed, where should
+  // focus be now". Two cases, in priority order:
+  //
+  //   1. A page turn the viewer asked for: enter the new page at the same
+  //      row they left, clamped so a short final row still catches them.
+  //   2. Anything else that unmounted the focused card -- a scope switch
+  //      driven by a click, the catalog resolving, the viewer's country
+  //      arriving late. Hand focus back to the tab that owns the grid,
+  //      which is always mounted.
+  //
+  // Focus is left alone when it is on a recommendation (those live outside
+  // the browser and share the same key prefix) or already on this page.
   useEffect(() => {
-    if (!browsing || !activeGroup) return
+    if (!browsing || !scope) return
+    const entry = pageEntryRef.current
+    pageEntryRef.current = null
+    if (entry) {
+      const row = gridChain[Math.min(entry.row, gridChain.length - 1)] ?? []
+      const target = entry.column === 'first' ? row[0] : row[row.length - 1]
+      if (target) {
+        void setFocus(target)
+        return
+      }
+    }
     const current = currentFocusKey()
     if (!current.startsWith(LEAGUE_FOCUS_PREFIX)) return
     if (recommended.some((l) => leagueFocusKey(l.id) === current)) return
-    if (activeGroup.leagues.some((l) => leagueFocusKey(l.id) === current)) return
-    void setFocus(regionFocusKey(activeGroup.key))
-  }, [browsing, activeGroup, recommended])
+    if (gridChain.some((row) => row.includes(current))) return
+    void setFocus(scopeFocusKey(scope))
+  }, [browsing, scope, gridChain, recommended])
 
   // Nothing on this step opens or closes any more, so Back has exactly one
   // meaning: the previous step. Still routed through the existing
@@ -255,9 +344,11 @@ export function OnboardingSportsScreen({
           <h1 className="onboarding-headline">
             Choose the leagues you <span className="accent">follow</span>
           </h1>
+          {/* ONE LINE at 1920px, on purpose: a second line costs the browser
+              panel ~27px of the height budget documented in
+              CompetitionBrowser.css. */}
           <p className="onboarding-description">
-            Recommended competitions are at the top. Everything else Ninety tracks is in the browser below — you'll pick
-            your clubs next.
+            Recommended competitions are pinned at the top — browse everything else Ninety tracks below.
           </p>
         </div>
 
@@ -318,16 +409,20 @@ export function OnboardingSportsScreen({
             </section>
           )}
 
-          {browsing && activeGroup && (
-            <LeagueBrowser
-              groups={groups}
-              activeGroup={activeGroup}
+          {browsing && scope && (
+            <CompetitionBrowser
+              scopes={scopes}
+              scope={scope}
+              page={page}
+              pageCount={pageCount}
+              competitions={pageCompetitions}
+              gridChain={gridChain}
               selectedLeagues={selectedLeagues}
-              onActivateRegion={setActiveRegionKey}
+              onScopeChange={activateScope}
               onToggleLeague={onToggleLeague}
-              // Up out of the top of either column lands on the last
-              // recommendation row rather than on a control that no longer
-              // exists.
+              onPageTurn={turnPage}
+              // Up out of the scope tabs lands on the last recommendation
+              // row rather than on a control that no longer exists.
               exitUpFocusKey={lastRowEntry(chain.slice(0, -1)) ?? FOOTBALL_FOCUS_KEY}
               exitDownFocusKey={ONBOARDING_PRIMARY_FOCUS_KEY}
               onExitDown={(from) => {

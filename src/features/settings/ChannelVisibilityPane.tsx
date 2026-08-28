@@ -15,6 +15,7 @@
 // every other preference on this screen.
 import { useEffect, useMemo, useState } from 'react'
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusRecovery } from '../../core/platform'
 import { categoryFavoriteKey } from '../channels/favorites'
 import { SettingsAction, SettingsColumnHeader, SettingsPaneHeader, SettingsRow } from './settingsPrimitives'
 import { PANE_ENTRY_FOCUS_KEY } from './useSettingsFocusable'
@@ -74,6 +75,27 @@ export function ChannelVisibilityPane({
     () => channelIndex.getCategoriesForCountry(activeCountry).sort((a, b) => b.count - a.count),
     [channelIndex, activeCountry],
   )
+
+  // Toggling visibility never unmounts a row here — both columns render
+  // every country/category with a checkmark, so a hidden one stays right
+  // where it was. What DOES change them is the channel set itself: a
+  // background resync installs a new generation, `channelIndex` changes,
+  // and a country or category the user is standing on can simply stop
+  // existing mid-press. Same recovery as the other panes rather than the
+  // library's "focus my parent", which resolves back through the rail.
+  const countryEntries = useMemo(
+    () => countries.map((country, index) => ({ id: country.name, focusKey: index === 0 ? PANE_ENTRY_FOCUS_KEY : countryFocusKey(country.name) })),
+    [countries],
+  )
+  const categoryEntries = useMemo(
+    () => categories.map((category) => ({ id: category.label, focusKey: categoryFocusKey(category.label) })),
+    [categories],
+  )
+  // PANE_ENTRY_FOCUS_KEY belongs to the first country row while there are
+  // any, and to the empty state's own action once there are none — so it is
+  // the one anchor that survives either way.
+  useFocusRecovery({ items: countryEntries, anchorFocusKey: PANE_ENTRY_FOCUS_KEY })
+  useFocusRecovery({ items: categoryEntries, anchorFocusKey: CLEAR_RECENT_FOCUS_KEY })
 
   function toggleCountry(name: string) {
     const next = new Set(hiddenCountries)

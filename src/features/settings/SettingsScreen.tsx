@@ -21,7 +21,7 @@ import { INITIAL_SETTINGS_SECTION, SETTINGS_SECTIONS, adjacentSection, isRailFoc
 import { PlaylistsPane, type PlaylistDialogRequest } from './PlaylistsPane'
 import { SportsLeaguesPane } from './SportsLeaguesPane'
 import { CountriesPane } from './CountriesPane'
-import { PlaybackPane } from './PlaybackPane'
+import { PersonalisationPane } from './PersonalisationPane'
 import { ChannelVisibilityPane } from './ChannelVisibilityPane'
 import { SettingsConfirmDialog, SettingsPromptDialog } from './SettingsDialogs'
 import { PlaylistConnectDialog } from './PlaylistConnectDialog'
@@ -29,7 +29,7 @@ import { TeamPickerDialog } from './TeamPickerDialog'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
 import { footballLeaguesForPreferences } from '../../data/sports/leagues'
 import type { SettingsSectionId } from './settingsSections'
-import type { StreamTypePreference } from '../../data/preferences'
+import type { HomeContentMode, StreamTypePreference } from '../../data/preferences'
 import type { SportKey } from '../../data/sports/types'
 import type { ChannelIndex } from '../../data/channelIndex'
 import type { PlaylistLibrary } from '../../data/playlists/usePlaylistLibrary'
@@ -89,10 +89,32 @@ export function SettingsScreen({
   const { ref, focusKey } = useFocusable({
     focusKey: SCREEN_FOCUS_KEY,
     trackChildren: true,
-    // Always resolvable at mount: the rail is a fixed local list with no
-    // async gating, so this never races the lazy chunk load the way a
-    // content-derived key would. See App.tsx's SCREEN_FOCUS_KEYS.
-    preferredChildFocusKey: railFocusKey(INITIAL_SETTINGS_SECTION),
+    // THE SECTION THE USER IS IN, not the section Settings opens on.
+    //
+    // This is the last-resort target: the library falls back to "focus my
+    // parent" whenever a focused focusable disappears without the screen
+    // saying where focus should go instead, and the parent of every control
+    // on this screen is this root. Pinned to the INITIAL section, that made
+    // any such disappearance silently switch the user to Playlists — the
+    // Countries pane's "add a country and the row you were on stops
+    // existing" being the case that surfaced it.
+    //
+    // Safe to derive from state, unlike `focusKey` itself: the library
+    // captures a focusable's OWN key at registration, but re-reads
+    // preferredChildFocusKey through updateFocusable on every change (see
+    // norigin-spatial-navigation-react's second effect), so this really
+    // does track the current section.
+    //
+    // Still resolvable at mount for the same reason as before — the rail is
+    // a fixed local list with no async gating, so this never races the lazy
+    // chunk load the way a content-derived key would. See App.tsx's
+    // SCREEN_FOCUS_KEYS.
+    //
+    // It is a safety net, not the mechanism: panes whose lists can shrink
+    // under the user recover to a neighbouring row themselves (see
+    // useFocusRecovery), because landing back on the section rail is a
+    // worse answer than staying in the list you were working in.
+    preferredChildFocusKey: railFocusKey(section),
   })
 
   const returnToRail = () => void setFocus(railFocusKey(section))
@@ -260,10 +282,16 @@ export function SettingsScreen({
                 onLeaveToRail={returnToRail}
               />
             )}
-            {section === 'playback' && (
-              <PlaybackPane
+            {section === 'personalisation' && (
+              <PersonalisationPane
+                homeContentMode={prefs.homeContentMode}
                 streamType={prefs.streamType}
-                onSelect={(streamType: StreamTypePreference) => persist({ ...prefs, streamType })}
+                // Immediately persisted, like every other lightweight
+                // preference here — Home re-derives from the new mode with
+                // no refetch (see useHomeFeed's Effect 2), so returning to
+                // it shows the change straight away.
+                onSelectHomeContentMode={(homeContentMode: HomeContentMode) => persist({ ...prefs, homeContentMode })}
+                onSelectStreamType={(streamType: StreamTypePreference) => persist({ ...prefs, streamType })}
                 onLeaveToRail={returnToRail}
               />
             )}

@@ -30,7 +30,13 @@ function iptvDevProxyPlugin(): Plugin {
           res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'text/plain')
           res.end(Buffer.from(await upstream.arrayBuffer()))
         } catch (err) {
+          // Flagged as OUR failure, not the upstream's. A 502 alone is
+          // ambiguous — a provider can send one itself — so a host that
+          // does not resolve was reaching the app as "provider server
+          // returned an error". The header lets fetchWithDevCorsFallback
+          // keep the original direct failure's classification instead.
           res.statusCode = 502
+          res.setHeader('X-Dev-Proxy-Upstream-Error', err instanceof Error ? err.message : 'Proxy fetch failed')
           res.end(err instanceof Error ? err.message : 'Proxy fetch failed')
         }
       })

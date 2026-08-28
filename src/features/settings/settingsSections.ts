@@ -4,10 +4,19 @@
 //
 // Five sections, deliberately. They are the five questions Settings exists
 // to answer: where does my TV content come from, what do I follow, which
-// countries matter to me, how should streams be ranked, and what do I want
-// to see while browsing. Anything that doesn't answer one of those belongs
-// somewhere else (or nowhere).
-export type SettingsSectionId = 'playlists' | 'sports' | 'countries' | 'playback' | 'visibility'
+// countries matter to me, what should Ninety recommend and how should it
+// rank streams, and what do I want to see while browsing. Anything that
+// doesn't answer one of those belongs somewhere else (or nowhere).
+//
+// 'playback' became 'personalisation' on 2026-08-28. That section had
+// exactly one control (stream-type ranking) and was named after a
+// mechanism; it now also owns Home's content-breadth mode, which is not a
+// playback concept at all. Renamed rather than joined by a sixth rail
+// destination — five is already the most a vertical rail should ask a
+// D-pad to walk — and renamed in full, id included, because keeping an
+// internal route name that no longer describes its own contents is how a
+// codebase starts lying about itself.
+export type SettingsSectionId = 'playlists' | 'sports' | 'countries' | 'personalisation' | 'visibility'
 
 export interface SettingsSection {
   id: SettingsSectionId
@@ -18,7 +27,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: 'playlists', label: 'Playlists' },
   { id: 'sports', label: 'Sports & leagues' },
   { id: 'countries', label: 'Countries' },
-  { id: 'playback', label: 'Playback' },
+  { id: 'personalisation', label: 'Personalisation' },
   { id: 'visibility', label: 'Channel visibility' },
 ]
 

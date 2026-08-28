@@ -1,10 +1,10 @@
 /* Step-specific to Sports & leagues — shared page skeleton and card rules
-   live in onboardingShared.css, and the expanded catalogue's own panel is
-   in LeagueBrowser.css.
+   live in onboardingShared.css, and the catalogue browser's own panel (plus
+   its compact card variant) is in CompetitionBrowser.css.
 
    EVERYTHING HERE IS SIZED AGAINST A HEIGHT BUDGET. This step has to fit
-   the sports row, a full row of recommended leagues, the "Browse all
-   leagues" control, the league browser panel AND the footer inside 1080px.
+   the sports row, a full row of recommended leagues, the whole competition
+   browser panel AND the footer inside 1080px.
    The cards were noticeably taller than they needed to be for a 1920px-wide
    layout (a 178px-tall tile holding a 54px badge and one line of text), so
    the space the browser needs came out of that rather than out of

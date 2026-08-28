@@ -1,7 +1,8 @@
 /* Full 1920×1080 TV-scale layout for the redesigned Event Details screen —
-   a simplified back-only header, one large centered match header with a
-   deliberate background wash, and a flowing country-grouped stream list.
-   See the Event Details visual-redesign task for the full rationale.
+   one large centered match header with a deliberate background wash that
+   starts at the very top of the canvas, a Back control overlaid on it, and
+   a flowing country-grouped stream list. See the Event Details
+   visual-redesign task for the full rationale.
 
    Sizes throughout this file are calibrated directly against the supplied
    reference screenshot (measured/compared at a real 1920×1080 render), not
@@ -21,52 +22,98 @@
   width: 100%;
   min-height: 100vh;
   box-sizing: border-box;
-  padding: 28px 110px 64px;
+  /* ZERO top padding is load-bearing, not a tightening. The hero artwork
+     lives INSIDE .event-header (.event-header-backdrop is height: 100% of
+     it — see its own comment for why it is pinned there), so any space
+     above that element is space the artwork physically cannot paint into:
+     it showed as a black band of exposed --bg-primary across the top of the
+     1920×1080 canvas. The 110px horizontal inset stays — it defines the
+     content column that the backdrop's own -110px/1920px full-bleed is
+     measured against — and so does the 64px bottom.
+
+     `position: relative` makes this the containing block for the overlaid
+     Back button below. Deliberately WITHOUT a z-index: a z-index here would
+     open a stacking context and trap .stream-area's z-index: 1 inside it,
+     which is the layer that keeps the stream rows above the header's
+     backdrop where the two overlap (see .stream-area). */
+  position: relative;
+  padding: 0 110px 64px;
   display: flex;
   flex-direction: column;
 }
 
-/* ---------- Simplified top bar (back + wordmark only — TopNav is hidden
-   entirely on this screen, see App.tsx) ---------- */
+/* ---------- Back control (the only chrome on this screen — TopNav is
+   hidden entirely here, see App.tsx) ---------- */
 
-.event-details-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+/* Overlaid ON the hero artwork rather than sitting in a row above it. This
+   was a flex topbar carrying Back plus a NINETY wordmark; between it and
+   the page's old 28px top padding it cost ~71px of layout height above
+   .event-header, and every pixel of that was artwork the hero could not
+   reach. Absolute positioning is the point: the control consumes no layout
+   height at all, so the header — and therefore the artwork — starts at
+   y = 0.
 
-/* The transparent border and horizontal padding are permanent so focus
-   colours them in without moving the topbar. */
+   top/left keep the button exactly where the topbar put it rather than
+   inventing a new inset: left: 110px is the page's own content column (the
+   button's own var(--space-3) padding then puts the glyph where it has
+   always been), and 28px was the page's old top padding. The chrome behind
+   it went away; the control itself did not move.
+
+   z-index 2 clears both .event-header (z-index: 0) and .stream-area
+   (z-index: 1), so Back stays hittable and visible over the artwork.
+
+   The transparent border and horizontal padding are permanent so focus
+   colours them in without moving the button. */
 .event-details-back {
+  position: absolute;
+  top: 28px;
+  left: 110px;
+  z-index: 2;
   font: inherit;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: var(--font-body);
   padding: var(--space-2) var(--space-3);
+  /* The one thing that genuinely changes by overlaying this control: it now
+     rests on the photo instead of on flat --bg-primary, and the top band of
+     the artwork is deliberately left un-dimmed (the dissolve does not start
+     until 18% — see HeaderBackdrop's gradient stops) exactly where the
+     banner family puts its lit stand structures: the outer edges, which is
+     this corner. At --text-secondary over a floodlit crop the word was
+     genuinely hard to read.
+
+     A shadow rather than a plate: a resting background would be a surface,
+     which the focus contract reserves for focus itself, and it would leave
+     focus with only a border to distinguish it. --text-primary + a soft
+     dark shadow keeps the control quiet, works over every banner (and over
+     the plain gradient wash for competitions with no photo), and leaves the
+     full surface+border change to focus. Plain rgba rather than a
+     color-mix() of a token, because this must not degrade to nothing on the
+     Tizen floor (Chromium 76, no color-mix) — legibility is not optional. */
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 2px 12px rgba(0, 0, 0, 0.75);
   transition:
     color var(--motion-focus) var(--motion-ease),
     background-color var(--motion-focus) var(--motion-ease),
     border-color var(--motion-focus) var(--motion-ease);
 }
 
-/* Vocabulary A. This is the ONLY focusable on the screen while matches are
-   still resolving, so a text-colour-only cue meant that during the very
-   window where the viewer most needs to know the remote still works, the
-   focus indicator was one shade of green on a dark bar. */
+/* Vocabulary A (tokens.css's focus contract). This is the ONLY focusable on
+   the screen while matches are still resolving, so a text-colour-only cue
+   meant that during the very window where the viewer most needs to know the
+   remote still works, the focus indicator was one shade of green against the
+   background. --surface-focus is an opaque fill, which is also what keeps
+   this vocabulary readable now that the button sits on artwork: focus lays
+   down its own dark plate rather than tinting whatever photo is behind it. */
 .event-details-back.focused {
-  color: var(--text-primary);
   background: var(--surface-focus);
   border-color: var(--border-focus);
-}
-
-.event-details-logo {
-  font-size: 15px;
-  font-weight: var(--weight-regular);
-  letter-spacing: 8px;
-  color: var(--text-muted);
+  /* The opaque plate replaces what the shadow was compensating for. */
+  text-shadow: none;
 }
 
 /* ---------- Event header (football + generic) ---------- */
@@ -100,6 +147,22 @@
    the first stream rows rather than pushing them down the page. That
    overlap is deliberate and is why .stream-area carries its own z-index —
    see that rule for the painting-order reason it needs one. */
+/* The TOP padding is 56px of original header space plus the 72px of page
+   chrome that used to sit above this element (a 28px page top padding and a
+   44px back+wordmark topbar row, both removed — see .event-details and
+   .event-details-back). Moving those 72px from OUTSIDE this box to INSIDE it
+   is the whole fix: the backdrop is height: 100% of this element, so space
+   inside it is artwork and space above it was a black band of page
+   background. Measured at a real 1920×1080 render, every row below the top
+   edge — competition, matchup, venue/kickoff, the country header and the
+   first stream row — lands on exactly the y it did before the chrome was
+   removed; only the artwork gained the strip.
+
+   It also leaves the artwork's dissolve slightly safer than it was, not
+   riskier: the stops finish at 54% of this box (see HeaderBackdrop), which
+   a taller box puts at y=276 against a first country header at y=294 —
+   previously 309 against 294, i.e. that label used to sit in the tail of
+   the fade and now sits clear of it. */
 .event-header {
   position: relative;
   z-index: 0;
@@ -108,7 +171,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: 56px 0 calc(4px + var(--header-bleed));
+  padding: 128px 0 calc(4px + var(--header-bleed));
   overflow: visible;
 }
 

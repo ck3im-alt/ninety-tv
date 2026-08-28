@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { BIG_FIVE_COMPETITION_IDS, buildRecommendedLeagues, homeCountryLeague, uefaCompetitions } from './recommendedLeagues'
+import { buildRecommendedLeagues, homeCountryLeague, uefaCompetitions } from './recommendedLeagues'
+import { BIG_FIVE_COMPETITION_IDS } from '../../data/sports/editorialCompetitions'
 import { TEST_CATALOG } from './testCompetitionCatalog'
 
 const ids = (leagues: { id: string }[]) => leagues.map((l) => l.id)

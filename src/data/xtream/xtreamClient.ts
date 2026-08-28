@@ -1,4 +1,5 @@
 import { fetchWithDevCorsFallback, HttpStatusError } from '../../core/net/devCorsProxy'
+import { classifyHttpStatus, hasAuthRejectionMarker } from '../../core/net/authEvidence'
 import type { XtreamAccountInfo, XtreamCredentials, XtreamEpgListing, XtreamLiveCategory, XtreamLiveStream } from './types'
 
 // Real-world Xtream panels are wildly inconsistent about failure modes —
@@ -11,10 +12,16 @@ export type XtreamErrorCode = 'AUTH_FAILED' | 'NETWORK' | 'TIMEOUT' | 'MALFORMED
 
 export class XtreamError extends Error {
   code: XtreamErrorCode
-  constructor(code: XtreamErrorCode, message: string) {
+  // The HTTP status behind this failure, when there was one. Never shown to
+  // the user — it exists so a caller that goes on to try a SECOND endpoint
+  // can weigh both answers together before deciding what went wrong (see
+  // data/playlists/connectionError.ts).
+  readonly status: number | null
+  constructor(code: XtreamErrorCode, message: string, status: number | null = null) {
     super(message)
     this.name = 'XtreamError'
     this.code = code
+    this.status = status
   }
 }
 
@@ -65,12 +72,7 @@ async function fetchXtreamJson(url: string): Promise<unknown> {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new XtreamError('TIMEOUT', 'Provider server did not respond')
     }
-    if (err instanceof HttpStatusError) {
-      if (err.status === 401 || err.status === 403) {
-        throw new XtreamError('AUTH_FAILED', 'Incorrect username or password')
-      }
-      throw new XtreamError('HTTP_ERROR', 'Provider server returned an error')
-    }
+    if (err instanceof HttpStatusError) throw fromHttpStatus(err)
     throw new XtreamError('NETWORK', 'Could not reach the provider server')
   } finally {
     clearTimeout(timer)
@@ -80,6 +82,24 @@ async function fetchXtreamJson(url: string): Promise<unknown> {
   } catch {
     throw new XtreamError('MALFORMED_RESPONSE', 'Provider returned an unsupported response')
   }
+}
+
+// Turns one failing panel response into a verdict, using every piece of
+// evidence it actually carries rather than the status alone.
+//
+// The unresolved case is deliberate. A panel answering 513 with an empty
+// body has told us only that it is not speaking HTTP by the book — that is
+// not enough to blame the password, and not enough to blame the server
+// either. It stays HTTP_ERROR here, which is a code the connect flow is
+// allowed to fall back from; the M3U export on the same host then supplies
+// the second data point that settles it (see connectionError.ts's
+// combineConnectFailures).
+function fromHttpStatus(err: HttpStatusError): XtreamError {
+  const evidence = classifyHttpStatus(err.status)
+  if (evidence === 'auth-rejected' || hasAuthRejectionMarker(err.body)) {
+    return new XtreamError('AUTH_FAILED', 'Incorrect username or password', err.status)
+  }
+  return new XtreamError('HTTP_ERROR', 'Provider server returned an error', err.status)
 }
 
 async function getJson<T>(url: string, validate: (data: unknown) => T): Promise<T> {

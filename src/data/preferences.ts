@@ -11,6 +11,42 @@ const ONBOARDING_DONE_KEY = 'ninety.onboardingComplete'
 // boost either way: rank the best stream regardless of source type.
 export type StreamTypePreference = 'auto' | 'tv' | 'event'
 
+// HOW BROAD SHOULD HOME BE?
+//
+// Home fetches football across every tracked competition on purpose (see
+// data/sports/useHomeFeed.ts): favourite leagues must not stop Ninety
+// knowing a Champions League final exists, or that a club from a league you
+// follow is playing in Europe. This preference is the user's control over
+// what that breadth is allowed to SURFACE — deliberately named for the one
+// thing it governs rather than something as broad as "personalisation",
+// since teams, leagues, countries and stream preference are all already
+// forms of that.
+//
+//   'all'             every otherwise-eligible football competition may
+//                     appear; favourites only rank it. Today's behaviour,
+//                     and what every pre-2026-08-28 install keeps (see
+//                     LEGACY_HOME_CONTENT_MODE).
+//   'highlights'      what you follow, plus genuinely notable football from
+//                     elsewhere. The recommended experience for new users.
+//   'favorites_only'  only football whose OWN competition you follow.
+//                     Strict: not a favourite club elsewhere, not domestic
+//                     affinity, not a Champions League final.
+//
+// The rules themselves live in data/sports/homeContentPolicy.ts — this file
+// only owns the persisted vocabulary. Non-football sports are untouched by
+// it; they keep their existing selected-sport behaviour.
+export const HOME_CONTENT_MODES = ['all', 'highlights', 'favorites_only'] as const
+export type HomeContentMode = (typeof HOME_CONTENT_MODES)[number]
+
+// What a preferences object that predates this field means. NOT the same as
+// DEFAULT_PREFERENCES.homeContentMode below, and the difference is the whole
+// backwards-compatibility story: an existing install has never been asked
+// this question, so the only honest answer is the behaviour it already had
+// ('all'), while someone arriving at onboarding today is asked and offered
+// the recommended answer ('highlights').
+export const LEGACY_HOME_CONTENT_MODE: HomeContentMode = 'all'
+export const RECOMMENDED_HOME_CONTENT_MODE: HomeContentMode = 'highlights'
+
 // Hard cap on how many preferred countries a user can SELECT going forward
 // (onboarding + Settings, via withCountryToggled below). Deliberately not
 // enforced against already-persisted data: a pre-existing install with more
@@ -61,6 +97,11 @@ export interface SportPreferences {
   // object persisted before 2026-08-26 — normalized to [] at read time
   // (see normalizeTeamIds), never written back just for that.
   favoriteTeamIds: string[]
+  // See HomeContentMode above. Absent from every preferences object
+  // persisted before 2026-08-28 — normalized to LEGACY_HOME_CONTENT_MODE
+  // ('all', i.e. exactly the Home an existing install already sees) at read
+  // time, never written back just for that.
+  homeContentMode: HomeContentMode
 }
 
 // What a user who skips onboarding (or an old install predating the
@@ -75,6 +116,10 @@ export const DEFAULT_PREFERENCES: SportPreferences = {
   favoriteCountries: [],
   streamType: 'auto',
   favoriteTeamIds: [],
+  // The NEW-INSTALL default, and onboarding's pre-selected choice —
+  // deliberately different from LEGACY_HOME_CONTENT_MODE, which is what an
+  // upgrade resolves to. See HomeContentMode.
+  homeContentMode: RECOMMENDED_HOME_CONTENT_MODE,
 }
 
 // One shared toggle rule for every place that edits the preferred-country
@@ -158,6 +203,17 @@ function normalizeStreamType(stored: unknown): StreamTypePreference {
   return stored === 'tv' || stored === 'event' ? stored : 'auto'
 }
 
+// Same read-time rule as normalizeStreamType above, for the same reason:
+// an install that predates the field simply lacks it, and a corrupted or
+// hand-edited store could hold anything. Both resolve to
+// LEGACY_HOME_CONTENT_MODE — NOT to DEFAULT_PREFERENCES.homeContentMode,
+// which would silently narrow an existing user's Home on upgrade, and NOT
+// written back, so nobody has a content-breadth choice materialized into
+// storage on their behalf before they have actually made one.
+function normalizeHomeContentMode(stored: unknown): HomeContentMode {
+  return HOME_CONTENT_MODES.includes(stored as HomeContentMode) ? (stored as HomeContentMode) : LEGACY_HOME_CONTENT_MODE
+}
+
 // Preferences persisted before favoriteTeamIds existed simply lack the
 // field; a corrupted/hand-edited store could also hold something that isn't
 // an array of strings. Both normalize to a usable list at READ time rather
@@ -189,11 +245,17 @@ export function loadPreferences(): SportPreferences {
       footballLeagueIds: migratedFootballLeagueIds,
       streamType: normalizeStreamType(stored.streamType),
       favoriteTeamIds: normalizeTeamIds(stored.favoriteTeamIds),
+      homeContentMode: normalizeHomeContentMode(stored.homeContentMode),
     }
     writeStored(PREFERENCES_KEY, migrated)
     return migrated
   }
-  return { ...stored, streamType: normalizeStreamType(stored.streamType), favoriteTeamIds: normalizeTeamIds(stored.favoriteTeamIds) }
+  return {
+    ...stored,
+    streamType: normalizeStreamType(stored.streamType),
+    favoriteTeamIds: normalizeTeamIds(stored.favoriteTeamIds),
+    homeContentMode: normalizeHomeContentMode(stored.homeContentMode),
+  }
 }
 
 export function savePreferences(prefs: SportPreferences): void {

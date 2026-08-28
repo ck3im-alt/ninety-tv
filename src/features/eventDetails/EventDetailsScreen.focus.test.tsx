@@ -50,6 +50,20 @@ function match(id: string, name: string, groupTitle: string, sources: ChannelSou
   }
 }
 
+// A LOOSE match: broadcaster-map word overlap with no exact name match, which
+// matchConfidence classifies as 'candidate' (see streamConfidence.ts). A
+// playlist whose channel names don't line up exactly with Ninety's
+// broadcaster names produces nothing else — the real case behind the
+// candidates-only tests below.
+function looseMatch(id: string, name: string, groupTitle: string, sources: ChannelSource[]): ChannelMatch {
+  return { ...match(id, name, groupTitle, sources), source: 'broadcasterMap', isExactMatch: false, identityClassification: undefined }
+}
+
+const CANDIDATE_MATCHES: ChannelMatch[] = [
+  looseMatch('c9', 'Sport 1 HD', 'NO| Sport', [{ label: 'HD', url: 'http://x/9' }]),
+  looseMatch('c8', 'Sport 2', 'NO| Sport', [{ label: 'HD', url: 'http://x/8' }]),
+]
+
 const MATCHES: ChannelMatch[] = [
   match('c1', 'TV 2 Sport 1', 'NO| Sport', [{ label: 'FHD', url: 'http://x/1' }]),
   match('c2', 'Viaplay Sport 1', 'NO| Sport', [{ label: 'HD', url: 'http://x/2' }]),
@@ -218,6 +232,110 @@ describe('Match View initial focus', () => {
       await setFocus(rowFocusKeys()[1])
     })
     expect(getCurrentFocusKey()).toBe(rowFocusKeys()[1])
+  })
+
+  // THE REPORTED BUG. Every match a playlist produced is a loose candidate,
+  // so there is no top pick to call out — but CandidateStreamList opens by
+  // default in exactly that case, so the viewer is looking at a full list of
+  // streams. Focus has to be on the first of them, not on Back.
+  it('focuses the first stream even when every match is a loose candidate', async () => {
+    const gate = deferredMatches()
+    const { container } = renderScreen()
+    await settle()
+    await act(async () => {
+      await setFocus('event-details-screen')
+    })
+    expect(getCurrentFocusKey()).toBe(BACK_FOCUS_KEY)
+
+    await gate.ready(CANDIDATE_MATCHES)
+
+    const focusedRows = container.querySelectorAll('.stream-row.focused')
+    expect(focusedRows).toHaveLength(1)
+    expect(focusedRows[0]).toBe(container.querySelector('.stream-row'))
+  })
+
+  it('plays that first candidate on the first OK press', async () => {
+    const gate = deferredMatches()
+    const { onWatch } = renderScreen()
+    await settle()
+    await gate.ready(CANDIDATE_MATCHES)
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Enter', keyCode: 13 })
+      await Promise.resolve()
+    })
+
+    expect(onWatch).toHaveBeenCalledTimes(1)
+  })
+
+  // ...but it is still not called a top pick. Focus follows what is on
+  // screen; the badge makes a claim about match confidence, and a loose
+  // guess has not earned it.
+  it('does not label that candidate row as the top pick', async () => {
+    const gate = deferredMatches()
+    const { container } = renderScreen()
+    await settle()
+    await gate.ready(CANDIDATE_MATCHES)
+
+    expect(container.querySelector('.stream-row.top-pick')).toBeNull()
+    expect(container.querySelector('.stream-row.focused')).toBeTruthy()
+  })
+})
+
+// The screen's top chrome. Event Details renders no TopNav (App.tsx) and no
+// wordmark, and Back must not sit in a header ROW: it used to, and the
+// artwork — which lives inside EventHeader — could not paint into the strip
+// that row occupied, leaving a black band across the top of the canvas. The
+// fix is structural (Back is overlaid, not in flow), so what is asserted here
+// is the structure, not pixels: jsdom cannot see CSS, but it can see that
+// nothing sits between .event-details and .event-header, and that Back is
+// still a real, working control.
+describe('Match View top chrome', () => {
+  it('renders no header row and no wordmark above the hero', async () => {
+    deferredMatches()
+    const { container } = renderScreen()
+    await settle()
+
+    expect(container.querySelector('.event-details-topbar')).toBeNull()
+    expect(container.querySelector('.event-details-logo')).toBeNull()
+    expect(container.textContent).not.toContain('NINETY')
+
+    // Back is a direct child of the page, not nested in a bar of its own,
+    // and the header is the first in-flow thing on the page.
+    const page = container.querySelector('.event-details')!
+    const back = container.querySelector('.event-details-back')!
+    expect(back.parentElement).toBe(page)
+    expect([...page.children].find((el) => !el.classList.contains('event-details-back'))).toBe(
+      container.querySelector('.event-header'),
+    )
+  })
+
+  it('keeps Back focusable and actionable as an overlay', async () => {
+    const gate = deferredMatches()
+    const { container, onBack } = renderScreen()
+    await settle()
+
+    await act(async () => {
+      await setFocus(BACK_FOCUS_KEY)
+    })
+    expect(getCurrentFocusKey()).toBe(BACK_FOCUS_KEY)
+    expect(container.querySelector('.event-details-back.focused')).toBeTruthy()
+
+    // OK on the remote.
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Enter', keyCode: 13 })
+      await Promise.resolve()
+    })
+    expect(onBack).toHaveBeenCalledTimes(1)
+
+    // ...and the mouse path, which is what the browser/dev harness uses.
+    fireEvent.click(container.querySelector('.event-details-back')!)
+    expect(onBack).toHaveBeenCalledTimes(2)
+
+    // Still there once the streams land — the overlay is not conditional on
+    // the loading state.
+    await gate.ready()
+    expect(container.querySelector('.event-details-back')).toBeTruthy()
   })
 })
 

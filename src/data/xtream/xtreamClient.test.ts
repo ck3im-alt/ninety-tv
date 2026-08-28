@@ -12,6 +12,18 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
   } as unknown as Response
 }
 
+// A failing response whose BODY is the interesting part — panels put their
+// real reason there, and the status alone is often useless.
+function errorResponse(status: number, body: string): Response {
+  return {
+    ok: false,
+    status,
+    headers: { get: () => null },
+    text: () => Promise.resolve(body),
+    json: () => Promise.resolve(JSON.parse(body) as unknown),
+  } as unknown as Response
+}
+
 describe('xtreamClient', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
@@ -123,5 +135,43 @@ describe('xtreamClient', () => {
   it('exposes XtreamError as the concrete error class', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({}, false, 401))
     await expect(getLiveCategories(CREDS)).rejects.toBeInstanceOf(XtreamError)
+  })
+
+  // Panels are inconsistent enough about status codes that the client must
+  // not conclude anything a response has not actually told it. See
+  // core/net/authEvidence.ts.
+  describe('failures a status code alone cannot classify', () => {
+    it('leaves a bare non-standard status unresolved, as a provider error', async () => {
+      // 513 and 884 are what one measured panel sends for credentials it
+      // dislikes — but a different panel may be genuinely failing, so this
+      // stays the code the connect flow is allowed to fall back from, and
+      // the M3U attempt is what settles it.
+      vi.mocked(fetch).mockResolvedValue(errorResponse(513, ''))
+      await expect(getLiveCategories(CREDS)).rejects.toMatchObject({ code: 'HTTP_ERROR', status: 513 })
+
+      vi.mocked(fetch).mockResolvedValue(errorResponse(884, ''))
+      await expect(getLiveCategories(CREDS)).rejects.toMatchObject({ code: 'HTTP_ERROR', status: 884 })
+    })
+
+    it('reports AUTH_FAILED when a non-standard status carries auth: 0 in its body', async () => {
+      vi.mocked(fetch).mockResolvedValue(errorResponse(513, JSON.stringify({ user_info: { auth: 0 } })))
+      await expect(getLiveCategories(CREDS)).rejects.toMatchObject({ code: 'AUTH_FAILED' })
+      await expect(getLiveCategories(CREDS)).rejects.toThrow('Incorrect username or password')
+    })
+
+    it('reports AUTH_FAILED when the body says so in prose', async () => {
+      vi.mocked(fetch).mockResolvedValue(errorResponse(456, 'Invalid username or password'))
+      await expect(getLiveCategories(CREDS)).rejects.toMatchObject({ code: 'AUTH_FAILED' })
+    })
+
+    it('does not read an ordinary outage message as an auth failure', async () => {
+      vi.mocked(fetch).mockResolvedValue(errorResponse(503, 'Service temporarily unavailable'))
+      await expect(getLiveCategories(CREDS)).rejects.toMatchObject({ code: 'HTTP_ERROR' })
+    })
+
+    it('carries the status on the error for a caller that will try a second endpoint', async () => {
+      vi.mocked(fetch).mockResolvedValue(errorResponse(500, ''))
+      await expect(getLiveCategories(CREDS)).rejects.toMatchObject({ status: 500 })
+    })
   })
 })

@@ -72,6 +72,7 @@ function seedPreUpdateInstall() {
     favoriteCountries: ['United Kingdom'],
     streamType: 'tv',
     favoriteTeamIds: [],
+    homeContentMode: 'all',
   })
   markOnboardingComplete()
   saveFavoriteChannels(new Set(['ch0']))
@@ -123,6 +124,7 @@ describe('a pre-update install opening the new app', () => {
       favoriteCountries: ['United Kingdom'],
       streamType: 'tv',
       favoriteTeamIds: [],
+      homeContentMode: 'all',
     })
     expect(loadFavoriteChannels()).toEqual(new Set(['ch0']))
   })

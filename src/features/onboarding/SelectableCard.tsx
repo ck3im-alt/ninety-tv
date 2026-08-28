@@ -24,6 +24,12 @@ export function SelectableCard({
   selected,
   onToggle,
   forceFocus,
+  // One extra class on the tile, for a caller that needs a differently
+  // SHAPED card without a differently BEHAVING one — currently only
+  // LeagueCard's 'compact' browser variant. Deliberately not a style prop
+  // and not a slot: everything about selection, focus and arrow handling
+  // stays here, and the modifier only ever changes layout.
+  className,
   // Directional escapes. norigin only treats two elements as adjacent when
   // they overlap by >=20%, so leaving a grid for a target that isn't
   // directly above/below the specific card you're on (the footer's primary
@@ -45,6 +51,7 @@ export function SelectableCard({
   selected: boolean
   onToggle: () => void
   forceFocus?: boolean
+  className?: string
   onArrowLeft?: () => void
   onArrowRight?: () => void
   onArrowUp?: () => void
@@ -82,7 +89,11 @@ export function SelectableCard({
   useFocusScrollIntoView(ref, focused)
 
   return (
-    <div ref={ref} className={`pick-card ${selected ? 'selected' : ''} ${focused ? 'focused' : ''}`} onClick={onToggle}>
+    <div
+      ref={ref}
+      className={`pick-card ${className ?? ''} ${selected ? 'selected' : ''} ${focused ? 'focused' : ''}`}
+      onClick={onToggle}
+    >
       <span className="pick-card-checkbox">{selected && <CheckIcon />}</span>
       {children}
     </div>

@@ -90,9 +90,9 @@
 /* ---- Dense variant (the leagues and teams steps) ----
 
    Both picker steps have to fit a pinned recommendation row, an entire
-   master/detail browser panel AND the footer inside the same 1080px as
-   every other step (the leagues step also carries the sports row). Rather
-   than let the panel push the footer off screen, this variant tightens the
+   browser panel AND the footer inside the same 1080px as every other step
+   (the leagues step also carries the sports row). Rather than let the panel
+   push the footer off screen, this variant tightens the
    shared chrome's vertical rhythm — smaller headline, smaller margins
    between the fixed blocks — which buys the panel ~90px without touching
    any type size that matters for sofa readability. */
@@ -171,7 +171,9 @@
    content from about one screen to several. Now the last child is a panel
    that takes exactly the height left over and manages its own insides, so
    this container's content height always equals its box height and the page
-   never scrolls at all.
+   never scrolls at all. (The leagues step went one step further in
+   2026-08-28 and made its panel PAGE rather than scroll anything at all —
+   see CompetitionBrowser.css.)
 
    Since the 2026-08-26 pass both picker steps are ALWAYS in this mode —
    there is no expander to open, the panel is simply there. That is what
@@ -188,11 +190,16 @@
 /* Overrides the flex-shrink: 0 above — this is the ONE child that is meant
    to be sized by what is left rather than by its contents. The min-height
    is a floor for an unusually short viewport: better a slightly clipped
-   panel than one collapsed to nothing. */
-/* Both browsers (leagues and teams) are the same panel and carry the same
-   .league-browser class — see TeamBrowser.tsx — and they live on different
-   steps, so one rule covers both. */
-.onboarding-body.browsing > .league-browser {
+   panel than one collapsed to nothing.
+
+   Two different panels, one rule: the teams step's master/detail browser
+   (.league-browser, see TeamBrowser.css) and the leagues step's paginated
+   competition browser (.competition-browser, see CompetitionBrowser.css).
+   They look and navigate nothing alike any more, but "take exactly the
+   leftover height and manage your own insides" is the contract they both
+   sign, and it is the contract that keeps either step one screen tall. */
+.onboarding-body.browsing > .league-browser,
+.onboarding-body.browsing > .competition-browser {
   flex: 1 1 0;
   min-height: 240px;
 }

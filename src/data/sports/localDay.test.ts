@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isWithinLocalDay, localDayRange } from './localDay'
+import { isWithinLocalDay, localDayRange, localDayRangeAhead } from './localDay'
 
 // These assert RELATIONSHIPS, not literal ISO strings: the test process runs
 // in whatever timezone the machine has, and hardcoding "the UTC instant of
@@ -59,6 +59,48 @@ describe('localDayRange', () => {
     expect(end.getFullYear()).toBe(2027)
     expect(end.getMonth()).toBe(0)
     expect(end.getDate()).toBe(1)
+  })
+})
+
+// Home's density expansion asks for "the next seven days" and needs that to
+// mean seven local CALENDAR days — see localDay.ts's own note on why the far
+// end is anchored to midnight rather than to now + N * 24h.
+describe('localDayRangeAhead', () => {
+  it('is localDayRange at zero', () => {
+    const now = new Date(2026, 7, 26, 14, 32, 5, 123)
+    expect(localDayRangeAhead(0, now)).toEqual(localDayRange(now))
+  })
+
+  it('starts at local midnight on the day N days from today', () => {
+    const range = localDayRangeAhead(7, new Date(2026, 7, 26, 14, 0, 0, 0))
+    const start = new Date(range.startMs)
+    expect(start.getMonth()).toBe(8)
+    expect(start.getDate()).toBe(2)
+    expect(start.getHours()).toBe(0)
+  })
+
+  it('ends one millisecond before the following local midnight, so the last day is whole', () => {
+    const range = localDayRangeAhead(7, new Date(2026, 7, 26, 14, 0, 0, 0))
+    expect(new Date(range.toUtc).getTime()).toBe(range.endMs - 1)
+    const end = new Date(range.endMs)
+    expect(end.getDate()).toBe(3)
+    expect(end.getHours()).toBe(0)
+  })
+
+  // What makes the expansion request cacheable at all: every refresh within
+  // the same local day asks for exactly the same window.
+  it('asks for an identical window at any hour of the same local day', () => {
+    const morning = localDayRangeAhead(7, new Date(2026, 7, 26, 6, 0, 0, 0))
+    const midnightish = localDayRangeAhead(7, new Date(2026, 7, 26, 23, 59, 59, 999))
+    expect(midnightish).toEqual(morning)
+  })
+
+  it('rolls over month and year ends', () => {
+    const range = localDayRangeAhead(7, new Date(2026, 11, 29, 12, 0, 0, 0))
+    const start = new Date(range.startMs)
+    expect(start.getFullYear()).toBe(2027)
+    expect(start.getMonth()).toBe(0)
+    expect(start.getDate()).toBe(5)
   })
 })
 

@@ -136,6 +136,26 @@ describe('getWatchableNowCandidates', () => {
   })
 })
 
+// The other half of the provider-status-lag fix (see mapEvent.test.ts's own
+// suite for the mapping side). The hero gate reads eventTiming, so a match
+// the provider left on 'scheduled' has to be admitted to the watchable-now
+// pool too — otherwise Home would show it in the row while refusing to ever
+// feature it, and `isWatchableNow` would be wrong about a match that is on.
+describe('getWatchableNowCandidates — a provider that never says "live"', () => {
+  it('admits a scheduled football fixture that has kicked off and is still inside the in-play window', () => {
+    const ids = getWatchableNowCandidates(
+      [
+        event('stale-scheduled', { status: 'scheduled', dateTimeUtc: at(-45) }),
+        event('really-over', { status: 'complete', dateTimeUtc: at(-45) }),
+        event('called-off', { status: 'postponed', dateTimeUtc: at(-45) }),
+        event('long-gone', { status: 'scheduled', dateTimeUtc: at(-200) }),
+      ],
+      NOW,
+    ).map((e) => e.id)
+    expect(ids).toEqual(['stale-scheduled'])
+  })
+})
+
 describe('selectHero — the 60-minute wall', () => {
   // TEST 1.
   it('keeps a live non-favorite as hero over a favorite match more than an hour away', () => {
@@ -612,8 +632,9 @@ describe('selectHero — the broadcast wall', () => {
   })
 
   // The gate has to cover BOTH hero paths. This is the "nothing is watchable
-  // yet, so the earliest kickoff leads" fallback (see Home's own late-evening
-  // fallback fetch): a small untelevised cup tie must not become the hero
+  // yet, so the earliest kickoff leads" fallback (which Home's density
+  // expansion can now reach with a later day's fixture — see
+  // homeFeedDensity.ts): a small untelevised cup tie must not become the hero
   // purely by being chronologically next.
   it('does not let an untelevised fixture win the earliest-kickoff fallback', () => {
     const seventeen = Date.parse('2026-08-26T17:00:00Z')

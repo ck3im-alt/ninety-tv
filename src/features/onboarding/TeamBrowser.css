@@ -1,18 +1,32 @@
-/* The "All leagues" master/detail panel on onboarding step 2.
+/* The master/detail browser panel on onboarding step 3 (Teams).
 
-   AN APP PANEL, NOT DOCUMENT CONTENT. Its whole reason to exist is that
-   opening the catalogue must not make the page taller: it takes exactly the
-   height left over between the "Browse all leagues" control and the footer
-   (`flex: 1 1 0` from onboardingShared.css's .onboarding-body.browsing
-   rule) and sizes its own insides to that, rather than growing to fit 42
-   cards. Nothing here has an intrinsic height that could push the footer
-   off screen.
+   AN APP PANEL, NOT DOCUMENT CONTENT. Its whole reason to exist is that the
+   catalogue must not make the page taller: it takes exactly the height left
+   over above the footer (`flex: 1 1 0` from onboardingShared.css's
+   .onboarding-body.browsing rule) and sizes its own insides to that, rather
+   than growing to fit a whole roster. Nothing here has an intrinsic height
+   that could push the footer off screen.
 
-       ┌ Regions ──────┬ England · 5 competitions ─────────┐
-       │ England       │ [ Championship ] [ FA Cup ] [ … ]  │
-       │ Spain         │ [ League One   ]                   │
+       ┌ Competitions ─┬ Premier League · 20 teams ────────┐
+       │ Premier League│ [ Arsenal ] [ Aston Villa ] [ … ]  │
+       │ La Liga       │ [ Brentford ]                      │
        │ …  (scrolls)  │                                    │
-       └───────────────┴────────────────────────────────────┘ */
+       └───────────────┴────────────────────────────────────┘
+
+   WHY THE CLASS NAMES SAY "league". This file was LeagueBrowser.css until
+   2026-08-28: the leagues step used the identical panel with countries down
+   the rail, and the teams step deliberately shared its vocabulary rather
+   than duplicating a near-identical stylesheet. The leagues step now has a
+   paginated full-width browser of its own (CompetitionBrowser.css) and no
+   longer uses any of this, so the file moved to its remaining consumer. The
+   `.league-browser*` selectors kept their names on purpose: renaming them
+   would be pure churn across a step that pass was explicitly not touching,
+   and they read fine as the shared "browser panel" vocabulary they are.
+
+   Imported by TeamBrowser.tsx. It used to arrive for free because
+   LeagueBrowser.tsx imported it and both panels were always in the same
+   bundle — a dependency that would have silently un-styled the Teams step
+   the moment that file was deleted. */
 
 .league-browser {
   display: grid;
@@ -143,14 +157,16 @@
   flex-shrink: 0;
 }
 
-/* ---- League grid (detail) ---- */
+/* ---- Club grid (detail) ---- */
 
 .league-browser-detail {
   min-height: 0;
-  /* Local scroll ONLY as a safety net: at the five columns below, every
-     region in the real catalog fits in at most two rows. If the backend ever
-     adds a region big enough to overflow, this one pane scrolls — the page
-     still does not. */
+  /* The one surface here that is EXPECTED to scroll. A 20-club top-flight
+     roster is four rows at the five columns below, which does not fit the
+     panel's leftover height — so this pane scrolls and the page still does
+     not. (It read "at most two rows" while this stylesheet also dressed the
+     leagues step's region detail, whose groups really were that small; that
+     panel is gone — see the file header.) */
   overflow-y: auto;
   padding: var(--space-3);
 }
@@ -162,9 +178,9 @@
   align-content: start;
 }
 
-/* Same card as the recommendations row (see LeagueCard.tsx), one size down:
-   it has no region sublabel to carry and it has to share the panel's height
-   with the rail. */
+/* Same card shape as the recommendations row (see SelectableCard.tsx), one
+   size down: a club card carries only a crest and a name, and it has to
+   share the panel's height with the rail. */
 .league-browser-grid .pick-card {
   min-height: 104px;
   padding: var(--space-3) var(--space-2);

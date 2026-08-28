@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 //
-// Regression coverage for the onboarding flow's SHAPE: four steps since the
-// 2026-08-26 pass (Playlist, Sports & leagues, Teams, Countries), and the
-// last one completes onboarding rather than handing off to a "You're all
-// set" screen.
+// Regression coverage for the onboarding flow's SHAPE: five steps since the
+// 2026-08-28 pass (Playlist, Sports & leagues, Teams, Home personalisation,
+// Countries), and the last one completes onboarding rather than handing off
+// to a "You're all set" screen.
 //
 // The step screens are replaced with minimal stand-ins so this is a test of
 // the FLOW — step order, what finishing writes, and what it hands back —
@@ -77,6 +77,32 @@ vi.mock('./OnboardingTeamsScreen', () => ({
   ),
 }))
 
+vi.mock('./OnboardingHomeScreen', () => ({
+  OnboardingHomeScreen: ({
+    selected,
+    onSelect,
+    onBack,
+    onContinue,
+  }: {
+    selected: string
+    onSelect: (mode: 'all' | 'highlights' | 'favorites_only') => void
+    onBack: () => void
+    onContinue: () => void
+  }) => (
+    <div>
+      <span data-testid="step">4</span>
+      {/* The pre-selected mode, so "there is always exactly one selected"
+          and "the recommended one is the default" are assertions about the
+          FLOW's state rather than about the screen's rendering. */}
+      <span data-testid="home-mode">{selected}</span>
+      <button onClick={() => onSelect('favorites_only')}>pick-favorites-only</button>
+      <button onClick={() => onSelect('all')}>pick-everything</button>
+      <button onClick={onBack}>back</button>
+      <button onClick={onContinue}>continue</button>
+    </div>
+  ),
+}))
+
 vi.mock('./OnboardingCountriesScreen', () => ({
   OnboardingCountriesScreen: ({
     selectedCountries,
@@ -90,7 +116,7 @@ vi.mock('./OnboardingCountriesScreen', () => ({
     onFinish: () => void
   }) => (
     <div>
-      <span data-testid="step">4</span>
+      <span data-testid="step">5</span>
       <span data-testid="selected">{selectedCountries.join(',')}</span>
       <button onClick={() => onToggleCountry('Sweden')}>pick-sweden</button>
       <button onClick={onBack}>back</button>
@@ -125,8 +151,8 @@ afterEach(() => {
 })
 
 describe('onboarding step structure', () => {
-  it('declares exactly four steps, without a "You\'re all set" one', () => {
-    expect(ONBOARDING_STEPS.map((s) => s.label)).toEqual(['Playlist', 'Sports & leagues', 'Teams', 'Countries'])
+  it('declares exactly five steps, without a "You\'re all set" one', () => {
+    expect(ONBOARDING_STEPS.map((s) => s.label)).toEqual(['Playlist', 'Sports & leagues', 'Teams', 'Home', 'Countries'])
   })
 
   it('renders the playlist step in its onboarding variant first', () => {
@@ -135,7 +161,7 @@ describe('onboarding step structure', () => {
     expect(screen.getByTestId('setup-variant').textContent).toBe('onboarding')
   })
 
-  it('walks 1 -> 2 -> 3 -> 4 and all the way back again', async () => {
+  it('walks 1 -> 2 -> 3 -> 4 -> 5 and all the way back again', async () => {
     render(<OnboardingFlow onDone={vi.fn()} />)
     await click('connect')
     expect(screen.getByTestId('step').textContent).toBe('2')
@@ -143,12 +169,26 @@ describe('onboarding step structure', () => {
     expect(screen.getByTestId('step').textContent).toBe('3')
     await click('continue')
     expect(screen.getByTestId('step').textContent).toBe('4')
+    await click('continue')
+    expect(screen.getByTestId('step').textContent).toBe('5')
+    await click('back')
+    expect(screen.getByTestId('step').textContent).toBe('4')
     await click('back')
     expect(screen.getByTestId('step').textContent).toBe('3')
     await click('back')
     expect(screen.getByTestId('step').textContent).toBe('2')
     await click('back')
     expect(screen.getByTestId('step').textContent).toBe('1')
+  })
+
+  // The reason this is a step and not a fourth block on Sports & leagues —
+  // it comes AFTER the leagues and clubs it is defined in terms of, and
+  // before Countries, which is a broadcast-market question rather than a
+  // football-interest one.
+  it('puts Home personalisation between Teams and Countries', () => {
+    expect(ONBOARDING_STEPS.map((s) => s.label).indexOf('Home')).toBe(3)
+    expect(ONBOARDING_STEPS[2].label).toBe('Teams')
+    expect(ONBOARDING_STEPS[4].label).toBe('Countries')
   })
 
   it('carries the chosen leagues into the Teams step', async () => {
@@ -168,13 +208,14 @@ describe('finishing onboarding', () => {
     await click('connect')
     await click('continue')
     await click('continue')
+    await click('continue')
     await click('finish')
 
     expect(onDone).toHaveBeenCalledTimes(1)
     expect(hasCompletedOnboarding()).toBe(true)
     // The flow unmounts into whatever the caller navigates to (Home) — it
-    // never advances to a step 5 of its own.
-    expect(screen.getByTestId('step').textContent).toBe('4')
+    // never advances to a step 6 of its own.
+    expect(screen.getByTestId('step').textContent).toBe('5')
   })
 
   it('persists the selections and hands the connected playlist back', async () => {
@@ -183,6 +224,7 @@ describe('finishing onboarding', () => {
     await click('connect')
     await click('continue')
     await click('pick-team')
+    await click('continue')
     await click('continue')
     await click('pick-sweden')
     await click('finish')
@@ -196,6 +238,9 @@ describe('finishing onboarding', () => {
     // The dedicated Teams step writes into the SAME preference the old
     // squeezed-in section did — canonical ninety-api ids, never names.
     expect(prefs.favoriteTeamIds).toEqual(['t-glimt'])
+    // Untouched on this run, so what lands in storage is the flow's own
+    // default rather than the legacy-upgrade value.
+    expect(prefs.homeContentMode).toBe('highlights')
 
     const [channels, source] = onDone.mock.calls[0]
     expect(channels).toHaveLength(1)
@@ -205,6 +250,7 @@ describe('finishing onboarding', () => {
   it('finishes with no teams at all — the step is genuinely optional', async () => {
     render(<OnboardingFlow onDone={vi.fn()} />)
     await click('connect')
+    await click('continue')
     await click('continue')
     await click('continue')
     await click('finish')
@@ -226,7 +272,97 @@ describe('finishing onboarding', () => {
     await click('connect')
     await click('continue')
     await click('continue')
+    await click('continue')
     expect(screen.getByTestId('selected').textContent).toBe('Norway')
+  })
+
+  it('defaults the Home mode to the recommended one, never to nothing', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('continue')
+    expect(screen.getByTestId('home-mode').textContent).toBe('highlights')
+  })
+
+  it('persists the chosen Home mode', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('continue')
+    await click('pick-favorites-only')
+    await click('continue')
+    await click('finish')
+    expect(loadPreferences().homeContentMode).toBe('favorites_only')
+  })
+
+  it('keeps the chosen Home mode when the user steps back and forward again', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('continue')
+    await click('pick-favorites-only')
+    await click('back')
+    await click('continue')
+    expect(screen.getByTestId('home-mode').textContent).toBe('favorites_only')
+  })
+
+  // The recommended default is what a NEW user gets; 'all' is only ever the
+  // answer for a pre-existing install that was never asked (see
+  // LEGACY_HOME_CONTENT_MODE). Onboarding must never write the legacy value
+  // by accident.
+  it('writes the recommended default, not the legacy-upgrade value, when the viewer leaves it alone', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('continue')
+    await click('continue')
+    await click('finish')
+    expect(loadPreferences().homeContentMode).toBe('highlights')
+  })
+
+  it('can still be set back to Everything', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('continue')
+    await click('pick-favorites-only')
+    await click('pick-everything')
+    await click('continue')
+    await click('finish')
+    expect(loadPreferences().homeContentMode).toBe('all')
+  })
+
+  it('saves the Home mode alongside every other selection, not instead of any of them', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('pick-team')
+    await click('continue')
+    await click('pick-favorites-only')
+    await click('continue')
+    await click('pick-sweden')
+    await click('finish')
+
+    const prefs = loadPreferences()
+    expect(prefs.homeContentMode).toBe('favorites_only')
+    expect(prefs.sports).toEqual(['football', 'f1'])
+    expect(prefs.footballLeagueIds).toEqual(['football_premier_league', 'football_champions_league'])
+    expect(prefs.favoriteTeamIds).toEqual(['t-glimt'])
+    expect(prefs.favoriteCountries).toEqual(['Norway', 'Sweden'])
+    // Onboarding never asks the technical TV-channel-vs-event-stream
+    // question — everyone starts on 'auto'.
+    expect(prefs.streamType).toBe('auto')
+  })
+
+  // Nothing is written until Finish, which is what lets Back/Forward be
+  // free of consequences on every step including this one.
+  it('does not persist the Home mode step-by-step', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('continue')
+    await click('pick-favorites-only')
+    expect(localStorage.getItem('ninety.sportPreferences')).toBeNull()
   })
 
   it('skipping step 1 still reaches the last step and completes, with no playlist', async () => {
@@ -237,6 +373,7 @@ describe('finishing onboarding', () => {
     // Skipping must NOT complete onboarding on its own — only Finish does.
     expect(hasCompletedOnboarding()).toBe(false)
 
+    await click('continue')
     await click('continue')
     await click('continue')
     await click('finish')

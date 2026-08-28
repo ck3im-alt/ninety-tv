@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeFakeLocalStorage } from '../core/storage/testFakeLocalStorage'
 import {
   DEFAULT_PREFERENCES,
+  LEGACY_HOME_CONTENT_MODE,
   MAX_PREFERRED_COUNTRIES,
+  RECOMMENDED_HOME_CONTENT_MODE,
   loadPreferences,
   migrateFootballLeagueIds,
   savePreferences,
@@ -62,6 +64,7 @@ describe('loadPreferences', () => {
       favoriteCountries: [],
       streamType: 'auto',
       favoriteTeamIds: [],
+      homeContentMode: 'all',
     }
     savePreferences(legacy)
 
@@ -73,7 +76,7 @@ describe('loadPreferences', () => {
   })
 
   it('is idempotent across repeated loads -- a second load after migration changes nothing further', () => {
-    savePreferences({ sports: ['football'], footballLeagueIds: ['4328'], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [] })
+    savePreferences({ sports: ['football'], footballLeagueIds: ['4328'], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [], homeContentMode: 'all' })
 
     const first = loadPreferences()
     const second = loadPreferences()
@@ -82,7 +85,7 @@ describe('loadPreferences', () => {
   })
 
   it('preserves other preference fields untouched by migration', () => {
-    savePreferences({ sports: ['football', 'f1'], footballLeagueIds: ['4328'], favoriteCountries: ['Norway'], streamType: 'tv', favoriteTeamIds: [] })
+    savePreferences({ sports: ['football', 'f1'], footballLeagueIds: ['4328'], favoriteCountries: ['Norway'], streamType: 'tv', favoriteTeamIds: [], homeContentMode: 'all' })
     const loaded = loadPreferences()
     expect(loaded.sports).toEqual(['football', 'f1'])
     expect(loaded.favoriteCountries).toEqual(['Norway'])
@@ -125,6 +128,7 @@ describe('loadPreferences', () => {
       favoriteCountries: [],
       streamType: 'auto',
       favoriteTeamIds: [],
+      homeContentMode: 'all',
     }
     savePreferences(alreadyCanonical)
     const loaded = loadPreferences()
@@ -132,7 +136,7 @@ describe('loadPreferences', () => {
   })
 
   it('does not crash on a preferences object containing only the dead Conference League id', () => {
-    savePreferences({ sports: ['football'], footballLeagueIds: ['5071'], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [] })
+    savePreferences({ sports: ['football'], footballLeagueIds: ['5071'], favoriteCountries: [], streamType: 'auto', favoriteTeamIds: [], homeContentMode: 'all' })
     const loaded = loadPreferences()
     // Left in place, not stripped -- see migrateFootballLeagueIds's own
     // comment for why this is the intended, non-destructive behavior. The
@@ -196,6 +200,7 @@ describe('loadPreferences — favoriteTeamIds backwards compatibility', () => {
       favoriteCountries: [],
       streamType: 'auto',
       favoriteTeamIds: ['team_manutd', 'team_glimt'],
+      homeContentMode: 'all',
     })
     expect(loadPreferences().favoriteTeamIds).toEqual(['team_manutd', 'team_glimt'])
   })
@@ -207,6 +212,7 @@ describe('loadPreferences — favoriteTeamIds backwards compatibility', () => {
       favoriteCountries: [],
       streamType: 'auto',
       favoriteTeamIds: ['team_manutd'],
+      homeContentMode: 'all',
     })
     const loaded = loadPreferences()
     expect(loaded.footballLeagueIds).toEqual(['football_premier_league'])
@@ -229,6 +235,7 @@ describe('loadPreferences — favoriteTeamIds backwards compatibility', () => {
         footballLeagueIds: [],
         favoriteCountries: [],
         favoriteTeamIds: ['team_a', '', null, 7, 'team_a', 'team_b'],
+        homeContentMode: 'all',
       }),
     )
     expect(loadPreferences().favoriteTeamIds).toEqual(['team_a', 'team_b'])
@@ -238,6 +245,116 @@ describe('loadPreferences — favoriteTeamIds backwards compatibility', () => {
     localStorage.setItem('ninety.sportPreferences', JSON.stringify({ sports: ['football'] }))
     expect(() => loadPreferences()).not.toThrow()
     expect(loadPreferences().favoriteTeamIds).toEqual([])
+  })
+})
+
+// The 2026-08-28 backwards-compatibility case, and the one with real teeth:
+// homeContentMode does not merely default, it defaults to a DIFFERENT value
+// for an existing install than for a new one. Getting that backwards would
+// silently narrow the Home of everybody who upgraded.
+describe('loadPreferences — homeContentMode backwards compatibility', () => {
+  it('resolves a stored object with no homeContentMode to "all" — exactly the Home that install already had', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({
+        sports: ['football', 'f1'],
+        footballLeagueIds: ['football_premier_league'],
+        favoriteCountries: ['Norway'],
+        streamType: 'tv',
+        favoriteTeamIds: ['team_a'],
+      }),
+    )
+    expect(loadPreferences().homeContentMode).toBe(LEGACY_HOME_CONTENT_MODE)
+    expect(loadPreferences().homeContentMode).toBe('all')
+  })
+
+  it('does NOT resolve a legacy install to the new-install default', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({ sports: ['football'], footballLeagueIds: [], favoriteCountries: [] }),
+    )
+    expect(loadPreferences().homeContentMode).not.toBe(DEFAULT_PREFERENCES.homeContentMode)
+  })
+
+  it('gives a brand-new install the recommended mode', () => {
+    expect(loadPreferences().homeContentMode).toBe(RECOMMENDED_HOME_CONTENT_MODE)
+    expect(DEFAULT_PREFERENCES.homeContentMode).toBe('highlights')
+  })
+
+  // The distinction above is intentional, so state it once as an invariant
+  // rather than leaving it to look like an oversight.
+  it('keeps the legacy fallback and the new-install default deliberately different', () => {
+    expect(LEGACY_HOME_CONTENT_MODE).not.toBe(RECOMMENDED_HOME_CONTENT_MODE)
+  })
+
+  it('normalizes an unrecognized stored value to "all" rather than letting it reach the content policy', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({ sports: [], footballLeagueIds: [], favoriteCountries: [], homeContentMode: 'my-interests' }),
+    )
+    expect(loadPreferences().homeContentMode).toBe('all')
+  })
+
+  it.each([null, 7, {}, [], ''])('normalizes the corrupted stored value %p to "all"', (value) => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({ sports: [], footballLeagueIds: [], favoriteCountries: [], homeContentMode: value }),
+    )
+    expect(loadPreferences().homeContentMode).toBe('all')
+  })
+
+  // Same rule as streamType and favoriteTeamIds: nobody gets a
+  // content-breadth choice materialized into storage on their behalf.
+  it('does not write the field back just because it was absent', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({ sports: ['football'], footballLeagueIds: ['football_premier_league'], favoriteCountries: [] }),
+    )
+    loadPreferences()
+    const persisted = JSON.parse(localStorage.getItem('ninety.sportPreferences')!) as Record<string, unknown>
+    expect('homeContentMode' in persisted).toBe(false)
+  })
+
+  it('preserves every other preference from a pre-homeContentMode install', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({
+        sports: ['football', 'f1'],
+        footballLeagueIds: ['football_premier_league', 'football_champions_league'],
+        favoriteCountries: ['Norway', 'Sweden'],
+        streamType: 'tv',
+        favoriteTeamIds: ['team_a', 'team_b'],
+      }),
+    )
+    const loaded = loadPreferences()
+    expect(loaded.sports).toEqual(['football', 'f1'])
+    expect(loaded.footballLeagueIds).toEqual(['football_premier_league', 'football_champions_league'])
+    expect(loaded.favoriteCountries).toEqual(['Norway', 'Sweden'])
+    expect(loaded.streamType).toBe('tv')
+    expect(loaded.favoriteTeamIds).toEqual(['team_a', 'team_b'])
+  })
+
+  it('round-trips each of the three real modes', () => {
+    for (const mode of ['all', 'highlights', 'favorites_only'] as const) {
+      savePreferences({ ...DEFAULT_PREFERENCES, homeContentMode: mode })
+      expect(loadPreferences().homeContentMode).toBe(mode)
+    }
+  })
+
+  // The legacy league-id migration is the one path that DOES write back.
+  // It must carry the normalized mode with it rather than dropping the
+  // field or inventing a different one.
+  it('carries homeContentMode through the legacy league-id migration, and writes the normalized value', () => {
+    localStorage.setItem(
+      'ninety.sportPreferences',
+      JSON.stringify({ sports: ['football'], footballLeagueIds: ['4328'], favoriteCountries: [], streamType: 'auto' }),
+    )
+    const loaded = loadPreferences()
+    expect(loaded.footballLeagueIds).toEqual(['football_premier_league'])
+    expect(loaded.homeContentMode).toBe('all')
+
+    const persisted = JSON.parse(localStorage.getItem('ninety.sportPreferences')!) as SportPreferences
+    expect(persisted.homeContentMode).toBe('all')
   })
 })
 

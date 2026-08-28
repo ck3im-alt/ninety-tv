@@ -7,6 +7,7 @@
 // against.
 import { useMemo, useState } from 'react'
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusRecovery } from '../../core/platform'
 import { useFootballCompetitions } from '../../data/sports/useFootballCompetitions'
 import { groupLeaguesByRegion, initialRegion, selectedLeagues } from './settingsLeagueRegions'
 import { gridNeighborIndex } from './settingsGrid'
@@ -34,6 +35,13 @@ function regionFocusKey(region: string): string {
 }
 function leagueFocusKey(id: string): string {
   return `settings-league-${id}`
+}
+// Followed-league chips are removable — pressing Enter on one unfollows the
+// league and unmounts the chip that is holding focus. That needs a stated
+// destination, and a stated destination needs a key that is not the
+// library's auto-generated one (which changes with mount order).
+function chipFocusKey(id: string): string {
+  return `settings-league-chip-${id}`
 }
 
 export function SportsLeaguesPane({
@@ -74,6 +82,28 @@ export function SportsLeaguesPane({
   const firstRegionKey = groups[0] ? regionFocusKey(groups[0].region) : FOOTBALL_FOCUS_KEY
   const goToLeagues = () => void setFocus(firstRegionKey)
   const goToTeams = () => void setFocus(MANAGE_TEAMS_FOCUS_KEY)
+  // Down from a sport toggle steps into the Following chips when there are
+  // any — without this the chips are only reachable by geometric luck, and
+  // a control a remote cannot land on deliberately is not a control. With
+  // none followed the chain is exactly what it was: straight to the leagues.
+  //
+  // And with Football OFF (or the catalog not yet loaded) NOTHING below the
+  // two toggles is mounted, so Down is consumed rather than sent at a region
+  // row that isn't rendered — setFocus on an unregistered key parks the
+  // highlight on nothing at all, which is a dead remote, not a no-op.
+  const leaguesMounted = footballSelected && competitions.status === 'ready'
+  const goToChipsOrLeagues = () => {
+    if (!leaguesMounted) return
+    void setFocus(chosen[0] ? chipFocusKey(chosen[0].id) : firstRegionKey)
+  }
+
+  // UNFOLLOWING FROM A CHIP REMOVES THE CHIP THAT IS HOLDING FOCUS. Same
+  // shape as the Countries pane's Available column: next chip, else the
+  // previous one, else the nearest stable control in this section — never
+  // the library's default of "focus my parent", which from here resolves
+  // all the way back to the Settings rail.
+  const chipEntries = useMemo(() => chosen.map((league) => ({ id: league.id, focusKey: chipFocusKey(league.id) })), [chosen])
+  useFocusRecovery({ items: chipEntries, anchorFocusKey: MANAGE_TEAMS_FOCUS_KEY })
 
   // Names come from the local display cache (teamCatalog.ts), not from a
   // fetch: this summary has to be right the instant the pane opens, and it
@@ -102,7 +132,7 @@ export function SportsLeaguesPane({
           onEnter={() => onToggleSport('football')}
           onLeft={onLeaveToRail}
           onRight={() => void setFocus(F1_FOCUS_KEY)}
-          onDown={goToLeagues}
+          onDown={goToChipsOrLeagues}
         />
         <SettingsRow
           focusKey={F1_FOCUS_KEY}
@@ -113,7 +143,7 @@ export function SportsLeaguesPane({
           onEnter={() => onToggleSport('f1')}
           onLeft={() => void setFocus(FOOTBALL_FOCUS_KEY)}
           onRight={() => {}}
-          onDown={goToLeagues}
+          onDown={goToChipsOrLeagues}
         />
       </div>
 
@@ -134,8 +164,25 @@ export function SportsLeaguesPane({
           <SettingsColumnHeader title="Following" meta={`${chosen.length} ${chosen.length === 1 ? 'league' : 'leagues'}`} />
           <div className="settings-chips">
             {chosen.length === 0 && <p className="settings-pane-hint">Nothing followed yet — pick leagues below.</p>}
-            {chosen.map((league) => (
-              <LeagueChip key={league.id} league={league} onRemove={() => onToggleLeague(league.id)} onDown={goToTeams} onUp={() => void setFocus(FOOTBALL_FOCUS_KEY)} />
+            {chosen.map((league, index) => (
+              <LeagueChip
+                key={league.id}
+                league={league}
+                focusKey={chipFocusKey(league.id)}
+                onRemove={() => onToggleLeague(league.id)}
+                onDown={goToTeams}
+                onUp={() => void setFocus(FOOTBALL_FOCUS_KEY)}
+                // The chips wrap as one horizontal strip, so Left/Right walk
+                // it and Left off the first one leaves for the rail like
+                // every other left edge in this pane.
+                onLeft={() => {
+                  if (index === 0) onLeaveToRail()
+                  else void setFocus(chipFocusKey(chosen[index - 1].id))
+                }}
+                onRight={() => {
+                  if (index + 1 < chosen.length) void setFocus(chipFocusKey(chosen[index + 1].id))
+                }}
+              />
             ))}
           </div>
 
@@ -155,7 +202,7 @@ export function SportsLeaguesPane({
             onEnter={onManageTeams}
             onLeft={onLeaveToRail}
             onRight={onManageTeams}
-            onUp={() => void setFocus(FOOTBALL_FOCUS_KEY)}
+            onUp={() => void setFocus(chosen.length > 0 ? chipFocusKey(chosen[chosen.length - 1].id) : FOOTBALL_FOCUS_KEY)}
             onDown={goToLeagues}
           />
 
@@ -217,16 +264,22 @@ export function SportsLeaguesPane({
 
 function LeagueChip({
   league,
+  focusKey,
   onRemove,
   onUp,
   onDown,
+  onLeft,
+  onRight,
 }: {
   league: LeagueDef
+  focusKey: string
   onRemove: () => void
   onUp: () => void
   onDown: () => void
+  onLeft: () => void
+  onRight: () => void
 }) {
-  const { ref, focused } = useSettingsFocusable({ onEnter: onRemove, onUp, onDown })
+  const { ref, focused } = useSettingsFocusable({ focusKey, onEnter: onRemove, onUp, onDown, onLeft, onRight })
   return (
     <button ref={ref} className={`settings-chip ${focused ? 'focused' : ''}`} onClick={onRemove}>
       {league.badge && <img className="settings-chip-badge" src={league.badge} alt="" />}

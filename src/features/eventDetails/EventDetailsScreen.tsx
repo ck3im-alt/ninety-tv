@@ -187,6 +187,31 @@ export function EventDetailsScreen({
         ? partitioned.trusted[0].key
         : undefined
 
+  // WHERE FOCUS LANDS, which is not the same question as which row wears the
+  // top-pick styling.
+  //
+  // Usually they are the same row. They part company when every match this
+  // playlist produced is a loose candidate (see streamConfidence.ts — a
+  // broadcaster-map word overlap or a weak EPG guess): `trusted` is then
+  // empty, so there is no top pick to call out, and the screen used to fall
+  // all the way back to Back — with a full, open list of streams sitting
+  // right below it. That is the reported bug: entering a match focused the
+  // Back button instead of the first stream.
+  //
+  // The candidate fallback is exactly as wide as the case that needs it, and
+  // the two conditions are the same one by construction: `topPickFocusKey`
+  // is defined whenever `trusted` is non-empty, and CandidateStreamList
+  // opens by default on precisely the opposite condition (`defaultOpen =
+  // trusted.length === 0` — see StreamSections). So this only ever names a
+  // candidate row while those rows are actually rendered.
+  //
+  // What it deliberately does NOT do is widen `topPickKey` below: a fuzzy
+  // guess may be the best thing on offer and therefore worth focusing, but
+  // labelling it "top pick" would make an editorial claim the match
+  // confidence does not support.
+  const initialFocusKey =
+    topPickFocusKey ?? (partitioned && partitioned.candidates.length > 0 ? partitioned.candidates[0].key : undefined)
+
   // This screen is lazy-loaded (see App.tsx's SCREEN_FOCUS_KEYS) — the root
   // container is targeted by its own key rather than ROOT_FOCUS_KEY so
   // initial focus resolves correctly even if `screen` changes to
@@ -194,16 +219,16 @@ export function EventDetailsScreen({
   // initial-focus effect for the full explanation). Back is the only
   // resolvable target while matches are still loading (state.status starts
   // 'loading' on every mount, so this is always correct at the moment the
-  // container first registers); once ready, this points at the #1
-  // recommended stream instead.
+  // container first registers); once ready, this points at the first stream
+  // row on screen instead (see initialFocusKey).
   const { ref, focusKey } = useFocusable({
     focusKey: SCREEN_FOCUS_KEY,
     trackChildren: true,
-    preferredChildFocusKey: topPickFocusKey ?? BACK_FOCUS_KEY,
+    preferredChildFocusKey: initialFocusKey ?? BACK_FOCUS_KEY,
   })
 
-  // Explicitly advances focus onto the #1 recommendation the moment
-  // matches finish resolving — changing preferredChildFocusKey above only
+  // Explicitly advances focus onto the first stream row the moment matches
+  // finish resolving — changing preferredChildFocusKey above only
   // affects FUTURE focus resolutions (e.g. if this container gets
   // setFocus'd again later), it does not retroactively move focus that's
   // already sitting on Back. Keyed on the status transition alone (not on
@@ -221,11 +246,11 @@ export function EventDetailsScreen({
   // they were on. Claim it only from the loading-state fallback, or from
   // nothing at all.
   useEffect(() => {
-    if (state.status !== 'ready' || !topPickFocusKey) return
+    if (state.status !== 'ready' || !initialFocusKey) return
     const current = getCurrentFocusKey()
     const holdsRealFocus = current != null && current !== BACK_FOCUS_KEY && current !== SCREEN_FOCUS_KEY && doesFocusableExist(current)
     if (holdsRealFocus) return
-    void setFocus(topPickFocusKey)
+    void setFocus(initialFocusKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status])
 
@@ -244,21 +269,23 @@ export function EventDetailsScreen({
   // (the effect above owns that), and never while focus is legitimately on
   // Back or the container.
   useEffect(() => {
-    if (state.status !== 'ready' || !topPickFocusKey) return
+    if (state.status !== 'ready' || !initialFocusKey) return
     const current = getCurrentFocusKey()
     if (current == null || current === BACK_FOCUS_KEY || current === SCREEN_FOCUS_KEY) return
     if (doesFocusableExist(current)) return
-    void setFocus(topPickFocusKey)
+    void setFocus(initialFocusKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partitioned])
 
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="event-details">
-        <div className="event-details-topbar">
-          <BackButton onBack={onBack} />
-          <span className="event-details-logo">NINETY</span>
-        </div>
+        {/* Deliberately NOT wrapped in a header row of its own. It is
+            absolutely positioned over the hero (see .event-details-back), so
+            it costs no layout height and the competition artwork inside
+            EventHeader starts at the very top of the canvas instead of below
+            a strip of exposed page background. */}
+        <BackButton onBack={onBack} />
 
         {isTeamFixture ? <FootballEventHeader event={event} /> : <GenericEventHeader event={event} />}
 
@@ -287,6 +314,10 @@ export function EventDetailsScreen({
   )
 }
 
+// The screen's only chrome — this screen renders no TopNav and no wordmark
+// (see App.tsx's TopNav condition); Back is overlaid on the hero artwork
+// rather than sitting in a bar above it.
+//
 // Its own component purely so its useFocusable() runs INSIDE the screen's
 // FocusContext.Provider and it therefore registers as a CHILD of
 // `event-details-screen`.

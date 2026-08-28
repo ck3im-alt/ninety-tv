@@ -231,6 +231,7 @@ describe('migrateSinglePlaylistIfNeeded', () => {
       favoriteCountries: ['Norway', 'Sweden'],
       streamType: 'tv',
       favoriteTeamIds: [],
+      homeContentMode: 'all',
     })
     preferences.markOnboardingComplete()
     session.saveFilters(new Set(['Germany']), new Set(['Norway::Movies']))
@@ -247,6 +248,7 @@ describe('migrateSinglePlaylistIfNeeded', () => {
       favoriteCountries: ['Norway', 'Sweden'],
       streamType: 'tv',
       favoriteTeamIds: [],
+      homeContentMode: 'all',
     })
     expect(preferences.hasCompletedOnboarding()).toBe(true)
     expect(session.loadFilters()).toEqual({ hiddenCountries: ['Germany'], hiddenCategories: ['Norway::Movies'] })

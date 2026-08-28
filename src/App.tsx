@@ -522,9 +522,12 @@ function App() {
         screen !== 'event-details' &&
         screen !== 'settings' && (
         <TopNav
-          // Event Details and Settings both render their own back-only
-          // header instead of TopNav (see EventDetailsScreen.tsx and
-          // SettingsScreen.tsx). For Settings that isn't cosmetic: TopNav is
+          // Event Details and Settings both stay off TopNav and carry their
+          // own Back control instead (see EventDetailsScreen.tsx and
+          // SettingsScreen.tsx) — on Event Details that Back is overlaid on
+          // the hero artwork rather than occupying a header row, so the
+          // competition artwork can start at the very top of the canvas.
+          // For Settings this isn't cosmetic either: TopNav is
           // 84px tall, so keeping it would push a screen designed for the
           // full 1080px canvas into page-level scrolling — the exact thing
           // the Settings rebuild exists to remove.

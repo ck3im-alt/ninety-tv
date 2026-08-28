@@ -148,7 +148,7 @@ Konklusjon: Vi er tidlig nok ute til at Tizen-tilpasning er billig. Viktigste pr
 
 **Steg 1 — FERDIG (2026-08-12):**
 - ✅ `config.xml` opprettet i prosjektroten (W3C widget + `tizen:application`, `tizen:profile name="tv-samsung"`, `tizen:setting` med `hwkey-event="enable"` for Back-knapp-håndtering, landscape-orientering)
-  - ⚠️ **TODO før pakking:** `tizen:application id`/`package`-attributtet (`AbCdEfGhIj.NinetyTV` / `AbCdEfGhIj`) er en **placeholder**. Den ekte 10-tegns package-ID-en genereres av Tizen Certificate Manager sammen med author-sertifikatet i Fase E — må byttes ut da, ikke før.
+  - ~~⚠️ **TODO før pakking:** `tizen:application id`/`package`-attributtet (`AbCdEfGhIj.NinetyTV` / `AbCdEfGhIj`) er en **placeholder**.~~ **Løst i Fase E:** `config.xml` bærer nå den ekte ID-en `NinetyTvAp.NinetyTV` / `NinetyTvAp`. `tizen run -p NinetyTvAp.NinetyTV` er kommandoen som gjelder (se `docs/TIZEN-DEVICE-TESTING.md`).
 - ✅ Placeholder-ikon `public/tizen/icon.png` (117×117, solid bakgrunnsfarge) generert som plassholder — **ekte NINETY-ikonmerke i lime-grønn/navy-stil (jf. designsystemet) må lages og byttes inn før sertifisering**
 - ✅ `index.html` ryddet: peker til Tizen-ikonet, fast TV-viewport (1920×1080, `user-scalable=no`), tittel endret til "NINETY"
 - ✅ `src/types/tizen.d.ts` opprettet — minimal ambient-deklarasjon av `window.tizen` (`tvinputdevice`, `application`), utvides etter hvert som flere Tizen-API-er tas i bruk

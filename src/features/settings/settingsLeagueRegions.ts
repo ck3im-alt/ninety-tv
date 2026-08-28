@@ -4,12 +4,15 @@
 // The catalog is ~50 competitions. Rendering all of them at once — which is
 // what the old Settings screen did, in an eight-column card grid — is both a
 // wall of noise from a sofa and a focus graph with no sensible structure.
-// One region at a time is the same interaction concept onboarding's league
-// browser uses (features/onboarding/LeagueBrowser.tsx), and this is
-// deliberately a SEPARATE implementation of it: onboarding's is a
-// fixed-height first-run panel with its own focus chain, Settings' is a
-// column inside a dense control pane. Sharing the components would couple
-// two very different layouts for no benefit.
+// One region at a time is the concept this pane keeps. Onboarding's league
+// browser used to work the same way and no longer does — it dropped the
+// region rail in 2026-08-28's redesign for a paginated flat grid, because a
+// first-run wizard has to get through the whole catalogue in a few presses
+// (see features/onboarding/CompetitionBrowser.tsx). Settings is the
+// opposite case: a dense control pane the user comes back to in order to
+// change one specific thing, where "open the region, fix the league" is
+// exactly right. The two were always separate implementations; they are now
+// separate interactions too.
 //
 // What the two DO share is meaning, not markup: canonical ids, region,
 // countryCode, and — via data/sports/competitionGrouping.ts — which

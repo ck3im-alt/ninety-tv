@@ -8,8 +8,9 @@
 // What Settings adds over onboarding's "first pick wins" is a way to change
 // that first pick without deselecting and reselecting countries in the right
 // order — which is both tedious and easy to get silently wrong.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusRecovery } from '../../core/platform'
 import { MAX_PREFERRED_COUNTRIES } from '../../data/preferences'
 import { flagSrc } from '../../data/countryCodes'
 import { SettingsAction, SettingsColumnHeader, SettingsPaneHeader, SettingsRow } from './settingsPrimitives'
@@ -32,6 +33,13 @@ function selectedFocusKey(name: string, index: number): string {
 }
 function availableFocusKey(name: string): string {
   return `settings-country-available-${name}`
+}
+// The Available column only owns the pane's entry key while the Preferred
+// column is empty and therefore renders no row to own it. Stated once here
+// so the rendered rows and the focus-recovery bookkeeping below can never
+// disagree about which key a given row is registered under.
+function availableUnselectedFocusKey(name: string, index: number, selectedCount: number): string {
+  return selectedCount === 0 && index === 0 ? PANE_ENTRY_FOCUS_KEY : availableFocusKey(name)
 }
 
 export function CountriesPane({
@@ -62,12 +70,40 @@ export function CountriesPane({
   }, [selected])
 
   const atCap = selected.length >= MAX_PREFERRED_COUNTRIES
-  const unselected = available.filter((country) => !selected.includes(country.name))
+  const unselected = useMemo(() => available.filter((country) => !selected.includes(country.name)), [available, selected])
   const byName = new Map(available.map((country) => [country.name, country]))
   const isPrimary = highlighted != null && selected[0] === highlighted
-  const firstAvailableKey = unselected[0] ? availableFocusKey(unselected[0].name) : PANE_ENTRY_FOCUS_KEY
+  const firstAvailableKey = unselected[0] ? availableUnselectedFocusKey(unselected[0].name, 0, selected.length) : PANE_ENTRY_FOCUS_KEY
   const lastSelectedKey =
     selected.length > 0 ? selectedFocusKey(selected[selected.length - 1], selected.length - 1) : MAKE_PRIMARY_FOCUS_KEY
+
+  // ADDING A COUNTRY REMOVES THE ROW THAT IS HOLDING FOCUS. `unselected` is
+  // derived by subtracting the preferred list, so the moment onAdd persists,
+  // the Available row the user just pressed Enter on stops being rendered —
+  // and the library's own recovery for a vanished focusable is "focus my
+  // parent", which here is the Settings screen root and resolves back to the
+  // section rail. Both columns therefore state where focus goes instead:
+  // next row at the same index, else the previous one, else the anchor.
+  const availableEntries = useMemo(
+    () => unselected.map((country, index) => ({ id: country.name, focusKey: availableUnselectedFocusKey(country.name, index, selected.length) })),
+    [unselected, selected.length],
+  )
+  const selectedEntries = useMemo(
+    () => selected.map((name, index) => ({ id: name, focusKey: selectedFocusKey(name, index) })),
+    [selected],
+  )
+  // Anchored on the Preferred column: adding the last remaining Available
+  // country is exactly the case where there is no neighbour left, and the
+  // country the user just chose is the most sensible place to be standing.
+  useFocusRecovery({
+    items: availableEntries,
+    anchorFocusKey: selected.length > 0 ? PANE_ENTRY_FOCUS_KEY : MAKE_PRIMARY_FOCUS_KEY,
+  })
+  // The Preferred column changes IDENTITY as well as membership: "Make
+  // primary" reorders it, which moves PANE_ENTRY_FOCUS_KEY to a different
+  // row and remounts both. Same hook, because "the key focus points at was
+  // retired" is the same failure as "the row went away".
+  useFocusRecovery({ items: selectedEntries, anchorFocusKey: MAKE_PRIMARY_FOCUS_KEY })
 
   return (
     <>
@@ -150,7 +186,7 @@ export function CountriesPane({
             {unselected.map((country, index) => (
               <SettingsRow
                 key={`${country.name}-${selected.length === 0 && index === 0 ? 'entry' : 'row'}`}
-                focusKey={selected.length === 0 && index === 0 ? PANE_ENTRY_FOCUS_KEY : availableFocusKey(country.name)}
+                focusKey={availableUnselectedFocusKey(country.name, index, selected.length)}
                 label={country.name}
                 value={`${country.count.toLocaleString()} channels`}
                 // Dimmed but still reachable at the cap: the row explains

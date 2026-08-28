@@ -5,8 +5,9 @@
 // on one screen no matter how many playlists exist — four action buttons per
 // playlist rendered inline would be a scrolling document by the second
 // playlist, which is exactly the failure mode this rebuild exists to fix.
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusRecovery } from '../../core/platform'
 import { isResyncable, playlistSourceLabel, type PlaylistDefinition } from '../../data/playlists/playlistDefinition'
 import { SettingsAction, SettingsColumnHeader, SettingsPaneHeader, SettingsRow } from './settingsPrimitives'
 import { PANE_ENTRY_FOCUS_KEY } from './useSettingsFocusable'
@@ -14,7 +15,24 @@ import { formatLastSynced } from './formatLastSynced'
 import type { PlaylistLibrary, PlaylistSyncStatus } from '../../data/playlists/usePlaylistLibrary'
 
 const ADD_FOCUS_KEY = 'settings-playlists-add'
+// The detail column's actions. Explicit keys, not the library's
+// auto-generated ones: they are the destination of every "Left, back to the
+// list" and they are what focus has to be able to SURVIVE ON (or be
+// recovered from) when the playlist they act on is removed.
 const ACTION_RENAME_FOCUS_KEY = 'settings-playlist-rename'
+const ACTION_EDIT_FOCUS_KEY = 'settings-playlist-edit'
+const ACTION_RESYNC_FOCUS_KEY = 'settings-playlist-resync'
+const ACTION_REMOVE_FOCUS_KEY = 'settings-playlist-remove'
+const ACTION_RESYNC_ALL_FOCUS_KEY = 'settings-playlist-resync-all'
+const DETAIL_FOCUS_KEYS = new Set<string>([
+  ACTION_RENAME_FOCUS_KEY,
+  ACTION_EDIT_FOCUS_KEY,
+  ACTION_RESYNC_FOCUS_KEY,
+  ACTION_REMOVE_FOCUS_KEY,
+  ACTION_RESYNC_ALL_FOCUS_KEY,
+])
+// Referentially stable, because useFocusRecovery takes it as a dependency.
+const isDetailFocusKey = (focusKey: string) => DETAIL_FOCUS_KEYS.has(focusKey)
 
 // The list and the "+ Add playlist" button below it are one vertical chain,
 // stated rather than left to the library's geometric search: measured on a
@@ -56,7 +74,32 @@ export function PlaylistsPane({
   }, [playlists])
 
   const active = playlists.find((p) => p.id === activeId) ?? null
+  const activeIndex = playlists.findIndex((p) => p.id === activeId)
+  // The key the ACTIVE row is actually registered under — index 0 owns
+  // PANE_ENTRY_FOCUS_KEY, so reconstructing `settings-playlist-${id}` from
+  // the id alone is wrong for the first playlist and lands focus on a key
+  // no component holds. Resolved once, here, and handed to the detail
+  // column rather than rebuilt there.
+  const activeRowFocusKey = activeIndex >= 0 ? rowFocusKey(playlists[activeIndex].id, activeIndex) : PANE_ENTRY_FOCUS_KEY
   const resyncableCount = playlists.filter((p) => isResyncable(p.source)).length
+
+  // Removing a playlist unmounts its row, and — when it was the last one —
+  // the whole detail column with it, taking whichever action confirmed the
+  // removal down too. Both are recovered explicitly: a surviving row at the
+  // same index, else the previous row, else the pane's own Add action.
+  // Without this the library restores focus to the Settings screen root,
+  // which re-resolves through the section rail.
+  const rowEntries = useMemo(
+    () => playlists.map((playlist, index) => ({ id: playlist.id, focusKey: rowFocusKey(playlist.id, index) })),
+    [playlists],
+  )
+  useFocusRecovery({
+    items: rowEntries,
+    // PANE_ENTRY_FOCUS_KEY is the empty state's Add action once the list is
+    // gone, and the Add button below the list while any playlist remains.
+    anchorFocusKey: playlists.length === 0 ? PANE_ENTRY_FOCUS_KEY : ADD_FOCUS_KEY,
+    dependentFocusKeys: isDetailFocusKey,
+  })
 
   if (playlists.length === 0) {
     return (
@@ -133,7 +176,15 @@ export function PlaylistsPane({
 
         <div className="settings-column detail">
           <SettingsColumnHeader title={active ? active.name : 'Playlist'} />
-          {active && <PlaylistActions library={library} playlist={active} resyncableCount={resyncableCount} onRequestDialog={onRequestDialog} />}
+          {active && (
+            <PlaylistActions
+              library={library}
+              playlist={active}
+              activeRowFocusKey={activeRowFocusKey}
+              resyncableCount={resyncableCount}
+              onRequestDialog={onRequestDialog}
+            />
+          )}
         </div>
       </div>
     </>
@@ -143,18 +194,23 @@ export function PlaylistsPane({
 function PlaylistActions({
   library,
   playlist,
+  activeRowFocusKey,
   resyncableCount,
   onRequestDialog,
 }: {
   library: PlaylistLibrary
   playlist: PlaylistDefinition
+  // Where this playlist's row lives in the list column. Passed in because
+  // only the list knows it: the first row is registered under
+  // PANE_ENTRY_FOCUS_KEY, not under a key derivable from the playlist id.
+  activeRowFocusKey: string
   resyncableCount: number
   onRequestDialog: (request: PlaylistDialogRequest) => void
 }) {
   const status = library.syncStatus(playlist.id)
   const syncing = status.kind === 'syncing'
   const resyncable = isResyncable(playlist.source)
-  const backToList = () => void setFocus(`settings-playlist-${playlist.id}`)
+  const backToList = () => void setFocus(activeRowFocusKey)
 
   return (
     <div className="settings-detail">
@@ -176,12 +232,14 @@ function PlaylistActions({
       <div className="settings-detail-actions">
         <SettingsAction focusKey={ACTION_RENAME_FOCUS_KEY} label="Rename" onEnter={() => onRequestDialog({ kind: 'rename', playlist })} onLeft={backToList} />
         <SettingsAction
+          focusKey={ACTION_EDIT_FOCUS_KEY}
           label={resyncable ? 'Edit connection' : 'Replace file'}
           onEnter={() => onRequestDialog({ kind: 'edit', playlist })}
           onLeft={backToList}
         />
         {resyncable ? (
           <SettingsAction
+            focusKey={ACTION_RESYNC_FOCUS_KEY}
             // Neither unmounted NOR made unfocusable while syncing — only
             // its label changes, and Enter is inert until the sync finishes.
             // An async status change must never pull the focused control out
@@ -199,9 +257,15 @@ function PlaylistActions({
             the file again to update it.
           </p>
         )}
-        <SettingsAction label="Remove" tone="danger" onEnter={() => onRequestDialog({ kind: 'remove', playlist })} onLeft={backToList} />
+        <SettingsAction
+          focusKey={ACTION_REMOVE_FOCUS_KEY}
+          label="Remove"
+          tone="danger"
+          onEnter={() => onRequestDialog({ kind: 'remove', playlist })}
+          onLeft={backToList}
+        />
         {resyncableCount > 1 && (
-          <SettingsAction label="Resync all" onEnter={() => void library.resyncAll()} onLeft={backToList} />
+          <SettingsAction focusKey={ACTION_RESYNC_ALL_FOCUS_KEY} label="Resync all" onEnter={() => void library.resyncAll()} onLeft={backToList} />
         )}
       </div>
 

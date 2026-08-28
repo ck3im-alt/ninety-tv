@@ -2,6 +2,8 @@
 
 **Purpose:** Verify the current HTML5 `<video>` + MSE player (`src/core/player/htmlVideoPlayer.ts`, hls.js + mpegts.js) is fit for real Samsung Tizen hardware before any AVPlay work is considered. This is a manual test-execution checklist, run against a signed `.wgt` on a physical Samsung TV (or Remote Test Lab) — not a code change.
 
+**Prerequisite:** a signed artifact produced by [`TIZEN-DEVICE-TESTING.md`](TIZEN-DEVICE-TESTING.md) §2 and checked by [`BETA-RELEASE-CHECKLIST.md`](BETA-RELEASE-CHECKLIST.md) §D. Those two documents own build/sign/install; this sheet only exercises the result.
+
 **How to use:** Work through each section top to bottom on the target TV(s). Fill in PASS/FAIL and notes inline. Re-run the full sheet per TV model/firmware year tested (note the model at the top of each run). Keep completed sheets in this repo (copy this file to `docs/hardware-runs/<date>-<model>.md` per run, or append results below) so qualification evidence is durable.
 
 **Run metadata**
@@ -21,7 +23,7 @@
 
 | # | Test | Procedure | Expected result | PASS/FAIL | Notes |
 |---|---|---|---|---|---|
-| 1.1 | Signed widget installation | Sign `.wgt` with author+distributor certs (Tizen Certificate Manager), install via Tizen Studio / SDB / USB to target TV | Installs without certificate or profile errors; app icon appears in TV app list | | |
+| 1.1 | Signed widget installation | Sign and install by the one tested procedure in [`TIZEN-DEVICE-TESTING.md`](TIZEN-DEVICE-TESTING.md) §2 — `tz pack` with the Samsung author+distributor certs, then classic `tizen install` over the LAN. **Not** `sdb install` and not `tz install`: both route through the `sdb shell` channel Samsung blocks below Partner tier, and silently do nothing | Installs without certificate or profile errors; app icon appears in TV app list | | |
 | 1.2 | First launch | Launch app fresh (no prior cache/playlist) | App boots to onboarding/connect screen within a few seconds; no crash, no blank screen | | |
 | 1.3 | Relaunch with cached playlist | Complete onboarding with a real playlist, fully exit app, relaunch | App boots directly to Home using cached channel list; no re-onboarding prompt | | |
 | 1.4 | Relaunch after cache recovery | Corrupt/clear only the channel cache (not onboarding prefs) via storage inspection or Admin "Resync playlist", relaunch | App detects missing/stale cache and recovers channel list from the stored source (playlist URL/Xtream creds) without requiring full re-onboarding | | |

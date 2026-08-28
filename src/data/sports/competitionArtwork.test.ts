@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MATCH_HERO_COMPETITION_IDS, competitionMatchHero } from './competitionArtwork'
+import { HOME_HERO_COMPETITION_IDS, MATCH_HERO_COMPETITION_IDS, competitionHomeHero, competitionMatchHero } from './competitionArtwork'
 
 // Every competition that has curated Match View artwork, and the file it must
 // resolve to. Spelled out rather than derived from the module's own map, so a
@@ -82,5 +82,74 @@ describe('competitionMatchHero — name collisions must not leak artwork', () =>
     expect(competitionMatchHero('Premier League')).toBeNull()
     expect(competitionMatchHero('La Liga')).toBeNull()
     expect(competitionMatchHero('UEFA Champions League')).toBeNull()
+  })
+})
+
+// Same treatment for Home's hero family. Spelled out for the same reason:
+// the failure this catches is a competition silently wearing another
+// league's stadium, which no type check can see.
+const EXPECTED_HOME: Array<[id: string, file: string]> = [
+  ['football_premier_league', 'League_main_hero/Premier_League.jpg'],
+  ['football_la_liga', 'League_main_hero/La_liga.jpg'],
+  ['football_serie_a', 'League_main_hero/Serie_A.jpg'],
+  ['football_bundesliga', 'League_main_hero/Bundesliga.jpg'],
+  ['football_ligue_1', 'League_main_hero/Ligue_1.jpg'],
+  ['football_champions_league', 'League_main_hero/Champions_League.jpg'],
+  ['football_europa_league', 'League_main_hero/Europa_League.jpg'],
+  ['norway-eliteserien', 'League_main_hero/Eliteserien.jpg'],
+  ['sweden-allsvenskan', 'League_main_hero/Allsvenskan.jpg'],
+]
+
+describe('competitionHomeHero', () => {
+  it.each(EXPECTED_HOME)('maps %s to its own hero', (id, file) => {
+    expect(competitionHomeHero(id)).toContain(file)
+  })
+
+  it('covers exactly the competitions listed above — nothing silently added or dropped', () => {
+    expect([...HOME_HERO_COMPETITION_IDS].sort()).toEqual(EXPECTED_HOME.map(([id]) => id).sort())
+  })
+
+  it('gives each competition a DIFFERENT image (no accidental shared entry)', () => {
+    const urls = HOME_HERO_COMPETITION_IDS.map((id) => competitionHomeHero(id)!)
+    expect(new Set(urls).size).toBe(urls.length)
+  })
+
+  it('resolves paths against the app base so the Tizen widget and subpath deploys both work', () => {
+    for (const id of HOME_HERO_COMPETITION_IDS) {
+      const url = competitionHomeHero(id)!
+      expect(url).toMatch(/backgrounds\/League_main_hero\//)
+      expect(url).not.toMatch(/[^:]\/\//)
+    }
+  })
+
+  // The two families are separate directories on purpose (see the module's
+  // own comment): Match View is lit at both edges for the crests-and-VS
+  // layout, Home is dark on the left under its title text. Reusing one for
+  // the other is a real regression, so assert they never converge.
+  it('never serves a Match View banner as a Home hero', () => {
+    for (const id of HOME_HERO_COMPETITION_IDS) {
+      expect(competitionHomeHero(id)).not.toBe(competitionMatchHero(id))
+      expect(competitionHomeHero(id)).not.toContain('Match_hero/')
+    }
+  })
+
+  // Denmark has a Match View banner but no Home hero yet — the one
+  // competition where the two maps legitimately disagree, and the case that
+  // proves an uncovered competition returns null instead of borrowing.
+  it('returns null for a competition with Match View artwork but no Home hero', () => {
+    expect(competitionMatchHero('denmark-superliga')).toContain('Superliga_DK.jpg')
+    expect(competitionHomeHero('denmark-superliga')).toBeNull()
+  })
+
+  it('returns null rather than a placeholder for an uncovered competition', () => {
+    expect(competitionHomeHero('england-championship')).toBeNull()
+    expect(competitionHomeHero('austria-bundesliga')).toBeNull()
+    expect(competitionHomeHero('brazil-serie-a')).toBeNull()
+    expect(competitionHomeHero('canada-canadian-premier-league')).toBeNull()
+  })
+
+  it('returns null for a missing/undefined leagueId', () => {
+    expect(competitionHomeHero(undefined)).toBeNull()
+    expect(competitionHomeHero('')).toBeNull()
   })
 })

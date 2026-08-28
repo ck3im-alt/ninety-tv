@@ -30,7 +30,7 @@ execFileSync('zip', ['-r', outFile, '.'], { cwd: stagingDir, stdio: 'inherit' })
 
 console.log(`\nUnsigned widget written to ${outFile}`);
 console.log(`Raw widget contents (for signing) left at ${stagingDir}`);
-console.log('Sign + install with the Tizen CLI once Tizen Studio is set up (see TIZEN-PLAN.md, Fase E):');
+console.log('Sign + install (see docs/TIZEN-DEVICE-TESTING.md for the full procedure):');
 // `tizen package` must point at a directory whose ROOT contains config.xml
 // directly (.tizen-staging, not dist-tizen) -- 2026-08-20 real incident:
 // pointing it at dist-tizen instead zips up the already-built ninety-tv.wgt
@@ -41,8 +41,14 @@ console.log('Sign + install with the Tizen CLI once Tizen Studio is set up (see 
 // expects doesn't exist, then dereferences the never-parsed doc). Kept the
 // staging directory around (not cleaned up) specifically so this command
 // has something valid to point at.
-console.log(`  tizen package -t wgt -s <profile> -- ${stagingDir}`);
-console.log('  tizen install -n <profile-output>.wgt -t <device-id>');
+// SIGNING IS `tz pack`, NOT `tizen package` -- 2026-08-28, measured on this
+// machine. Both CLIs accept a profile named `ninety-tv`, but they read
+// different profile stores: `tz` picks the Samsung VD author + VD DEVELOPER
+// distributor certs a retail TV actually requires, while `tizen package`
+// picks the generic Tizen Public Distributor TEST signer, which the TV
+// rejects. Both commands succeed. Only one of the packages installs.
+console.log(`  tz pack -b ${outFile} -t wgt -s ninety-tv -o ${resolve(root, 'dist-tizen', 'ninety-tv-signed.wgt')}`);
+console.log('  tizen install -n ninety-tv-signed.wgt -s <TV_IP>:26101');
 
 if (!existsSync(outFile)) {
   console.error('Expected output file was not created.');

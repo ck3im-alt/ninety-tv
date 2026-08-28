@@ -13,7 +13,7 @@ describe('SETTINGS_SECTIONS', () => {
       'playlists',
       'sports',
       'countries',
-      'playback',
+      'personalisation',
       'visibility',
     ])
   })
@@ -24,10 +24,32 @@ describe('SETTINGS_SECTIONS', () => {
   })
 })
 
+describe('SETTINGS_SECTIONS — the 2026-08-28 rename', () => {
+  // The section grew a second, unrelated control (Home content breadth) and
+  // stopped being about playback at all. Renamed rather than joined by a
+  // sixth rail destination, and renamed all the way down to its id — a
+  // route name that no longer describes its contents is a small lie that
+  // costs the next reader real time.
+  it('has no "playback" section left anywhere in the model', () => {
+    expect(SETTINGS_SECTIONS.map((section) => section.id)).not.toContain('playback')
+    expect(SETTINGS_SECTIONS.map((section) => section.label)).not.toContain('Playback')
+  })
+
+  it('still offers exactly five rail destinations', () => {
+    expect(SETTINGS_SECTIONS).toHaveLength(5)
+  })
+
+  it('labels the renamed section "Personalisation"', () => {
+    expect(SETTINGS_SECTIONS.find((section) => section.id === 'personalisation')?.label).toBe('Personalisation')
+  })
+})
+
 describe('adjacentSection', () => {
   it('moves one section per press', () => {
     expect(adjacentSection('playlists', 1)).toBe('sports')
     expect(adjacentSection('countries', -1)).toBe('sports')
+    expect(adjacentSection('countries', 1)).toBe('personalisation')
+    expect(adjacentSection('visibility', -1)).toBe('personalisation')
   })
 
   it('clamps at both ends rather than wrapping — a D-pad press must never jump the length of the rail', () => {

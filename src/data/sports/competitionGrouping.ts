@@ -3,12 +3,14 @@
 //
 // Two such surfaces exist right now and they are deliberately separate
 // components — onboarding's fixed-height league browser
-// (features/onboarding/groupExpandedLeagues.ts) and Settings' region rail
+// (features/onboarding/browseCompetitions.ts) and Settings' region rail
 // (features/settings/settingsLeagueRegions.ts). Their LAYOUT has no reason
-// to be shared: one is a first-run wizard panel, the other a dense control
-// pane. Their DATA SEMANTICS do: a user who follows the Champions League
-// from onboarding's "International competitions" group must find it in the
-// same group in Settings, not filed under "Europe".
+// to be shared, and since 2026-08-28 they do not even share an interaction:
+// onboarding pages a flat grid under a Domestic/International switch, while
+// Settings still opens one region at a time. Their DATA SEMANTICS do have
+// to match: a user who follows the Champions League from onboarding's
+// International scope must find it in Settings' "International
+// competitions" group, not filed under "Europe".
 //
 // Only the classification and its label live here — no grouping, no
 // ordering, no UI, no focus behaviour — so sharing this costs neither

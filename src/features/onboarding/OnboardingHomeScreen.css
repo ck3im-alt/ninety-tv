@@ -1,0 +1,93 @@
+/* Onboarding step 4 — Home personalisation.
+   Three full-width rows in one column. Not the shared .pick-card grid: these
+   are three mutually exclusive answers that each need a sentence of
+   explanation, which a 150px square tile cannot carry, and a single column
+   makes the whole decision one unambiguous Up/Down axis on a remote. */
+
+.home-mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  /* Long enough to be the obvious subject of the page, short enough that a
+     one-line description never wraps twice at sofa reading distance. */
+  max-width: 1100px;
+}
+
+.home-mode-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-primary);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color var(--motion-focus) var(--motion-ease), background var(--motion-focus) var(--motion-ease);
+}
+
+/* Same quiet tinted "selected" language as .pick-card — only the mark is
+   actually accent-coloured, so focus stays the loudest thing on screen. */
+.home-mode-row.selected {
+  border-color: #33513a;
+  background: var(--surface-elevated);
+}
+
+.home-mode-row.focused {
+  background: var(--surface-focus);
+  border-color: var(--border-focus);
+}
+
+/* Round rather than the square .pick-card-checkbox: this is a one-of-three
+   choice, and a checkbox shape would suggest it could be switched off. */
+.home-mode-mark {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #061006;
+}
+
+.home-mode-row.selected .home-mode-mark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.home-mode-mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.home-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.home-mode-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  color: var(--text-primary);
+  font-size: 26px;
+}
+
+.home-mode-recommended {
+  color: var(--accent);
+  font-size: var(--font-meta);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.home-mode-description {
+  color: var(--text-secondary);
+  font-size: var(--font-body);
+  line-height: 1.4;
+}

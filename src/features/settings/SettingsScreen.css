@@ -202,11 +202,37 @@
   padding-right: var(--space-2);
 }
 
-/* For short, fixed lists (Playback's three choices) that shouldn't stretch
-   to fill the pane. */
+/* For short, fixed lists (the Personalisation pane's two radio groups) that
+   shouldn't stretch to fill the pane. */
 .settings-list.bounded {
   flex: 0 0 auto;
   max-width: 720px;
+}
+
+/* One titled group of rows inside a pane. The pane itself spaces its
+   children generously (gap: var(--space-6)), which is right BETWEEN two
+   groups and far too loose between a group's own heading and its rows — so
+   a group owns its internal rhythm and the pane only separates the groups.
+   Introduced for the Personalisation pane, the first with two radio groups
+   on one surface. */
+.settings-group {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* A sentence belonging to ONE group, not to the pane as a whole — the
+   Personalisation pane's "it never hides anything" line, which is true of
+   stream preference and emphatically not of the Home recommendation modes
+   above it. Same 720px measure as the rows it describes. */
+.settings-group-hint {
+  max-width: 720px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-meta);
+  line-height: 1.45;
 }
 
 /* ---- Rows ---- */

@@ -56,8 +56,10 @@ export type CardStatus =
 // SportEvent.timeLabel is already the app-wide formatted kickoff ("Today
 // 21:00" / "Sat 21:00" — see mapEvent.ts). Inside Home's row every card is
 // today by construction, so the "Today " prefix is pure noise and is
-// dropped; the weekday form is left intact for the rare card that reaches
-// the row from tomorrow (see useHomeFeed's late-evening fallback fetch).
+// dropped; the weekday form is left intact for the cards that reach the row
+// from a later day (see Home's density expansion, homeFeedDensity.ts, whose
+// horizon stops one day short of a week so that weekday can never be
+// today's).
 export function cardTimeText(event: Pick<SportEvent, 'timeLabel'>): string {
   return event.timeLabel.replace(/^Today /, '')
 }

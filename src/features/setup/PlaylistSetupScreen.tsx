@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { buildXtreamUrl, loadChannelsForSource, loadChannelsFromFile, sourceFromUrl } from '../../data/playlists/connectPlaylist'
+import { buildXtreamUrl, connectPlaylistFromUrl, loadChannelsFromFile } from '../../data/playlists/connectPlaylist'
 import { useFocusScrollIntoView, useSpatialTextInput } from '../../core/platform'
 import { OnboardingTopBar } from '../onboarding/OnboardingStepper'
 import {
@@ -58,8 +58,8 @@ interface Props {
   notice?: string
 }
 
-// sourceFromUrl / buildXtreamUrl / loadChannelsForSource /
-// loadChannelsFromFile all live in data/playlists/connectPlaylist.ts now.
+// connectPlaylistFromUrl / buildXtreamUrl / loadChannelsFromFile all live
+// in data/playlists/connectPlaylist.ts now.
 // They used to be private to this screen, which meant Settings' own
 // add/edit-playlist flow would have had to reimplement "what an Xtream URL
 // looks like" and "what counts as a valid playlist" a second time. One
@@ -91,8 +91,12 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
     // thread. See nextPaint.
     await nextPaint()
     try {
-      const source = sourceFromUrl(url.trim())
-      onLoaded(await loadChannelsForSource(source), source)
+      // connectPlaylistFromUrl, not sourceFromUrl + load: a get.php URL
+      // whose panel has no usable player_api.php is retried as a plain M3U,
+      // and `source` is whichever of the two actually worked — so that is
+      // what gets persisted and resynced from later.
+      const { source, channels } = await connectPlaylistFromUrl(url)
+      onLoaded(channels, source)
       return true
     } catch (err) {
       setState({

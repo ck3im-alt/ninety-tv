@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { vi } from 'vitest'
 import { mapEvent, mapNinetyEvent } from './mapEvent'
+import { EMPTY_PERSONALIZATION_CONTEXT, eventTiming } from './homePersonalization'
+import { rankHomeFeed } from './homeRanking'
 import type { RawSportsDbEvent } from './theSportsDbClient'
 import type { NinetyEvent, NinetyBroadcast } from './ninetyApiClient'
 import type { LeagueDef } from './leagues'
@@ -117,10 +120,17 @@ describe('mapNinetyEvent form mapping', () => {
 })
 
 describe('mapNinetyEvent live status/score mapping (ninety-api liveScoreScheduler)', () => {
-  it('maps status "live" to isLive: true, isLiveHeuristic: undefined (real data, not a guess)', () => {
+  // CHANGED 2026-08-27 (was `toBeUndefined()`): isLiveHeuristic is now a
+  // plain boolean off effectiveLiveState rather than an undefined/boolean
+  // hybrid, so a provider-confirmed live event says `false` — "this is not
+  // a guess" — instead of staying silent. Every consumer reads it as
+  // `!event.isLiveHeuristic` (homeRowItems, EventHeader, MultiviewPane), so
+  // the rendered result is identical; the assertion moves because the value
+  // is now stated rather than absent.
+  it('maps status "live" to isLive: true, isLiveHeuristic: false (real data, not a guess)', () => {
     const result = mapNinetyEvent({ ...event([]), status: 'live', home_score: 1, away_score: 0 }, league)
     expect(result.isLive).toBe(true)
-    expect(result.isLiveHeuristic).toBeUndefined()
+    expect(result.isLiveHeuristic).toBe(false)
     expect(result.status).toBe('live')
   })
 
@@ -174,6 +184,173 @@ describe('mapNinetyEvent live status/score mapping (ninety-api liveScoreSchedule
     // status stays undefined so nothing downstream can mistake this for a
     // real backend-confirmed state.
     expect(result.status).toBeUndefined()
+  })
+})
+
+// ===========================================================================
+// THE PROVIDER-STATUS-LAG REGRESSION SUITE
+// ===========================================================================
+//
+// The acceptance case, in full: Lillestrøm - Egnatia Rrogozhinë (Europa
+// League), 19:00 CEST kickoff, actually being played, Ninety holding the
+// event, the kickoff time and two matching VGTV streams — but
+// footballdata.io still reporting `status: scheduled` and omitting the
+// fixture from GET /fixtures/live entirely. Before this suite existed the
+// match fell to eventTiming 'past', feedGroupFor returned null, and it
+// vanished from Home's "Live now & coming up" while on TV.
+//
+// The rule these pin: a provider FAILING TO UPDATE is inferred over; a
+// provider that has actually spoken is never contradicted. Wall clock is
+// frozen because mapNinetyEvent reads Date.now() itself — the window edges
+// are asserted to the minute, which real time cannot do reliably.
+describe('mapNinetyEvent effective live state vs provider status', () => {
+  const NOW = Date.parse('2026-08-27T19:45:00Z')
+  const at = (offsetMinutes: number) => new Date(NOW + offsetMinutes * 60_000).toISOString()
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const scheduledAt = (offsetMinutes: number, status: string | null = 'scheduled') =>
+    mapNinetyEvent({ ...event([]), status, start_time_utc: at(offsetMinutes) }, league)
+
+  // 1.
+  it('leaves a scheduled fixture 30 minutes BEFORE kickoff alone — upcoming, not live', () => {
+    const result = scheduledAt(30)
+    expect(result.isLive).toBe(false)
+    expect(result.isLiveHeuristic).toBe(false)
+    expect(eventTiming(result, NOW)).toBe('starting-soon')
+  })
+
+  // 2. THE BUG.
+  it('treats a scheduled fixture 5 minutes AFTER kickoff as live, and marks it as inferred', () => {
+    const result = scheduledAt(-5)
+    expect(result.isLive).toBe(true)
+    expect(result.isLiveHeuristic).toBe(true)
+    expect(eventTiming(result, NOW)).toBe('live')
+  })
+
+  // 3. Where the old 90-minute window used to drop the match on the floor.
+  it('keeps a scheduled fixture live 90 minutes after kickoff — stoppage and half-time are not "over"', () => {
+    const result = scheduledAt(-90)
+    expect(result.isLive).toBe(true)
+    expect(result.isLiveHeuristic).toBe(true)
+  })
+
+  // 4. Extra time and penalties in a knockout tie.
+  it('keeps a scheduled fixture live 140 minutes after kickoff — extra time is still football', () => {
+    const result = scheduledAt(-140)
+    expect(result.isLive).toBe(true)
+    expect(result.isLiveHeuristic).toBe(true)
+  })
+
+  // 5. The window has to end somewhere, or yesterday stays on Home forever.
+  it('stops inferring live once the fixture is outside football\'s in-play window', () => {
+    expect(scheduledAt(-150).isLive).toBe(true)
+    expect(scheduledAt(-151).isLive).toBe(false)
+    expect(eventTiming(scheduledAt(-151), NOW)).toBe('past')
+  })
+
+  // 6. A real signal is never relabelled as a guess.
+  it('reports a provider-confirmed live fixture as live and NOT heuristic', () => {
+    const result = mapNinetyEvent({ ...event([]), status: 'live', start_time_utc: at(-5) }, league)
+    expect(result.isLive).toBe(true)
+    expect(result.isLiveHeuristic).toBe(false)
+  })
+
+  // 7. The pre-existing null-status fallback, unchanged.
+  it('still infers live from a null status after kickoff (pre-live-tracking backend)', () => {
+    const result = scheduledAt(-5, null)
+    expect(result.isLive).toBe(true)
+    expect(result.isLiveHeuristic).toBe(true)
+    // ...and the absent status stays absent. Inference never fabricates one.
+    expect(result.status).toBeUndefined()
+  })
+
+  // 8-10. TERMINAL STATUSES. The provider has spoken; the clock does not
+  // get a vote. `complete` is ninety-api's spelling of finished (see its
+  // sports/eventStatus.ts — deliberately not "finished").
+  it.each(['complete', 'cancelled', 'postponed', 'abandoned'])(
+    'never infers live over the explicit status "%s", even just after kickoff',
+    (status) => {
+      const result = scheduledAt(-5, status)
+      expect(result.isLive).toBe(false)
+      expect(result.isLiveHeuristic).toBe(false)
+      expect(eventTiming(result, NOW)).toBe('past')
+    },
+  )
+
+  // An allow-list, not a deny-list: a status this build has never heard of
+  // is far more likely to be a new abnormal state than a new synonym for
+  // "not started", so it blocks inference rather than permitting it.
+  it('refuses to infer live over an unrecognized status', () => {
+    expect(scheduledAt(-5, 'suspended').isLive).toBe(false)
+  })
+
+  // THE POINT OF THE WHOLE DESIGN: the canonical value is never rewritten.
+  it('leaves the provider status untouched at "scheduled" while the UI state is live', () => {
+    const result = scheduledAt(-5)
+    expect(result.status).toBe('scheduled')
+    expect(result.isLive).toBe(true)
+  })
+
+  // Nothing is invented for an inferred-live match: no clock, no 0-0.
+  it('fabricates neither a score nor a match clock for an inferred-live fixture', () => {
+    const result = mapNinetyEvent(
+      { ...event([]), status: 'scheduled', start_time_utc: at(-5), home_score: null, away_score: null },
+      league,
+    )
+    expect(result.liveClock).toBeUndefined()
+    expect(result.homeScore).toBeUndefined()
+    expect(result.awayScore).toBeUndefined()
+  })
+
+  // ...but a score that GENUINELY exists is still real data and still shown.
+  it('still carries a real score through on an inferred-live fixture', () => {
+    const result = mapNinetyEvent(
+      { ...event([]), status: 'scheduled', start_time_utc: at(-5), home_score: 1, away_score: 0 },
+      league,
+    )
+    expect(result.homeScore).toBe('1')
+    expect(result.awayScore).toBe('0')
+  })
+
+  // 11. THE HOME REGRESSION, end to end: the exact chain that used to drop
+  // the match — eventTiming -> feedGroupFor -> row. Asserted through
+  // rankHomeFeed rather than the private feedGroupFor so it pins the
+  // behaviour Home actually renders.
+  it('places an inferred-live fixture in Home\'s live feed group instead of dropping it', () => {
+    const lillestrom = mapNinetyEvent(
+      {
+        ...event([]),
+        id: 'lsk-egnatia',
+        status: 'scheduled',
+        start_time_utc: at(-45),
+        home_team_name: 'Lillestrøm',
+        away_team_name: 'Egnatia Rrogozhinë',
+        competition_name: 'UEFA Europa League',
+      },
+      league,
+    )
+    const feed = rankHomeFeed([lillestrom], EMPTY_PERSONALIZATION_CONTEXT, NOW)
+    expect(feed.map((item) => ({ id: item.event.id, group: item.group }))).toEqual([
+      { id: 'ninety:lsk-egnatia', group: 'live' },
+    ])
+  })
+
+  // F1 keeps its own, shorter window — the football number must not leak
+  // into a sport whose sessions are nothing like 150 minutes long.
+  it('does not apply football\'s window to an F1 practice session', () => {
+    const f1League: LeagueDef = { id: 'f1', sportKey: 'f1', sportLabel: 'Formula 1', tsdbSport: 'Motorsport', name: 'F1' }
+    const practice = mapNinetyEvent(
+      { ...event([]), home_team_name: null, away_team_name: null, competition_name: 'Practice 1', start_time_utc: at(-100) },
+      f1League,
+    )
+    expect(practice.isLive).toBe(false)
   })
 })
 
