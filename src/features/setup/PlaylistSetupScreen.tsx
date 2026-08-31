@@ -303,6 +303,19 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
               {notice}
             </p>
           )}
+          {/* A FAILED CONNECT HAS TO BE READABLE, and this is the only place
+              on this screen where that is true. It used to render at the
+              bottom of .onboarding-body, below the QR card, the manual row
+              and the footer — off the fold on a 1080p canvas — so a QR
+              submission that failed looked like the import overlay flashing
+              and nothing else happening at all. There is no console on this
+              hardware, so an error nobody can see is an error nobody can
+              diagnose. `role="alert"`, not "status": this one interrupts. */}
+          {state.status === 'error' && (
+            <p className="setup-status error setup-connect-error" role="alert">
+              {state.message}
+            </p>
+          )}
         </div>
 
         <div className="onboarding-body">
@@ -401,8 +414,9 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
           {/* Loading is a full-screen Ninety state now (see the overlay
               below), not a line of text under the form — importing a
               playlist is the longest wait in the whole app and the form it
-              would sit under is no longer interactive while it runs. */}
-          {state.status === 'error' && <p className="setup-status error">{state.message}</p>}
+              would sit under is no longer interactive while it runs. The
+              error moved UP to the heading, where it is actually on screen —
+              see the note there. */}
         </div>
 
         <OnboardingFooter

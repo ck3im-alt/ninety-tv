@@ -2,7 +2,7 @@
 // generation (keyed by the `channels` array's own reference identity — see
 // getChannelIndex below) instead of being rebuilt on every focus movement.
 //
-// Before this existed, BrowseCascadeScreen/FilterPopup/App.tsx's player-
+// Before this existed, BrowseCascadeScreen/App.tsx's player-
 // sibling lookup, and channelMatch.ts's broadcasterMap/PPV matching stages
 // each independently rescanned the *entire* channels array and re-ran
 // parseCategory per channel on every relevant state change — including on
@@ -13,9 +13,9 @@
 //
 // Deliberately unfiltered: hiddenCountries/hiddenCategories filtering and
 // favorite-first sorting stay in the consumers (BrowseCascadeScreen needs to
-// filter, FilterPopup must NOT — it has to show hidden entries so the user
-// can re-enable them). Baking filtering in here would make that impossible
-// to express correctly for both consumers.
+// filter, Settings' Channel visibility pane must NOT — it has to show
+// hidden entries so the user can re-enable them). Baking filtering in here
+// would make that impossible to express correctly for both consumers.
 import type { Channel } from './channel'
 import { parseCategory, isPpvCategory, type ParsedCategory } from '../features/channels/parseCategory'
 import { foldForMatching } from './fancyUnicode'

@@ -236,7 +236,6 @@ describe('migrateSinglePlaylistIfNeeded', () => {
     preferences.markOnboardingComplete()
     session.saveFilters(new Set(['Germany']), new Set(['Norway::Movies']))
     session.saveFavoriteChannels(new Set(['ch0']))
-    session.saveFavoriteCategories(new Set(['Norway::Sports']))
     session.saveRecentlyWatched(['ch1', 'ch0'])
     session.saveSource(xtreamSource)
 
@@ -253,7 +252,6 @@ describe('migrateSinglePlaylistIfNeeded', () => {
     expect(preferences.hasCompletedOnboarding()).toBe(true)
     expect(session.loadFilters()).toEqual({ hiddenCountries: ['Germany'], hiddenCategories: ['Norway::Movies'] })
     expect(session.loadFavoriteChannels()).toEqual(new Set(['ch0']))
-    expect(session.loadFavoriteCategories()).toEqual(new Set(['Norway::Sports']))
     expect(session.loadRecentlyWatched()).toEqual(['ch1', 'ch0'])
   })
 })

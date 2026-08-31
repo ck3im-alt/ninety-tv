@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { useFocusable, FocusContext } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusScrollIntoView } from '../../core/platform'
 import type { HomeFeedState } from '../../data/sports/useHomeFeed'
 import type { SportEvent } from '../../data/sports/types'
 import type { EventTiming, FeedGroup } from '../../data/sports/homeRanking'
@@ -8,8 +9,14 @@ import type { FavoriteChannelNowPlaying } from './useFavoriteChannelsNowPlaying'
 import type { Channel, ChannelSource } from '../../data/channel'
 import type { XtreamCredentialResolver } from '../../data/playlists/xtreamResolver'
 import { eventCardStatus, cardTimeText, rowItemsExcludingHero, startingSoonLabel } from './homeRowItems'
-import { ArrowRightIcon, FootballIcon, FormulaOneIcon, StadiumIcon } from '../onboarding/sportIcons'
+import { FootballIcon, FormulaOneIcon, StadiumIcon } from '../onboarding/sportIcons'
 import './HomeScreen.css'
+
+// Home's card rows are the app's only horizontal scrollers, so this is the
+// one place that asks for the inline pass. Hoisted to a module constant
+// rather than an inline literal so the three call sites cannot drift and no
+// fresh object is allocated per render.
+const INLINE_SCROLL = { inline: true } as const
 
 function CalendarIcon() {
   return (
@@ -61,9 +68,7 @@ function Hero({
   // the page back up: the button "receives" focus while staying wherever
   // the page happened to be scrolled to, which reads as the button falling
   // off the top of the visible viewport.
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
+  useFocusScrollIntoView(ref, focused)
 
   if (!event) {
     return (
@@ -245,9 +250,9 @@ export function LiveNowCard({ event, onSelect }: { event: SportEvent; onSelect: 
   // scrolls its own horizontal overflow, so the newly focused card has to
   // be scrolled into view manually (same pattern as ListRow.tsx's vertical
   // lists) or arrow-key navigation silently walks off the visible row.
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
-  }, [focused, ref])
+  // `inline` opts this into the horizontal pass as well as the vertical one;
+  // the row itself is the horizontal scroll owner, the page is the vertical.
+  useFocusScrollIntoView(ref, focused, INLINE_SCROLL)
   return (
     <div ref={ref} className={`event-card ${focused ? 'focused' : ''}`} onClick={() => onSelect(event)}>
       <div className="event-card-header">
@@ -283,9 +288,7 @@ export function ComingUpCard({
   group?: FeedGroup
 }) {
   const { ref, focused } = useFocusable({ onEnterPress: () => onSelect(event) })
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
-  }, [focused, ref])
+  useFocusScrollIntoView(ref, focused, INLINE_SCROLL)
   return (
     <div ref={ref} className={`event-card ${focused ? 'focused' : ''}`} onClick={() => onSelect(event)}>
       <div className="event-card-header">
@@ -298,30 +301,22 @@ export function ComingUpCard({
   )
 }
 
-// Both Live Now and Coming Up are wider than the screen once there's
-// real data (7+ football leagues alone) — a circular chevron scrolls the
-// row instead of hard-capping how many cards exist.
+// Both Live Now and Coming Up are wider than the screen once there's real
+// data (7+ football leagues alone), so the row scrolls horizontally.
+//
+// THERE IS NO LONGER A CHEVRON AT THE END OF IT. It used to carry a
+// circular right-arrow button that scrolled the row by 420px — a mouse
+// affordance on a screen that has no mouse. Every card already brings
+// itself into view as focus reaches it (see the cards' own
+// useFocusScrollIntoView above), so on a remote the arrow could only ever
+// do what pressing Right was already doing, while costing a focus stop at
+// the end of every row and reading as a "there is more over here" claim
+// next to a row that might have nothing more. Removed from both rows rather
+// than made suppressible per row: this is the only component that had one.
 function ScrollRow({ children }: { children: React.ReactNode }) {
-  const rowRef = useRef<HTMLDivElement>(null)
-  const { ref: chevronRef, focused: chevronFocused } = useFocusable({
-    onEnterPress: () => rowRef.current?.scrollBy({ left: 420, behavior: 'smooth' }),
-  })
-  useEffect(() => {
-    if (chevronFocused) chevronRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [chevronFocused, chevronRef])
   return (
     <div className="scroll-row-wrap">
-      <div ref={rowRef} className="scroll-row">
-        {children}
-      </div>
-      <button
-        ref={chevronRef}
-        className={`scroll-chevron ${chevronFocused ? 'focused' : ''}`}
-        onClick={() => rowRef.current?.scrollBy({ left: 420, behavior: 'smooth' })}
-        aria-label="Show more"
-      >
-        <ArrowRightIcon />
-      </button>
+      <div className="scroll-row">{children}</div>
     </div>
   )
 }
@@ -334,9 +329,7 @@ function ScrollRow({ children }: { children: React.ReactNode }) {
 // us guessing.
 function FavoriteChannelCard({ entry, onWatch }: { entry: FavoriteChannelNowPlaying; onWatch: () => void }) {
   const { ref, focused } = useFocusable({ onEnterPress: onWatch })
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
-  }, [focused, ref])
+  useFocusScrollIntoView(ref, focused, INLINE_SCROLL)
   const { channel, title } = entry
   return (
     <div ref={ref} className={`event-card favorite-channel-card ${focused ? 'focused' : ''}`} onClick={onWatch}>

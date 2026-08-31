@@ -33,13 +33,20 @@ export function writeStored<T>(key: string, value: T): boolean {
 
 const APP_STORAGE_PREFIX = 'ninety.'
 
-// Used by the admin/debug panel to reset local state for testing. Only
-// clears keys this app itself wrote (prefix-scoped) rather than
-// localStorage.clear() — leaves anything else sharing the origin's
-// storage untouched.
-export function clearAllAppStorage(): void {
+// Clears local state this app itself wrote. Only prefix-scoped keys, never
+// localStorage.clear() — anything else sharing the origin's storage stays
+// untouched.
+//
+// `preserveKeys` lets a caller keep a named subset (see data/resetAppData.ts,
+// which uses it to reset the app WITHOUT disconnecting the playlist). It is
+// deliberately an opt-OUT list rather than an opt-in one: a key added later
+// by someone who never read this function is then cleared by default, which
+// is the safe direction for a reset — the bug you can ship here is a reset
+// that quietly leaves something behind, not one that clears too much.
+export function clearAllAppStorage(preserveKeys: readonly string[] = []): void {
   try {
-    const keys = Object.keys(localStorage).filter((k) => k.startsWith(APP_STORAGE_PREFIX))
+    const preserved = new Set(preserveKeys)
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith(APP_STORAGE_PREFIX) && !preserved.has(k))
     for (const key of keys) localStorage.removeItem(key)
   } catch {
     // Storage unavailable — nothing to clear.

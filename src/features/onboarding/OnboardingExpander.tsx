@@ -61,7 +61,7 @@ export function OnboardingExpander({
   // focused, so a focus-change-only scroll effect never re-fires and the
   // focused control can end up outside the scroll viewport with no key
   // press to bring it back. That was the original More-leagues bug.
-  useFocusScrollIntoView(ref, focused, { block: 'nearest' }, expanded)
+  useFocusScrollIntoView(ref, focused, undefined, expanded)
 
   return (
     <button ref={ref} className={`onboarding-expander ${focused ? 'focused' : ''}`} onClick={onToggle}>

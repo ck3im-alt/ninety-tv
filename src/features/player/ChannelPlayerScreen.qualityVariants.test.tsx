@@ -40,6 +40,8 @@ function createFakePlayer(): FakePlayer {
     error: null,
     subtitleTracks: [],
     activeSubtitleTrack: null,
+    audioTracks: [],
+    activeAudioTrack: null,
     muted: true,
   }
   const listeners = new Set<(state: PlayerState) => void>()
@@ -70,6 +72,7 @@ function createFakePlayer(): FakePlayer {
       setState({ muted })
     },
     setSubtitleTrack() {},
+    setAudioTrack() {},
     getState: () => state,
     subscribe(listener) {
       listeners.add(listener)

@@ -10,16 +10,15 @@ import {
   saveFilters,
   loadFavoriteChannels,
   saveFavoriteChannels,
-  loadFavoriteCategories,
-  saveFavoriteCategories,
   loadRecentlyWatched,
   saveRecentlyWatched,
 } from './data/session'
 import { usePlaylistLibrary } from './data/playlists/usePlaylistLibrary'
+import { isResyncable } from './data/playlists/playlistDefinition'
 import { CategoryChannelsScreen } from './features/channels/CategoryChannelsScreen'
 import { BrowseCascadeScreen } from './features/channels/BrowseCascadeScreen'
 import type { CascadeLevel } from './features/channels/BrowseCascadeScreen'
-import { FilterPopup } from './features/channels/FilterPopup'
+import type { ChannelsEntryIntent } from './features/channels/channelsEntryIntent'
 import { ChannelPlayerScreen } from './features/player/ChannelPlayerScreen'
 import { parseCategory } from './features/channels/parseCategory'
 import { getChannelIndex } from './data/channelIndex'
@@ -38,6 +37,7 @@ import type { EventPlaybackGroup } from './features/eventDetails/eventPlaybackGr
 import { createMultiviewSession } from './features/multiview/multiviewSession'
 import type { MultiviewSession, PaneAssignment } from './features/multiview/multiviewSession'
 import type { ChannelSource } from './data/channel'
+import type { SettingsSectionId } from './features/settings/settingsSections'
 
 // Lazy-loaded: screens that are rare (first-run-only onboarding, dev-admin
 // already tree-shaken separately) or off the primary Home->Channels->Watch
@@ -46,7 +46,7 @@ import type { ChannelSource } from './data/channel'
 // what has to parse/execute before the app is interactive; see the final
 // report for before/after chunk sizes. Deliberately NOT applied to
 // HomeScreen (always the first screen), BrowseCascadeScreen/
-// CategoryChannelsScreen/FilterPopup/ChannelPlayerScreen (the
+// CategoryChannelsScreen/ChannelPlayerScreen (the
 // latency-sensitive primary navigation path — lazy-loading those risked
 // adding a visible stall exactly where "Channels-open should feel
 // essentially immediate" matters most) or AdminPanel (already fully
@@ -74,6 +74,24 @@ markPerf('app:module-load')
 // entire module (hls.js, workers, network and all).
 
 const RECENTLY_WATCHED_LIMIT = 30
+
+// The three screens that show a list of channels, and therefore the three
+// that can act on a channel return intent (see channelsEntryIntent.ts).
+// Watching from Home or Event Details returns to Home or Event Details, and
+// neither has a row to restore.
+const CHANNEL_LIST_SCREENS: readonly Screen[] = ['browse-cascade', 'channels-favorites', 'channels-recent']
+
+// See the settingsEntry state below.
+interface SettingsEntry {
+  returnScreen: Screen
+  // Deep-linked section, for an entry that exists to do one specific thing.
+  // Undefined for the ordinary avatar entry, which keeps Settings' own
+  // INITIAL_SETTINGS_SECTION.
+  section?: SettingsSectionId
+  // Which Channels toolbar button Back should return focus to, when Back
+  // returns to Channels and Settings was reached from one of its actions.
+  returnFocus?: 'filters'
+}
 
 // Root focus key each LAZY (React.lazy/Suspense) screen registers itself
 // under (see each screen's own top-level useFocusable call). Screens NOT
@@ -204,9 +222,13 @@ function App() {
   // whichever the user drilled in from (same pattern as playerReturnScreen
   // below).
   const [eventDetailsReturnScreen, setEventDetailsReturnScreen] = useState<Screen>('home')
-  // Where Settings' Back button should return to — whichever screen the
-  // avatar was pressed from (Home, Schedule, or a Channels screen).
-  const [settingsReturnScreen, setSettingsReturnScreen] = useState<Screen>('home')
+  // HOW SETTINGS WAS ENTERED, which decides three things at once: where
+  // Back returns to, which section it opens on, and where focus lands on the
+  // way out. Kept as one object rather than three loose pieces of state
+  // because they are only ever set together, and a Back that returns to the
+  // right screen while restoring the wrong focus is exactly the kind of
+  // half-updated navigation this pass exists to remove.
+  const [settingsEntry, setSettingsEntry] = useState<SettingsEntry>({ returnScreen: 'home' })
   const [playingChannel, setPlayingChannel] = useState<Channel | null>(null)
   const [playingSourceLabel, setPlayingSourceLabel] = useState<string | undefined>(undefined)
   // The SportEvent behind the currently-playing channel, when known — set
@@ -230,6 +252,18 @@ function App() {
   // (the cascade browser, favorites, or recently-watched) the user watched
   // from. Non-persisted, same as the rest of this in-memory nav state.
   const [playerReturnScreen, setPlayerReturnScreen] = useState<Screen>('browse-cascade')
+  // WHERE BACK LEAVES CHANNELS TO — the screen the viewer entered the
+  // browser FROM, not a hardcoded Home. It matters for exactly one entry
+  // point today: Event Details' "Check channels manually", which sends a
+  // viewer off to look for a stream Ninety could not find for them. Landing
+  // them on Home when they back out would strand them somewhere they never
+  // asked to be, several presses from the fixture they were reading about.
+  //
+  // Set at every entry INTO the browser rather than cleared on the way out,
+  // so it can never be left pointing at a stale screen. Navigating around
+  // inside Channels (Favorites, Recently Watched, the player) deliberately
+  // does not touch it — those all come back to the browser, not through it.
+  const [channelsExitScreen, setChannelsExitScreen] = useState<Screen>('home')
   // Multiview session — pane assignments/focus/audio/maximize state only
   // (see multiviewSession.ts's own header on why no player instances live
   // here). null when Multiview has never been entered this session; kept
@@ -243,6 +277,15 @@ function App() {
   const [multiviewReturnScreen, setMultiviewReturnScreen] = useState<Screen>('browse-cascade')
   // Most-recently-watched channel id first, capped and de-duplicated.
   const [recentlyWatched, setRecentlyWatched] = useState<string[]>(() => loadRecentlyWatched())
+
+  // WHY THE VIEWER IS ARRIVING AT A CHANNELS SCREEN — a one-shot,
+  // explicitly-stated return intent rather than anything inferred from
+  // norigin's remembered last-focused child (see channelsEntryIntent.ts for
+  // why that distinction is load-bearing). Set at the moment a screen
+  // navigates away from Channels, consumed by whichever Channels screen
+  // mounts next, then cleared.
+  const [channelsEntryIntent, setChannelsEntryIntent] = useState<ChannelsEntryIntent | null>(null)
+  const clearChannelsEntryIntent = useCallback(() => setChannelsEntryIntent(null), [])
 
   // The cascade browser's drill-down path — lifted up here (rather than
   // living inside BrowseCascadeScreen) so it survives navigating away to
@@ -289,12 +332,11 @@ function App() {
   const [hiddenCountries, setHiddenCountries] = useState<Set<string>>(() => new Set(loadFilters().hiddenCountries))
   // Composite `${country}::${category}` keys — see categoryFavoriteKey.
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set(loadFilters().hiddenCategories))
-  const [filterOpen, setFilterOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
 
-  // Favorited channels/categories are pinned to the top of their list.
+  // Favorited channels are pinned to the top of their list. Categories used
+  // to be favoritable too; that went away on 2026-08-31 — see session.ts.
   const [favoriteChannels, setFavoriteChannels] = useState<Set<string>>(() => loadFavoriteChannels())
-  const [favoriteCategories, setFavoriteCategories] = useState<Set<string>>(() => loadFavoriteCategories())
 
   // The spatial-navigation library never auto-focuses anything — without
   // this, arrow keys (including a PC keyboard standing in for the remote)
@@ -327,8 +369,8 @@ function App() {
   // Tracks the PREVIOUS screen value so leaving Settings can restore focus
   // to the exact avatar it was opened from — Settings is a full screen swap
   // (not a modal), so there's no local "remember the opener" closure the
-  // way FilterPopup/AdminPanel have; App is the only place that knows both
-  // the old and new screen.
+  // way AdminPanel has; App is the only place that knows both the old and
+  // the new screen.
   // THE PLAYBACK GATE (see usePlaylistLibrary's setPlaybackActive). App is
   // the only place that knows whether a screen owning live video is up, so
   // it is the only place that can tell the sync coordinator. Both screens
@@ -356,12 +398,12 @@ function App() {
     // guard is really "did we return, or did something else change the
     // screen", and anything else still falls through to that screen's own
     // focus target below.
-    if (previousScreen === 'settings' && screen === settingsReturnScreen) {
+    if (previousScreen === 'settings' && screen === settingsEntry.returnScreen) {
       void setFocus('nav-avatar')
       return
     }
     void setFocus(SCREEN_FOCUS_KEYS[screen] ?? ROOT_FOCUS_KEY)
-  }, [screen, settingsReturnScreen])
+  }, [screen, settingsEntry.returnScreen])
 
   useEffect(() => {
     saveFilters(hiddenCountries, hiddenCategories)
@@ -370,10 +412,6 @@ function App() {
   useEffect(() => {
     saveFavoriteChannels(favoriteChannels)
   }, [favoriteChannels])
-
-  useEffect(() => {
-    saveFavoriteCategories(favoriteCategories)
-  }, [favoriteCategories])
 
   useEffect(() => {
     saveRecentlyWatched(recentlyWatched)
@@ -423,6 +461,39 @@ function App() {
   const recentChannelsList = useMemo(() => {
     return recentlyWatched.map((id) => channelIndex.getChannelById(id)).filter((c): c is Channel => c != null)
   }, [channelIndex, recentlyWatched])
+
+  // WHAT EVENT DETAILS' "Refresh playlist" ACTUALLY DOES — the existing
+  // playlist library's own manual resync, not a second refresh mechanism.
+  // Only playlists that CAN be re-fetched are counted (a file-upload
+  // playlist has nothing to fetch from), which is also what decides whether
+  // the empty state offers the action at all and whether it says "playlist"
+  // or "playlists".
+  //
+  // With exactly one it resyncs that one; with several it resyncs them all,
+  // because Ninety has no way of knowing which playlist a broadcaster it
+  // could not find would have been in, and guessing would leave the viewer
+  // refreshing the wrong provider.
+  const resyncablePlaylists = useMemo(() => library.playlists.filter((p) => isResyncable(p.source)), [library.playlists])
+  const resyncPlaylist = library.resyncPlaylist
+  const resyncAll = library.resyncAll
+  const playlistRefresh = useMemo(
+    () => ({
+      resyncableCount: resyncablePlaylists.length,
+      // The MOST RECENT successful sync across them. "Last refreshed" is a
+      // statement about the action that button performs, and that action
+      // covers the whole set — so the newest of their timestamps is the
+      // honest answer to "when did pressing this last achieve anything".
+      lastRefreshedAt: resyncablePlaylists.reduce<number | null>(
+        (latest, p) => (p.lastSyncedAt != null && (latest == null || p.lastSyncedAt > latest) ? p.lastSyncedAt : latest),
+        null,
+      ),
+      refresh: async () => {
+        if (resyncablePlaylists.length === 1) await resyncPlaylist(resyncablePlaylists[0].id)
+        else await resyncAll()
+      },
+    }),
+    [resyncablePlaylists, resyncPlaylist, resyncAll],
+  )
 
   // Opening an event's details is the app's one "the viewer is interested in
   // this" signal that costs nothing to capture — it happens at a navigation
@@ -538,6 +609,12 @@ function App() {
               ? undefined
               : () => {
                   markPerf('channels:open-start')
+                  setChannelsExitScreen('home')
+                  // A fresh entry from the top nav, so no return intent can
+                  // be outstanding — clearing it stops a channel intent left
+                  // over from an earlier Home/Event Details watch from
+                  // steering a navigation it has nothing to do with.
+                  setChannelsEntryIntent(null)
                   if (library.channels.length > 0) setScreen('browse-cascade')
                   // No playlist: just the plain reconnect screen. This no
                   // longer needs to branch on hasCompletedOnboarding() —
@@ -551,7 +628,10 @@ function App() {
           }
           onSelectSchedule={() => setScreen('competitions')}
           onOpenSettings={() => {
-            setSettingsReturnScreen(screen)
+            // The ordinary entry: no deep link, no return-focus intent, so
+            // Settings opens on its own initial section and Back restores
+            // the avatar exactly as before.
+            setSettingsEntry({ returnScreen: screen })
             setScreen('settings')
           }}
           onOpenAdmin={import.meta.env.DEV ? () => setAdminOpen(true) : undefined}
@@ -602,7 +682,17 @@ function App() {
           }}
           recentlyWatchedCount={recentlyWatched.length}
           onClearRecentlyWatched={() => setRecentlyWatched([])}
-          onBack={() => setScreen(settingsReturnScreen)}
+          initialSection={settingsEntry.section}
+          onBack={() => {
+            // Back out of a deep link returns focus to the control that
+            // opened it — for Channel visibility, the Channels toolbar
+            // button. Stated here rather than left to whatever the cascade
+            // last had focused.
+            if (settingsEntry.returnFocus) {
+              setChannelsEntryIntent({ kind: 'toolbar', target: settingsEntry.returnFocus })
+            }
+            setScreen(settingsEntry.returnScreen)
+          }}
         />
       )}
 
@@ -617,7 +707,12 @@ function App() {
           onToggleFavoriteChannels={toggleFavoriteChannels}
           onWatch={watchEventStream}
           onBack={() => setScreen(eventDetailsReturnScreen)}
-          onBrowseChannels={() => setScreen('browse-cascade')}
+          onBrowseChannels={() => {
+            // Back out of Channels returns to THIS fixture, not to Home.
+            setChannelsExitScreen('event-details')
+            setScreen('browse-cascade')
+          }}
+          playlistRefresh={playlistRefresh}
         />
       )}
 
@@ -639,7 +734,9 @@ function App() {
             // wait is covered by the Ninety loading state (installPlaylist),
             // which also keeps the remote inert until Channels can render.
             void installPlaylist(source, loaded).then((ok) => {
-              if (ok) setScreen('browse-cascade')
+              if (!ok) return
+              setChannelsExitScreen('home')
+              setScreen('browse-cascade')
             })
           }}
         />
@@ -689,15 +786,27 @@ function App() {
           hiddenCountries={hiddenCountries}
           preferredCountries={preferences.favoriteCountries}
           hiddenCategories={hiddenCategories}
-          favoriteCategories={favoriteCategories}
-          onToggleFavoriteCategory={(key) => toggleInSet(favoriteCategories, setFavoriteCategories, key)}
           favoriteChannels={favoriteChannels}
           onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
           onWatch={(channel, source) => watchChannel(channel, source, 'browse-cascade')}
           onOpenFavorites={() => setScreen('channels-favorites')}
           onOpenRecent={() => setScreen('channels-recent')}
-          onOpenFilter={() => setFilterOpen(true)}
-          onExit={() => setScreen('home')}
+          // THE ONE PLACE hidden countries/categories are edited. Channels
+          // used to open its own FilterPopup here — a second, staged-draft
+          // implementation of Settings' Channel visibility pane over the
+          // same two preferences and the same storage key. The popup was
+          // deleted rather than restyled: two editors for one setting is a
+          // bug waiting to be written, and the Settings pane is the better
+          // of the two (immediate application, no Apply step, existing
+          // focus recovery). Deep-linked to the section so nobody has to
+          // land on Playlists and walk the rail to reach it.
+          onOpenChannelVisibility={() => {
+            setSettingsEntry({ returnScreen: 'browse-cascade', section: 'visibility', returnFocus: 'filters' })
+            setScreen('settings')
+          }}
+          onExit={() => setScreen(channelsExitScreen)}
+          entryIntent={channelsEntryIntent}
+          onEntryIntentConsumed={clearChannelsEntryIntent}
           level={cascadeLevel}
           onLevelChange={setCascadeLevel}
           selectedCountry={cascadeCountry}
@@ -720,7 +829,11 @@ function App() {
           xtream={library.xtream}
           favoriteChannels={favoriteChannels}
           onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
-          onBack={() => setScreen('browse-cascade')}
+          restoreChannelId={channelsEntryIntent?.kind === 'channel' ? channelsEntryIntent.channelId : null}
+          onBack={() => {
+            setChannelsEntryIntent({ kind: 'toolbar', target: 'favorites' })
+            setScreen('browse-cascade')
+          }}
           onWatch={(channel, source) => watchChannel(channel, source, 'channels-favorites')}
         />
       )}
@@ -736,7 +849,11 @@ function App() {
           xtream={library.xtream}
           favoriteChannels={favoriteChannels}
           onToggleFavoriteChannel={(id) => toggleInSet(favoriteChannels, setFavoriteChannels, id)}
-          onBack={() => setScreen('browse-cascade')}
+          restoreChannelId={channelsEntryIntent?.kind === 'channel' ? channelsEntryIntent.channelId : null}
+          onBack={() => {
+            setChannelsEntryIntent({ kind: 'toolbar', target: 'recent' })
+            setScreen('browse-cascade')
+          }}
           onWatch={(channel, source) => watchChannel(channel, source, 'channels-recent')}
         />
       )}
@@ -747,6 +864,15 @@ function App() {
           initialSourceLabel={playingSourceLabel}
           playbackGroup={playingGroup}
           onBack={() => {
+            // BACK FROM THE PLAYER RETURNS TO THE CHANNEL, not to the top of
+            // the list. Stated as an identity, which is the only thing that
+            // survives the list being rebuilt by a background playlist
+            // refresh while the match was on. Harmless on the paths that do
+            // not consume it (Home, Event Details) — the intent is cleared
+            // by whichever screen mounts next either way.
+            if (playingChannel && CHANNEL_LIST_SCREENS.includes(playerReturnScreen)) {
+              setChannelsEntryIntent({ kind: 'channel', channelId: playingChannel.id })
+            }
             setScreen(playerReturnScreen)
             // Immediate silent refresh on Player exit — the primary
             // staleness scenario this feature exists for (watch a live
@@ -776,19 +902,6 @@ function App() {
         />
       )}
 
-      {filterOpen && (
-        <FilterPopup
-          channelIndex={channelIndex}
-          hiddenCountries={hiddenCountries}
-          hiddenCategories={hiddenCategories}
-          onApply={(nextHiddenCountries, nextHiddenCategories) => {
-            setHiddenCountries(nextHiddenCountries)
-            setHiddenCategories(nextHiddenCategories)
-          }}
-          onClose={() => setFilterOpen(false)}
-        />
-      )}
-
       {library.notice && <PlaylistToast message={library.notice} onDismiss={library.dismissNotice} />}
 
       {/* The second half of a playlist import — see installPlaylist. Sits
@@ -802,7 +915,7 @@ function App() {
         <AdminPanel channels={library.channels} onClose={() => setAdminOpen(false)} />
       )}
       {import.meta.env.DEV && (
-        <FocusDebugOverlay screen={screen} region={screen === 'browse-cascade' ? cascadeLevel : undefined} overlay={filterOpen ? 'filter' : adminOpen ? 'admin' : null} />
+        <FocusDebugOverlay screen={screen} region={screen === 'browse-cascade' ? cascadeLevel : undefined} overlay={adminOpen ? 'admin' : null} />
       )}
       </Suspense>
     </>

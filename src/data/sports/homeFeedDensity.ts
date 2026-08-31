@@ -50,7 +50,7 @@ import type { SportEvent } from './types'
 export const MIN_VISIBLE_UPCOMING_FOOTBALL = 5
 
 // How far forward the targeted expansion may look, in the viewer's own
-// calendar days (see localDayRangeAhead).
+// calendar days (see localDayRangeOffset).
 //
 // Longer than the three days it replaces, because the trigger changed with
 // it: no longer "today is exhausted" but "this viewer's competitions are

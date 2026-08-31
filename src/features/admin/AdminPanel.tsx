@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { FocusContext, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useModalFocusScope } from '../../core/platform'
-import { clearAllAppStorage } from '../../core/storage/localStore'
+import { resetAppData } from '../../data/resetAppData'
 import { hasCompletedOnboarding, loadPreferences } from '../../data/preferences'
-import { clearPlaylist, loadFavoriteChannels, loadFavoriteCategories } from '../../data/session'
+import { clearPlaylist, loadFavoriteChannels } from '../../data/session'
 import { DEBUG_FORCE_SCREEN_KEY } from '../../core/debugForceScreen'
 import type { Channel } from '../../data/channel'
 import './AdminPanel.css'
@@ -47,21 +47,28 @@ export function AdminPanel({ channels, onClose }: Props) {
   const [confirmingReset, setConfirmingReset] = useState(false)
   const [resyncError, setResyncError] = useState<string | null>(null)
   const savedFavoriteChannels = loadFavoriteChannels()
-  const savedFavoriteCategories = loadFavoriteCategories()
 
   const { ref: closeRef, focused: closeFocused } = useFocusable({ onEnterPress: onClose })
   const { ref: popupRef, focusKey: popupFocusKey } = useModalFocusScope({ focusKey: POPUP_FOCUS_KEY, onClose })
 
-  function resetOnboarding() {
-    clearAllAppStorage()
+  async function resetOnboarding() {
+    // Shares the one reset implementation with Settings' own user-facing
+    // Reset (data/resetAppData.ts). This used to call clearAllAppStorage()
+    // directly, which cleared localStorage ONLY — so the whole cached
+    // channel library survived a "reset" inside IndexedDB, and dev and
+    // device disagreed about what the word even meant.
+    if (!(await resetAppData('everything'))) {
+      setResyncError("Couldn't clear stored data — nothing was changed. Try again.")
+      return
+    }
     // A full reload is the simplest reliable way back to a true "first
     // launch" state. Since the 2026-08-25 restructure App.tsx already opens
     // onboarding when hasCompletedOnboarding() is false (see
-    // core/appScreens.ts's resolveInitialScreen), which clearAllAppStorage
-    // above has just made true — so the one-shot flag is now belt and
-    // braces rather than the only thing making this button work. Kept
-    // because it also makes the intent explicit and survives any future
-    // change to the default-screen rule.
+    // core/appScreens.ts's resolveInitialScreen), which the reset above has
+    // just made true — so the one-shot flag is now belt and braces rather
+    // than the only thing making this button work. Kept because it also
+    // makes the intent explicit and survives any future change to the
+    // default-screen rule.
     sessionStorage.setItem(DEBUG_FORCE_SCREEN_KEY, 'onboarding')
     window.location.reload()
   }
@@ -111,8 +118,6 @@ export function AdminPanel({ channels, onClose }: Props) {
             <strong>{channels.length > 0 ? `${channels.length} channels` : '(none)'}</strong>
             <span>Favorite channels:</span>
             <strong>{savedFavoriteChannels.size}</strong>
-            <span>Favorite categories:</span>
-            <strong>{savedFavoriteCategories.size}</strong>
           </div>
 
           {resyncError && <p className="admin-note error">{resyncError}</p>}
@@ -135,7 +140,7 @@ export function AdminPanel({ channels, onClose }: Props) {
                 label="Confirm reset — this reloads the app"
                 description="Press again to actually clear storage and reload."
                 tone="danger"
-                onSelect={resetOnboarding}
+                onSelect={() => void resetOnboarding()}
               />
             )}
             <ActionButton label="Close" description="Go back without changing anything." onSelect={onClose} />

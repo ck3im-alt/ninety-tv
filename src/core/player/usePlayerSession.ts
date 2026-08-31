@@ -11,10 +11,18 @@ import { createPlayerSessionController } from './playerSessionController'
 import type { PlayerSessionController, PlayerSessionOptions, PlayerSessionState } from './playerSessionController'
 
 // Only compares the fields any current consumer actually reads — status,
-// error, muted, subtitles, sourceIndex, allSourcesFailed. Deliberately
-// excludes currentTime/duration (see ChannelPlayerScreen's original
-// playerUiStateEqual, which this mirrors) so a re-render doesn't fire on
-// every ~4x/sec `timeupdate` tick.
+// error, muted, subtitles, audio tracks, sourceIndex, allSourcesFailed.
+// Deliberately excludes currentTime/duration (see ChannelPlayerScreen's
+// original playerUiStateEqual, which this mirrors) so a re-render doesn't
+// fire on every ~4x/sec `timeupdate` tick.
+//
+// Audio has to be in here for the feature to work at all, not merely to
+// stay fresh: discovery and switching both happen inside the Player, driven
+// by engine events, so a comparison blind to them would leave the OSD
+// showing no Audio button on a multi-audio stream and a checkmark that
+// never moves. Every field the popup renders is compared — id (identity),
+// label (row text) and language (the chip) — since any of them changing is
+// something the viewer can see.
 function sessionStateEqual(a: PlayerSessionState, b: PlayerSessionState): boolean {
   if (a === b) return true
   if (a.sourceIndex !== b.sourceIndex) return false
@@ -24,12 +32,19 @@ function sessionStateEqual(a: PlayerSessionState, b: PlayerSessionState): boolea
   if (pa.status !== pb.status) return false
   if (pa.muted !== pb.muted) return false
   if (pa.activeSubtitleTrack !== pb.activeSubtitleTrack) return false
+  if (pa.activeAudioTrack !== pb.activeAudioTrack) return false
   if ((pa.error?.code ?? null) !== (pb.error?.code ?? null)) return false
   if ((pa.error?.message ?? null) !== (pb.error?.message ?? null)) return false
   if (pa.subtitleTracks.length !== pb.subtitleTracks.length) return false
   for (let i = 0; i < pa.subtitleTracks.length; i++) {
     if (pa.subtitleTracks[i].id !== pb.subtitleTracks[i].id) return false
     if (pa.subtitleTracks[i].label !== pb.subtitleTracks[i].label) return false
+  }
+  if (pa.audioTracks.length !== pb.audioTracks.length) return false
+  for (let i = 0; i < pa.audioTracks.length; i++) {
+    if (pa.audioTracks[i].id !== pb.audioTracks[i].id) return false
+    if (pa.audioTracks[i].label !== pb.audioTracks[i].label) return false
+    if (pa.audioTracks[i].language !== pb.audioTracks[i].language) return false
   }
   return true
 }

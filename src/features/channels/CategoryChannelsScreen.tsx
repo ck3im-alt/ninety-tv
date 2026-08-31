@@ -40,6 +40,11 @@ interface Props {
   title?: string
   breadcrumb?: string[]
   emptyMessage?: string
+  // Returning from the player: the channel to land back on, by identity
+  // (see channelsEntryIntent.ts). Favorites and Recently Watched are both
+  // this screen, and both used to reopen at row 1 regardless of what the
+  // viewer had just been watching.
+  restoreChannelId?: string | null
 }
 
 function formatTime(datetime: string): string {
@@ -265,8 +270,17 @@ export function CategoryChannelsScreen({
   title: titleOverride,
   breadcrumb,
   emptyMessage,
+  restoreChannelId,
 }: Props) {
-  const [selected, setSelected] = useState<Channel | null>(channels[0] ?? null)
+  // The details panel opens on the channel being restored, so it agrees with
+  // the row that is about to take focus. Falls back to the first channel —
+  // the previous unconditional behaviour — for an ordinary entry, and for a
+  // restore whose channel is no longer in this list (unfavorited while it
+  // was playing, dropped by a playlist refresh). Resolved by id, never by a
+  // remembered index; see planChannelRestore.
+  const [selected, setSelected] = useState<Channel | null>(
+    () => (restoreChannelId ? channels.find((channel) => channel.id === restoreChannelId) : undefined) ?? channels[0] ?? null,
+  )
 
   const { ref: screenRef, focusKey: screenFocusKey } = useFocusable({
     focusKey: 'category-channels-screen',
@@ -344,6 +358,11 @@ export function CategoryChannelsScreen({
               // the list identity — which keeps a playlist refresh, or a
               // favorite being toggled elsewhere, from resetting the scroll.
               listKey={`${title}::${country}::${category}`}
+              // Mounts AND force-focuses the restored row rather than row 1
+              // — this screen's initial focus comes from the list itself
+              // (forceFocusFirst below), so the two have to agree on which
+              // row that is.
+              restoreChannelId={restoreChannelId}
               onSelect={(channel) => channel.sources[0] && onWatch(channel, channel.sources[0])}
               onFocusChannel={onFocusChannel}
               onToggleFavorite={onToggleFavoriteChannel}

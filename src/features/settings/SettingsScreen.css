@@ -731,3 +731,21 @@
   padding: var(--space-2);
   box-sizing: content-box;
 }
+
+/* The reset actions at the foot of the Playlists column. Separated from the
+   playlist list and "+ Add playlist" above it by a rule rather than just
+   whitespace: these two are destructive and act on the WHOLE app, not on
+   the playlist the column is otherwise about, and a D-pad user arriving
+   from "+ Add playlist" gets no hover to slow them down. `margin-top: auto`
+   pins the group to the bottom of the column so it never sits directly
+   under the Add button on a short list — reaching it should feel like a
+   deliberate trip to the end of the column. */
+.settings-reset-group {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}

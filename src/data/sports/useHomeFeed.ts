@@ -3,7 +3,7 @@ import { fetchNextEventsForLeague, fetchPastEventsForLeague } from './theSportsD
 import { getAllEvents, type GetEventsParams, type NinetyEvent } from './ninetyApiClient'
 import { fallbackFootballLeague, footballLeaguesForPreferences, otherLeaguesForPreferences } from './leagues'
 import { loadFootballCompetitions } from './competitionsCatalog'
-import { localDayRange, localDayRangeAhead } from './localDay'
+import { localDayRange, localDayRangeOffset } from './localDay'
 import { deriveViewerMarkets } from './viewerMarket'
 import { mapNinetyEvent, mapEvent } from './mapEvent'
 import { isHeuristicallyLive } from './liveHeuristic'
@@ -275,7 +275,7 @@ export function useHomeFeed(
         if (shortfall > 0) {
           const followed = footballLeaguesForPreferences(preferences.footballLeagueIds, catalog)
           if (followed.length > 0) {
-            const horizon = localDayRangeAhead(FORWARD_EXPANSION_DAYS, new Date(now))
+            const horizon = localDayRangeOffset(FORWARD_EXPANSION_DAYS, new Date(now))
             const extra = toEvents(
               await forwardEvents({
                 competitionId: followed.map((l) => l.id),

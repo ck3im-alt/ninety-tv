@@ -28,7 +28,7 @@ let cache: LeagueDef[] | null = null
 let inFlight: Promise<LeagueDef[]> | null = null
 
 // Cached for the session and de-duplicated across concurrent callers
-// (OnboardingSportsScreen, useHomeFeed and useTodaysSchedule can all
+// (OnboardingSportsScreen, useHomeFeed and useScheduleDay can all
 // mount/fire around the same time) -- the catalog only changes on a
 // Ninety deploy, never mid-session, so one fetch per app session is
 // correct, not stale data.

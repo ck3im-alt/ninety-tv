@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
 import { setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusScrollIntoView } from '../../core/platform'
 import { countryNameToCode, flagSrc } from '../../data/countryCodes'
 import { toEventPlaybackGroup } from './eventPlaybackGroup'
 import type { RankedEventStreamOption } from './buildEventStreamOptions'
@@ -205,12 +205,8 @@ export function StreamRow({
     },
   })
 
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
-  useEffect(() => {
-    if (starFocused) starRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [starFocused, starRef])
+  useFocusScrollIntoView(ref, focused)
+  useFocusScrollIntoView(starRef, starFocused)
 
   const qualityLabel = best?.qualityLabel ?? EMPTY_METADATA
 

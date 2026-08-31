@@ -36,25 +36,36 @@ export interface LocalDayRange {
 // transitions are handled by the platform (a 23- or 25-hour day still runs
 // from local midnight to local midnight).
 export function localDayRange(now: Date = new Date()): LocalDayRange {
-  return localDayRangeAhead(0, now)
+  return localDayRangeOffset(0, now)
 }
 
-// The viewer's local day `days` from today, on exactly the same rules —
-// localDayRange is this function at 0.
+// The viewer's local day `offset` calendar days from today, on exactly the
+// same rules — localDayRange is this function at 0.
 //
-// Added for Home's forward expansion (see homeFeedDensity.ts), which asks
-// for the next FORWARD_EXPANSION_DAYS days and needs that phrase to mean
-// local CALENDAR days rather than `now + n * 24h`. Two things follow from
-// the difference, and both matter:
+//   -1 = yesterday      0 = today      +1 = tomorrow
+//
+// NEGATIVE OFFSETS ARE FIRST-CLASS. This was `localDayRangeAhead(days)`
+// until Schedule became a browsable day-by-day fixture guide (it can go one
+// day back), and a name that only reads forwards would have made the
+// yesterday case look like a misuse of the API rather than the ordinary
+// thing it is. The arithmetic never cared about the sign — `new Date(y, m,
+// d + offset, ...)` rolls backwards over month/year starts exactly as it
+// rolls forwards over their ends.
+//
+// Home's forward expansion (see homeFeedDensity.ts) is the other caller: it
+// asks for the next FORWARD_EXPANSION_DAYS days and needs that phrase to
+// mean local CALENDAR days rather than `now + n * 24h`. Two things follow
+// from the difference, and both matter:
 //
 //   - the requested window is identical for every refresh within the same
 //     local day, which is what makes the expansion request cacheable at all
-//     (see useHomeFeed's forward-expansion cache);
+//     (see useHomeFeed's forward-expansion cache), and what lets Schedule
+//     key a visited-day cache on it (see useScheduleDay);
 //   - a DST transition inside the window cannot shift its far end by an
-//     hour, so the last day is whole in either direction.
-export function localDayRangeAhead(days: number, now: Date = new Date()): LocalDayRange {
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 0, 0, 0, 0)
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days + 1, 0, 0, 0, 0)
+//     hour, so the day is whole in either direction.
+export function localDayRangeOffset(offset: number, now: Date = new Date()): LocalDayRange {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, 0, 0, 0, 0)
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset + 1, 0, 0, 0, 0)
   const startMs = start.getTime()
   const endMs = end.getTime()
   return {

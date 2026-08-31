@@ -255,12 +255,12 @@
 }
 
 /* Fully expanded (country + category + channels + preview): Categories'
-   row-count badge and everyone's favorite stars are dropped to keep the
-   four-pane view calm — Watch/Favorite in the Preview pane is the only
+   row-count badge and the channel rows' favorite stars are dropped to keep
+   the four-pane view calm — Watch/Favorite in the Preview pane is the only
    favoriting action left at that point. (Countries' count is already
-   hidden at every column count, above.) */
+   hidden at every column count, above. Category rows no longer have a star
+   at all — see BrowseCascadeScreen.tsx.) */
 .cascade-columns[data-cols='4'] .cascade-col.category .list-row-count,
-.cascade-columns[data-cols='4'] .cascade-col .list-row-favorite,
 .cascade-columns[data-cols='4'] .cascade-col .ch-row-favorite {
   display: none;
 }

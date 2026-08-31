@@ -7,12 +7,18 @@
 // There is deliberately no settingsHiddenCountries, no second vocabulary and
 // no second set of semantics.
 //
-// The interaction concept is FilterPopup's — countries on the left,
-// categories for the focused country on the right — but contained in the
-// pane rather than shown as a modal: the user is already inside a Settings
-// screen, so opening a popup on top of it would be a second layer for no
-// reason. Changes apply immediately here (no draft/Apply step), matching
+// Countries on the left, categories for the focused country on the right,
+// contained in the pane rather than shown as a modal: the user is already
+// inside a Settings screen, so a popup on top of it would be a second layer
+// for no reason. Changes apply immediately (no draft/Apply step), matching
 // every other preference on this screen.
+//
+// THIS IS NOW THE ONLY EDITOR FOR THESE PREFERENCES. Channels used to carry
+// a FilterPopup of its own — the same two columns over the same two sets,
+// behind a staged draft and an "Apply filters" button. It was deleted on
+// 2026-08-31 and its toolbar action deep-links here instead (see
+// BrowseCascadeScreen's onOpenChannelVisibility): one setting with two
+// editors is a divergence waiting to happen, and this was the better half.
 import { useEffect, useMemo, useState } from 'react'
 import { setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { useFocusRecovery } from '../../core/platform'
@@ -59,7 +65,7 @@ export function ChannelVisibilityPane({
   onLeaveToRail: () => void
 }) {
   // Reads the prepared index (O(number of countries)) rather than rescanning
-  // the combined ~30,000-channel array — the same reason FilterPopup uses it.
+  // the combined ~30,000-channel array, rather than a second full scan.
   const countries = useMemo(
     () => channelIndex.getCountries().sort((a, b) => (a.name === OTHER ? 1 : b.name === OTHER ? -1 : b.count - a.count)),
     [channelIndex],

@@ -6,9 +6,10 @@
 // catalog, playlist connection, QR pairing) are the only things stubbed.
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { destroy, getCurrentFocusKey, init, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import { makeFakeLocalStorage } from '../../core/storage/testFakeLocalStorage'
+import type { SettingsSectionId } from './settingsSections'
 
 // Same setup main.tsx does before rendering <App/>; without it every
 // useFocusable() registration throws an unhandled measureLayout rejection
@@ -51,6 +52,23 @@ vi.mock('../setup/usePairingSession', () => ({
   usePairingSession: () => ({ status: 'error', activationUrl: null, retry: () => {} }),
   ackPairing: vi.fn(),
 }))
+
+// resetAppData's own store-clearing behaviour is covered by
+// data/resetAppData.test.ts. What matters here is what the SCREEN does with
+// it: which scope it asks for, and whether it reloads.
+const resetAppData = vi.fn()
+vi.mock('../../data/resetAppData', () => ({
+  resetAppData: (...args: unknown[]) => resetAppData(...args),
+}))
+
+// jsdom's Location has no navigation, so reload has to be replaced outright
+// rather than spied on.
+const reloadSpy = vi.fn()
+Object.defineProperty(window, 'location', {
+  value: { ...window.location, reload: reloadSpy },
+  configurable: true,
+  writable: true,
+})
 
 const competitionsState = { current: { status: 'ready', leagues: [] } as unknown }
 vi.mock('../../data/sports/useFootballCompetitions', () => ({
@@ -138,12 +156,16 @@ function renderSettings({
   hiddenCategories = new Set<string>(),
   recentlyWatchedCount = 0,
   channelSet = channels(),
+  initialSection,
 }: {
   playlists?: PlaylistDefinition[]
   syncStatuses?: Record<string, PlaylistSyncStatus>
   hiddenCountries?: Set<string>
   hiddenCategories?: Set<string>
   recentlyWatchedCount?: number
+  // Deep-linked entry (Channels' Channel Visibility action). Omitted for
+  // every other test, which is exactly the ordinary entry.
+  initialSection?: SettingsSectionId
   // The combined channel set the Countries and Channel-visibility panes
   // derive their vocabulary from. Overridden only where the number of
   // countries is the point — the five-country cap means the default seven
@@ -184,6 +206,7 @@ function renderSettings({
       onChangeChannelVisibility={calls.onChangeChannelVisibility}
       recentlyWatchedCount={recentlyWatchedCount}
       onClearRecentlyWatched={calls.onClearRecentlyWatched}
+      initialSection={initialSection}
       onBack={calls.onBack}
     />,
   )
@@ -251,6 +274,8 @@ function openSectionFromRail(label: string) {
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', makeFakeLocalStorage())
+  resetAppData.mockReset().mockResolvedValue(true)
+  reloadSpy.mockReset()
   loadChannelsForSource.mockReset()
   competitionsState.current = { status: 'ready', leagues: CATALOG }
 })
@@ -1321,11 +1346,164 @@ describe('Settings — focus continuity across mutations', () => {
 })
 
 describe('Settings — nothing developer-facing leaks into the production screen', () => {
-  it('shows no diagnostics, cache versions, API URLs, onboarding reset or storage wipe', () => {
+  // 'Reset onboarding' was on this forbidden list until 2026-08-31, when a
+  // deliberate, confirmed, user-facing Reset was added to the Playlists pane
+  // (see the suite below). The guard's intent has not changed — no DEBUG
+  // surface may reach a real user — but a reset is not a debug surface: it
+  // is the standard way any TV app is handed on to someone else or dug out
+  // of a broken state, and on this hardware it is also the ONLY way, since
+  // the AdminPanel is compiled out of production builds and the TV exposes
+  // no devtools to clear storage by hand. What stays forbidden is anything
+  // that exposes Ninety's internals or wipes data without asking.
+  it('shows no diagnostics, cache versions, API URLs or admin surfaces', () => {
     renderSettings()
     const text = document.body.textContent ?? ''
-    for (const forbidden of ['Reset onboarding', 'Clear storage', 'ninety-api', 'cache version', 'Debug', 'Admin']) {
+    for (const forbidden of ['Clear storage', 'ninety-api', 'cache version', 'Debug', 'Admin']) {
       expect(text).not.toContain(forbidden)
     }
+  })
+
+  // The part of the old guard that still matters: a reset must never be one
+  // press away. Both actions are confirmed before anything is destroyed.
+  it('destroys nothing on the press that opens a reset', () => {
+    renderSettings()
+    fireEvent.click(screen.getByText('Reset everything'))
+    expect(resetAppData).not.toHaveBeenCalled()
+    expect(reloadSpy).not.toHaveBeenCalled()
+  })
+})
+
+// Resetting the app from the TV itself.
+//
+// This exists because there was NO way to do it on device: the AdminPanel
+// that owned the old reset is behind `import.meta.env.DEV`, so it does not
+// exist in the Tizen build at all, and at this Samsung account tier there
+// are no devtools to clear storage by hand. Reinstalling was the only path.
+describe('Settings — resetting the app', () => {
+  // The pane's button and the dialog's confirm deliberately share a label
+  // ("Reset everything" both places, so the confirm restates exactly what is
+  // about to happen), so a click has to say which one it means.
+  const clickInDialog = (label: string) => {
+    const actions = document.querySelector('.settings-dialog-actions')
+    if (!actions) throw new Error('no reset dialog is open')
+    fireEvent.click(within(actions as HTMLElement).getByText(label))
+  }
+
+  // Both reset rows live at the foot of the Playlists pane, which is the
+  // section Settings opens on, so they are reachable without arrowing
+  // through the rail first.
+  it('offers both scopes, and says which one keeps the playlist', () => {
+    renderSettings()
+    expect(screen.getByText('Reset onboarding & preferences')).toBeTruthy()
+    expect(screen.getByText('Reset everything')).toBeTruthy()
+  })
+
+  it('is still reachable when no playlist is connected', () => {
+    // The state a full reset produces. A reset the empty pane hid would be
+    // unreachable exactly when someone wants to clear preferences again.
+    renderSettings({ playlists: [] })
+    expect(screen.getByText('Reset everything')).toBeTruthy()
+  })
+
+  it('spells out what a full reset destroys before doing it', () => {
+    renderSettings()
+    fireEvent.click(screen.getByText('Reset everything'))
+    const body = document.querySelector('.settings-dialog-body')?.textContent ?? ''
+    expect(body).toContain('playlists')
+    expect(body).toContain('favorites')
+  })
+
+  it('promises the playlist survives an onboarding-only reset', () => {
+    renderSettings()
+    fireEvent.click(screen.getByText('Reset onboarding & preferences'))
+    expect(document.querySelector('.settings-dialog-body')?.textContent ?? '').toContain('playlists and their downloaded channels are kept')
+  })
+
+  it('cancelling changes nothing at all', () => {
+    renderSettings()
+    fireEvent.click(screen.getByText('Reset everything'))
+    clickInDialog('Cancel')
+
+    expect(resetAppData).not.toHaveBeenCalled()
+    expect(reloadSpy).not.toHaveBeenCalled()
+    expect(document.querySelector('.settings-dialog')).toBeNull()
+  })
+
+  it('wipes everything and reloads once confirmed', async () => {
+    renderSettings()
+    fireEvent.click(screen.getByText('Reset everything'))
+    clickInDialog('Reset everything')
+
+    await waitFor(() => expect(resetAppData).toHaveBeenCalledWith('everything'))
+    // The reload is what actually returns the app to a first-launch render —
+    // resolveInitialScreen then opens onboarding by itself, because the
+    // reset cleared the onboarding flag.
+    await waitFor(() => expect(reloadSpy).toHaveBeenCalledTimes(1))
+  })
+
+  it('passes the narrower scope through for an onboarding-only reset', async () => {
+    renderSettings()
+    fireEvent.click(screen.getByText('Reset onboarding & preferences'))
+    clickInDialog('Reset')
+
+    await waitFor(() => expect(resetAppData).toHaveBeenCalledWith('onboarding'))
+    await waitFor(() => expect(reloadSpy).toHaveBeenCalledTimes(1))
+  })
+
+  // Reloading into a half-cleared app is worse than not resetting at all.
+  it('does not reload when the wipe fails, and says so', async () => {
+    resetAppData.mockResolvedValue(false)
+    renderSettings()
+    fireEvent.click(screen.getByText('Reset everything'))
+    clickInDialog('Reset everything')
+
+    await waitFor(() => expect(screen.getByText('Reset failed')).toBeTruthy())
+    expect(reloadSpy).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('nothing was changed')
+  })
+})
+
+// CHANNELS DEEP-LINKS HERE. Its toolbar used to open a FilterPopup of its
+// own — a second editor for the very same hidden-country/hidden-category
+// preferences this pane owns. The popup is gone; the action opens Settings
+// on this section instead, and landing on Playlists and asking the viewer to
+// walk the rail would have been a worse answer than the popup was.
+describe('Settings — opening on a specific section', () => {
+  const activeSection = () => document.querySelector('.settings-rail-item.active')?.textContent
+
+  it('opens straight on Channel visibility when asked to', () => {
+    renderSettings({ initialSection: 'visibility' })
+    expect(activeSection()).toBe('Channel visibility')
+    // And the pane itself, not just the rail highlight.
+    expect(screen.getByText('Ticked countries and categories appear while browsing Channels.')).toBeTruthy()
+  })
+
+  it('puts focus on that section rather than on the first one', async () => {
+    renderSettings({ initialSection: 'visibility' })
+    await act(async () => {
+      await setFocus('settings-screen')
+    })
+    expect(getCurrentFocusKey()).toBe('settings-rail-visibility')
+  })
+
+  it('leaves an ordinary entry opening on Playlists exactly as before', () => {
+    renderSettings()
+    expect(activeSection()).toBe('Playlists')
+  })
+
+  it('lets the viewer move off the deep-linked section normally', async () => {
+    renderSettings({ initialSection: 'visibility' })
+    await act(async () => {
+      await setFocus('settings-rail-countries')
+    })
+    expect(activeSection()).toBe('Countries')
+  })
+
+  // Back is the caller's business either way — Settings just reports it, and
+  // App decides whether that means Home, Schedule or Channels.
+  it('reports Back the same way however it was opened', () => {
+    const { calls } = renderSettings({ initialSection: 'visibility' })
+    fireEvent.click(screen.getByText('Back'))
+    expect(calls.onBack).toHaveBeenCalledTimes(1)
   })
 })

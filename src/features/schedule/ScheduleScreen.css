@@ -1,197 +1,375 @@
-/* Schedule — "what football is on today", grouped by competition.
-   Carried over largely intact from the retired CompetitionsScreen.css (this
-   screen replaced it): the page frame, pill row and back link are the same
-   components with the same tokens; only the fixture row changed shape, from
-   a left-to-right list of four equal spans into a fixed center axis the
-   whole page scans down. */
+/* Schedule — a football fixture guide for one local calendar day, browsed
+   with the date navigator at the top.
+
+   THE COMPOSITION, top to bottom: one compact rounded date toolbar, then one
+   card per competition. The competition is the card; fixtures are rows inside
+   it. Nothing else is on the page — the league-pill filter row this screen
+   used to carry was removed with the 2026-08-31 redesign, because the whole
+   day IS the browse surface now (see ScheduleScreen.tsx).
+
+   VERTICAL BUDGET. Only fixtures earn height here. The date bar and the
+   competition header bands are both sized to the smallest thing that still
+   reads from a sofa (72px and 56px), so the first competition of the day
+   starts ~112px below the top nav and a card costs 56px of chrome rather
+   than 72. Fixture rows themselves were NOT shrunk — they are the content,
+   and every pixel taken off the chrome above them is one more of them on
+   screen.
+
+   THE ONE ALIGNMENT THAT MATTERS is the centre axis of .fixture-row: the
+   kickoff time / score column lands on the same vertical line in every row
+   of every competition on the page, whatever the team names are, which is
+   what makes a 60-fixture Saturday scannable from three metres away. */
 
 .schedule-screen {
-  padding: 0 var(--space-24) var(--space-24);
+  /* Tight at the top on purpose: the date bar is a toolbar, not a hero, and
+     the pixels saved here are the first fixtures of the day. Horizontal
+     padding is unchanged — the cards keep their full width. */
+  padding: var(--space-4) var(--space-24) var(--space-24);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  height: calc(1080px - 84px);
   box-sizing: border-box;
+  /* The screen is the ONE vertical scroll owner — no nested scrollers, so
+     every focused row can be brought into view by the same
+     useFocusScrollIntoView the rest of the app uses. */
+  height: calc(1080px - var(--topnav-height));
   overflow-y: auto;
-}
-
-.schedule-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.schedule-title {
-  font-size: var(--font-display-lg);
-  font-weight: var(--weight-light);
-  margin: 0;
-}
-
-/* The day the pills and sections below are scoped to. Quiet — it labels the
-   filter row, it isn't a second page heading. */
-.schedule-day {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-section);
-  font-weight: var(--weight-regular);
-}
-
-.schedule-status {
-  color: var(--text-muted);
-  padding: var(--space-4) 0;
-}
-
-.back-link {
-  font: inherit;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: var(--font-body);
-  padding: var(--space-1) var(--space-2);
-}
-
-.back-link.focused {
-  border-color: var(--border-focus);
-  color: var(--text-primary);
-  background: var(--surface-focus);
-}
-
-/* Only competitions with a fixture today appear here, in the same order as
-   the sections below (see scheduleFilterOptions) — the row reads as a table
-   of contents for the page rather than a separately-sorted second list. */
-.schedule-pills {
-  display: flex;
-  gap: var(--space-2);
-  overflow-x: auto;
-  padding-bottom: var(--space-2);
-  flex-shrink: 0;
-  /* Focus/D-pad driven, same as Home's rows — the desktop scrollbar track
-     is meaningless on a TV. */
+  /* Focus/D-pad driven: the desktop scrollbar track is meaningless on a TV
+     and would sit inside the rounded cards' right edge. */
   scrollbar-width: none;
 }
 
-.schedule-pills::-webkit-scrollbar {
+.schedule-screen::-webkit-scrollbar {
   display: none;
 }
 
-.league-pill {
+/* ---------- Date navigator ---------- */
+/* Always mounted, in every state of the screen: it is both the thing that
+   says which day this is and the only way to change it, so a load must never
+   blank it. */
+
+/* A SLIM NAVIGATION BAR, not a feature panel. 72px of full-width rounded
+   surface carrying one line of text between two 44px circles — 14px of clear
+   space above and below them and nothing else, so the bar is as tall as its
+   controls need and no taller.
+
+   THE HIERARCHY THIS SERVES: fixtures are the content, the date bar is the
+   compact control that changes which fixtures, and TopNav is the global
+   navigation above both. It has come down 104 -> 96 -> 72px across this
+   redesign as each thing that justified the height went away (a second label
+   line, then a heading-scale type size). Height is FIXED, with zero vertical
+   padding — nothing here may reintroduce a min-height/padding pair that
+   silently makes it taller than 72px again. */
+.schedule-datebar {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-6);
+  height: 72px;
   flex-shrink: 0;
-  font: inherit;
-  font-size: var(--font-meta);
-  color: var(--text-secondary);
+  box-sizing: border-box;
+  padding: 0 var(--space-6);
   background: var(--surface-primary);
+  border-radius: var(--radius-xl);
+}
+
+.schedule-day-arrow {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  /* Transparent at rest so colouring it on focus cannot shift layout — see
+     the focus-state contract in tokens.css. */
   border: 1.5px solid transparent;
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.league-pill img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-}
-
-/* ACTIVE = the league currently filtering the list below. Same collision
-   the Match View top pick had: --accent and --border-focus are one colour,
-   so an accent border here WAS the focus border, and the selected pill and
-   the focused pill were indistinguishable. Under the focus-state contract
-   (tokens.css) a selected state gets surface elevation and the dimmed
-   accent instead. */
-.league-pill.active {
-  color: var(--text-primary);
   background: var(--surface-elevated);
-  border-color: var(--border-selected);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--motion-focus),
+    border-color var(--motion-focus),
+    color var(--motion-focus);
 }
 
-/* FOCUSED: both channels, so it stays the loudest pill in the row whether
-   or not it is also the active one. */
-.league-pill.focused {
-  color: var(--text-primary);
+.schedule-day-arrow svg {
+  width: 20px;
+  height: 20px;
+}
+
+.schedule-day-arrow.focused {
   background: var(--surface-focus);
   border-color: var(--border-focus);
-}
-
-/* ---------- Competition groups ---------- */
-
-.schedule-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-/* A text line with a crest, not a card or a banded header — the fixtures
-   are the content, this only says which competition they belong to. */
-.schedule-group-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: var(--space-4) 0 var(--space-1);
-  font-size: var(--font-section);
-  font-weight: var(--weight-medium);
   color: var(--text-primary);
 }
 
-.schedule-group-title img {
-  width: 26px;
-  height: 26px;
+/* The backwards boundary (yesterday). Dimmed AND out of the spatial-nav tree
+   — see DayArrow's `focusable` — rather than merely dimmed. */
+.schedule-day-arrow.disabled {
+  background: var(--surface-secondary);
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+/* MATHEMATICALLY CENTRED IN THE WHOLE TOOLBAR, not just in the space
+   between the arrows — and it is the same thing here by construction. The
+   bar's padding is symmetric, its gap is uniform, and the two arrows are
+   identical fixed 44px circles that are never unmounted (the backwards
+   boundary only makes one of them non-focusable — see DayArrow). So the one
+   `flex: 1` slot between them is itself symmetric about the bar's centre
+   line, and text centred inside it sits on that centre line exactly. Nothing
+   here may become asymmetric without this stopping being true. */
+.schedule-day-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* A LABEL, not a page heading: the day is context for the fixtures below,
+   so 24px puts it a single step above the 22px competition titles rather
+   than a heading's distance above everything. One line always — "Wednesday
+   02.09" is the longest string this ever holds, against a ~1544px slot
+   between the arrows; nowrap keeps the promise regardless. */
+.schedule-day-title {
+  font-size: 24px;
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  line-height: 1.1;
+  white-space: nowrap;
+  /* Optical centring. Flexbox centres the text's LINE BOX, which sits high
+     against a cap-height-dominated word like "Today" — the ascender space
+     above the caps is dead, the descender space below mostly unused. 2px
+     down puts the glyphs on the bar's visual centre (it was 4px at 28px
+     type; the correction scales with the type). A transform rather than
+     padding or a margin on purpose: it moves nothing in layout, so the bar
+     stays exactly 72px. */
+  transform: translateY(2px);
+}
+
+/* ---------- Competition cards ---------- */
+
+.schedule-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+/* NO `overflow: hidden` HERE, and that absence is load-bearing.
+   It used to carry one, purely so the header band's square corners were
+   clipped into the card's rounded ones. But a 22px clip on the card also
+   clips its LAST fixture row — which is flush with the bottom — and the
+   focus ring is an inset box-shadow drawn right on that row's edge. The
+   result was the reported bug: the green ring on the final fixture of a
+   competition lost its bottom-left and bottom-right corners.
+
+   The two children that touch a corner now round themselves to match
+   (see .schedule-competition-header and the :last-child rule below), so the
+   card's silhouette is identical and nothing needs clipping to produce it.
+   Anything added here that touches an edge must round itself the same way,
+   rather than reintroducing the clip. */
+.schedule-competition {
+  background: var(--surface-primary);
+  border-radius: var(--radius-xl);
+}
+
+/* The header band: a shade lighter than the fixture body beneath it, which
+   is the whole separation — no border, no rule, no second outline.
+
+   PURELY INFORMATIONAL. It says which competition the rows below belong to
+   and nothing else: no focus state, no hover, no cursor, no chevron, because
+   there is nothing here to press (see CompetitionSection). 56px is enough to
+   centre a 32px flag against a 22px title and still read as a distinct band
+   from three metres — the 72px it used to be was sized for an affordance
+   that no longer exists. */
+.schedule-competition-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 56px;
+  box-sizing: border-box;
+  padding: 0 var(--space-8);
+  background: var(--surface-elevated);
+  /* Its own corners rather than the card clipping them off it — see
+     .schedule-competition. */
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.schedule-competition-flag {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: cover;
+  /* Same circular treatment as Event Details' stream-country headers — one
+     flag look across the app. */
+  border-radius: 50%;
+}
+
+/* Supranational competitions have no country of their own, so they wear
+   their own badge here instead of an invented flag. */
+.schedule-competition-badge {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
   object-fit: contain;
 }
 
-.fixture-list {
-  display: flex;
-  flex-direction: column;
+.schedule-competition-mark-empty {
+  width: 32px;
+  flex-shrink: 0;
 }
 
-/* ---------- Fixture row ---------- */
-/* A fixed three-part axis: time column, then two equal 1fr team halves
-   pushed toward a fixed-width center. Equal halves mean the center column
-   (VS, or the score) lands on the same vertical line for every row on the
-   page regardless of team-name length — the thing that makes a 60-fixture
-   day scannable at TV distance. */
+.schedule-competition-title {
+  flex: 1;
+  min-width: 0;
+  /* A step UNDER the 22px team names in the rows beneath, not level with
+     them: the competition is what the fixtures are filed under, and a label
+     that matches its contents in size competes with them. Same 20px the
+     channel list and Home's row headings already use. */
+  font-size: 20px;
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Fixture rows ---------- */
+
+.schedule-fixtures {
+  display: flex;
+  flex-direction: column;
+  /* THE CENTRE AXIS. A row is [home | centre | away] with equal 1fr team
+     halves and SYMMETRIC edge padding, so the centre column lands exactly on
+     the card's centre line — every row, every competition, whatever the team
+     names are. (It used to carry a fourth right-hand gutter column for the
+     TV mark, which the left padding had to compensate for; the mark is gone
+     and so is the asymmetry.) */
+  --fixture-edge: var(--space-10);
+  --fixture-gap: var(--space-4);
+}
 
 .fixture-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 148px 1fr;
   align-items: center;
-  gap: var(--space-3);
-  height: 56px;
+  gap: var(--fixture-gap);
+  height: 76px;
   box-sizing: border-box;
-  padding: 0 var(--space-4);
-  border-top: 1px solid var(--divider);
-  border-radius: var(--radius-sm);
+  padding: 0 var(--fixture-edge);
   cursor: pointer;
+  transition:
+    background var(--motion-focus),
+    box-shadow var(--motion-focus);
+}
+
+.fixture-row + .fixture-row {
+  border-top: 1px solid var(--divider);
 }
 
 .fixture-row.focused {
-  background: var(--surface-elevated);
-  border: 1.5px solid var(--border-focus);
+  background: var(--surface-focus);
+  box-shadow: inset 0 0 0 2px var(--border-focus);
 }
 
-.fixture-row-time {
-  width: 92px;
+/* THE LAST FIXTURE IS THE CARD'S BOTTOM EDGE, so it wears the card's bottom
+   corners itself. An inset box-shadow follows its own element's radius, so
+   the focus ring now curves through both corners and is drawn complete —
+   instead of being sliced off by an ancestor's clip, which is what
+   .schedule-competition's old `overflow: hidden` did to it.
+
+   Matching the card's radius exactly (not approximating it, and not
+   flattening the corners to dodge the problem) is what keeps the focused
+   row's own background inside the card's silhouette too. */
+.schedule-fixtures > .fixture-row:last-child {
+  border-bottom-left-radius: var(--radius-xl);
+  border-bottom-right-radius: var(--radius-xl);
+}
+
+.fixture-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Crest INSIDE the name on both sides, against the centre, so the crests form
+   two vertical columns flanking the time axis down the page. (Match View
+   does the opposite — see EventHeader.tsx and the note in ScheduleScreen.tsx
+   for why one wide header and a long list want different orders.) */
+.fixture-team-home {
+  justify-content: flex-end;
+}
+
+.fixture-team-away {
+  justify-content: flex-start;
+}
+
+.fixture-crest {
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-meta);
+  object-fit: contain;
+}
+
+.fixture-team-name {
+  min-width: 0;
+  font-size: var(--font-channel);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Fixed width and a fixed row height, so the axis never moves between a
+   kickoff-time row and a scored one, and a two-line live/FT centre never
+   makes its row taller than its neighbours. */
+.fixture-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.fixture-center-value {
+  font-size: var(--font-channel);
+  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
-/* Same live-red treatment as Home's cards and Event Details' status line —
-   Ninety already has one "live" look, this isn't a third. */
-.fixture-row-live {
+.fixture-center-value.score {
+  font-weight: var(--weight-medium);
+}
+
+/* A live fixture with no real score to show (a heuristically-live one — see
+   SportEvent.isLiveHeuristic) says only that it is live. */
+.fixture-center-value.live {
+  font-size: var(--font-body);
+  font-weight: var(--weight-medium);
+  color: var(--live-red);
+  letter-spacing: 0.08em;
+}
+
+.fixture-center-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* Same live-red as Home's cards and Event Details' status line — Ninety has
+   one "live" look and this isn't a second. */
+.fixture-center-status.live {
   color: var(--live-red);
   font-weight: var(--weight-medium);
 }
 
-.fixture-row-live-dot {
+.fixture-live-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -199,73 +377,51 @@
   flex-shrink: 0;
 }
 
-.fixture-row-ft {
-  color: var(--text-muted);
-  letter-spacing: 0.06em;
-}
+/* ---------- Loading / empty / error ---------- */
 
-.fixture-row-team {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 0%;
-  min-width: 0;
-  font-size: var(--font-body);
-}
-
-/* Crest OUTSIDE the name on both sides, name innermost — the same reading
-   order as the Match View header (see EventHeader.tsx). */
-.fixture-row-team-home {
-  justify-content: flex-end;
-}
-
-.fixture-row-team-away {
-  justify-content: flex-start;
-}
-
-.fixture-row-team img {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-.fixture-row-team-name {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-primary);
-}
-
-/* Fixed width, so the axis never shifts between a "VS" row and a scored
-   one. VS is understated (this is structure); a real score is not (it's the
-   most valuable thing on the row when it exists). */
-.fixture-row-center {
-  width: 88px;
-  flex-shrink: 0;
+.schedule-status {
+  padding: var(--space-16) 0;
   text-align: center;
   color: var(--text-muted);
-  font-size: var(--font-meta);
-  letter-spacing: 0.08em;
+  font-size: var(--font-section);
+  font-weight: var(--weight-light);
 }
 
-.fixture-row-center.has-score {
-  color: var(--text-primary);
-  font-size: var(--font-body);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
+/* Keeps the page's shape while an unvisited day is fetched, so nothing jumps
+   when the real fixtures land. Already-visited days come back from
+   useScheduleDay's cache and never reach this at all. */
+.schedule-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  animation: schedule-skeleton-pulse 1.6s ease-in-out infinite;
 }
 
-/* Fallback for an entry with no two named sides — takes the row rather than
-   rendering an empty matchup. */
-.fixture-row-title {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-body);
-  color: var(--text-primary);
-  white-space: nowrap;
+.schedule-skeleton-card {
+  background: var(--surface-primary);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.schedule-skeleton-header {
+  height: 56px;
+  background: var(--surface-elevated);
+}
+
+.schedule-skeleton-row {
+  height: 76px;
+}
+
+.schedule-skeleton-row + .schedule-skeleton-row {
+  border-top: 1px solid var(--divider);
+}
+
+@keyframes schedule-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }

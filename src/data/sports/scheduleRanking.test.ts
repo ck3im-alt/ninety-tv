@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyScheduleFilter, buildScheduleGroups, orderFixturesWithinGroup, scheduleFilterOptions } from './scheduleRanking'
+import { buildScheduleGroups, orderFixturesWithinGroup } from './scheduleRanking'
+import type { LeagueDef } from './leagues'
 import type { SportEvent } from './types'
 
 // Minimal fixtures — only the fields ranking actually reads. `dateTimeUtc`
@@ -54,7 +55,7 @@ describe('buildScheduleGroups — the critical rule: ranking changes ORDER ONLY'
 })
 
 describe('buildScheduleGroups — competition ordering', () => {
-  it('gives a favorite competition a meaningful boost over an unfollowed one of the same size', () => {
+  it('puts a favorite competition ahead of an unfollowed one of the same size', () => {
     const fixtures = [
       fixture({ id: 'a', leagueId: 'football_premier_league', leagueTier: 1 }),
       fixture({ id: 'b', leagueId: 'football_ligue_1', leagueTier: 1 }),
@@ -70,15 +71,16 @@ describe('buildScheduleGroups — competition ordering', () => {
     expect(ids(buildScheduleGroups(fixtures, ['football_eliteserien']))[0]).toBe('football_eliteserien')
   })
 
-  // The explicit calibration target: a favorite checkbox must not become an
-  // absolute monopoly. A Champions League knockout tie has to stay above a
-  // tiny competition the user happens to follow.
-  it('keeps a Champions League semifinal above a favorited tier-3 competition', () => {
+  // REPLACES the old calibration target, which said the opposite: until
+  // 2026-08-31 a favorite was a +0.30 WEIGHT and a Champions League
+  // semifinal deliberately outranked a favorited tier-3 competition. That
+  // was Home's question, not Schedule's — see scheduleRanking.ts's header.
+  it('puts a favorited tier-3 competition above a non-favorite Champions League semifinal', () => {
     const fixtures = [
       fixture({ id: 'a', leagueId: 'tiny_cup', leagueTier: 3, round: 'Regular Season' }),
       fixture({ id: 'b', leagueId: 'football_champions_league', leagueTier: 1, round: 'Semi-finals' }),
     ]
-    expect(ids(buildScheduleGroups(fixtures, ['tiny_cup']))[0]).toBe('football_champions_league')
+    expect(ids(buildScheduleGroups(fixtures, ['tiny_cup']))).toEqual(['tiny_cup', 'football_champions_league'])
   })
 
   it('still ranks a favorited tier-1 league at the very top of that same day', () => {
@@ -179,30 +181,157 @@ describe('orderFixturesWithinGroup', () => {
   })
 })
 
-describe('league filter', () => {
-  const fixtures = [
-    fixture({ id: 'a', leagueId: 'football_premier_league', league: 'Premier League', leagueTier: 1 }),
-    fixture({ id: 'b', leagueId: 'tiny_cup', league: 'Tiny Cup', leagueTier: 3 }),
+// ===========================================================================
+// FAVORITES ARE AN ABSOLUTE PARTITION
+// ===========================================================================
+//
+// The behavioural change of the 2026-08-31 redesign, and the reason the
+// Champions-League-semifinal test above now asserts the opposite of what it
+// used to: EVERY competition the viewer follows and that has a fixture on
+// the day comes before EVERY competition they don't. Ordering within each
+// partition is unchanged.
+describe('buildScheduleGroups — the favorite partition', () => {
+  const DAY = [
+    fixture({ id: 'cl', leagueId: 'football_champions_league', leagueTier: 1, round: 'Semi-finals' }),
+    fixture({ id: 'pl', leagueId: 'football_premier_league', leagueTier: 1 }),
+    fixture({ id: 'elite', leagueId: 'norway_eliteserien', leagueTier: 2 }),
+    fixture({ id: 'champ', leagueId: 'england_championship', leagueTier: 3 }),
   ]
-  const groups = buildScheduleGroups(fixtures, [])
 
-  it('offers a pill for every competition with a fixture today, in the same order as the sections', () => {
-    expect(scheduleFilterOptions(groups).map((o) => o.competitionId)).toEqual(ids(groups))
+  it('places every favorite before every non-favorite, whatever their prestige', () => {
+    const groups = buildScheduleGroups(DAY, ['norway_eliteserien', 'england_championship'])
+    const favorites = groups.filter((g) => g.isFavorite).map((g) => g.competitionId)
+    const rest = groups.filter((g) => !g.isFavorite).map((g) => g.competitionId)
+    expect(ids(groups).slice(0, favorites.length)).toEqual(favorites)
+    expect(favorites.sort()).toEqual(['england_championship', 'norway_eliteserien'])
+    expect(rest.sort()).toEqual(['football_champions_league', 'football_premier_league'])
   })
 
-  it('shows everything until a league is explicitly selected (the "All" default)', () => {
-    expect(applyScheduleFilter(groups, null)).toHaveLength(2)
+  // The worked example from the redesign brief, stated exactly.
+  it('starts the day with Eliteserien and the Championship when those are the favorites', () => {
+    expect(ids(buildScheduleGroups(DAY, ['norway_eliteserien', 'england_championship']))).toEqual([
+      'norway_eliteserien',
+      'england_championship',
+      'football_champions_league',
+      'football_premier_league',
+    ])
   })
 
-  it('narrows to exactly one competition once one is selected', () => {
-    const filtered = applyScheduleFilter(groups, 'tiny_cup')
-    expect(ids(filtered)).toEqual(['tiny_cup'])
-    expect(filtered[0].fixtures.map((f) => f.id)).toEqual(['b'])
+  it('orders WITHIN the favorite partition by the same prestige/stage ranking', () => {
+    // Both favorited: the tier-1 league still leads the tier-3 one, and a
+    // knockout stage still lifts its competition.
+    const groups = buildScheduleGroups(DAY, ['football_premier_league', 'england_championship', 'football_champions_league'])
+    expect(ids(groups)).toEqual([
+      'football_champions_league',
+      'football_premier_league',
+      'england_championship',
+      'norway_eliteserien',
+    ])
   })
 
-  it('never mutates the groups it filters', () => {
-    applyScheduleFilter(groups, 'tiny_cup')
-    expect(groups).toHaveLength(2)
+  it('orders WITHIN the non-favorite partition exactly as it did before', () => {
+    expect(ids(buildScheduleGroups(DAY, []))).toEqual([
+      'football_champions_league',
+      'football_premier_league',
+      'norway_eliteserien',
+      'england_championship',
+    ])
+  })
+
+  it('is deterministic for two tied favorites (earliest kickoff, then name)', () => {
+    const fixtures = [
+      fixture({ id: 'z', leagueId: 'zeta', league: 'Zeta League', leagueTier: 2, dateTimeUtc: '2026-08-26T18:00:00Z' }),
+      fixture({ id: 'a', leagueId: 'alpha', league: 'Alpha League', leagueTier: 2, dateTimeUtc: '2026-08-26T18:00:00Z' }),
+      fixture({ id: 'e', leagueId: 'early', league: 'Early League', leagueTier: 2, dateTimeUtc: '2026-08-26T12:00:00Z' }),
+    ]
+    const favorites = ['zeta', 'alpha', 'early']
+    const once = ids(buildScheduleGroups(fixtures, favorites))
+    const again = ids(buildScheduleGroups([...fixtures].reverse(), favorites))
+    expect(once).toEqual(['early', 'alpha', 'zeta'])
+    expect(again).toEqual(once)
+  })
+
+  // The partition reorders; it must never remove.
+  it('keeps every fixture on the page when nothing at all is favorited', () => {
+    const groups = buildScheduleGroups(DAY, [])
+    expect(groups.flatMap((g) => g.fixtures.map((f) => f.id)).sort()).toEqual(['champ', 'cl', 'elite', 'pl'])
+  })
+
+  it('keeps every fixture on the page when EVERYTHING is favorited', () => {
+    const all = ['football_champions_league', 'football_premier_league', 'norway_eliteserien', 'england_championship']
+    const groups = buildScheduleGroups(DAY, all)
+    expect(groups.flatMap((g) => g.fixtures.map((f) => f.id)).sort()).toEqual(['champ', 'cl', 'elite', 'pl'])
+    expect(groups.every((g) => g.isFavorite)).toBe(true)
+  })
+
+  it('ignores a favorited competition that has no fixture on the day', () => {
+    const groups = buildScheduleGroups(DAY, ['a_competition_not_playing_today'])
+    expect(groups).toHaveLength(4)
+    expect(groups.some((g) => g.isFavorite)).toBe(false)
+  })
+})
+
+// ===========================================================================
+// COMPETITION METADATA TRAVELS WITH THE GROUP, NOT ON THE EVENT
+// ===========================================================================
+//
+// The section header reads "England – Premier League" with a real flag. That
+// country is a COMPETITION fact from ninety-api's registry (GET
+// /v1/competitions), resolved once by useScheduleDay and handed in here —
+// deliberately not copied onto every SportEvent, which would grow the shared
+// event model for one screen's header.
+describe('buildScheduleGroups — competition metadata', () => {
+  function league(id: string, name: string, countryCode: string | null, region: string): LeagueDef {
+    return {
+      id,
+      sportKey: 'football',
+      sportLabel: 'FOOTBALL',
+      tsdbSport: 'Soccer',
+      name,
+      region,
+      countryCode,
+      badge: `https://example.test/${id}.png`,
+    }
+  }
+
+  const CATALOG = new Map<string, LeagueDef>([
+    ['football_premier_league', league('football_premier_league', 'Premier League', 'GB', 'England')],
+    ['football_champions_league', league('football_champions_league', 'UEFA Champions League', null, 'Europe')],
+  ])
+
+  it('carries the registry region and country code onto the group', () => {
+    const groups = buildScheduleGroups([fixture({ id: 'a', leagueId: 'football_premier_league' })], [], CATALOG)
+    expect(groups[0].region).toBe('England')
+    expect(groups[0].countryCode).toBe('GB')
+    expect(groups[0].competitionName).toBe('Premier League')
+  })
+
+  it('leaves a supranational competition with no country code, so no flag can be invented for it', () => {
+    const groups = buildScheduleGroups([fixture({ id: 'a', leagueId: 'football_champions_league' })], [], CATALOG)
+    expect(groups[0].countryCode).toBeNull()
+    expect(groups[0].region).toBe('Europe')
+  })
+
+  it('prefers the registry name over whatever the event carried', () => {
+    const groups = buildScheduleGroups(
+      [fixture({ id: 'a', leagueId: 'football_premier_league', league: 'English Premier League 2026/27' })],
+      [],
+      CATALOG,
+    )
+    expect(groups[0].competitionName).toBe('Premier League')
+  })
+
+  it('still groups a competition the catalog has never heard of, with no metadata', () => {
+    const groups = buildScheduleGroups([fixture({ id: 'a', leagueId: 'brand_new', league: 'Brand New Cup' })], [], CATALOG)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].competitionName).toBe('Brand New Cup')
+    expect(groups[0].region).toBeUndefined()
+    expect(groups[0].countryCode).toBeUndefined()
+  })
+
+  it('works with no catalog at all', () => {
+    const groups = buildScheduleGroups([fixture({ id: 'a', leagueId: 'x', league: 'X League' })], [])
+    expect(groups[0].competitionName).toBe('X League')
   })
 })
 
@@ -278,18 +407,18 @@ describe('buildScheduleGroups — untelevised fixtures stay in the schedule', ()
   })
 })
 
-describe('applyScheduleFilter — the league pills are still the only narrowing', () => {
-  it('keeps untelevised fixtures under the "All" pill', () => {
+// Nothing narrows the day any more — the league-pill filter is gone (see
+// this file's header), so "everything is visible" is now a property of
+// buildScheduleGroups alone, with no second call to get wrong.
+describe('buildScheduleGroups — nothing narrows the day', () => {
+  it('returns televised and untelevised fixtures alike, whatever the favorites are', () => {
     const groups = buildScheduleGroups(
       [
         fixture({ id: 'televised', leagueId: 'a_cup', broadcastAvailability: 'CONFIRMED_BROADCAST' }),
         fixture({ id: 'untelevised', leagueId: 'b_cup', broadcastAvailability: 'CONFIRMED_NOT_BROADCAST' }),
       ],
-      [],
+      ['a_cup'],
     )
-    expect(applyScheduleFilter(groups, null).flatMap((g) => g.fixtures.map((f) => f.id)).sort()).toEqual([
-      'televised',
-      'untelevised',
-    ])
+    expect(groups.flatMap((g) => g.fixtures.map((f) => f.id)).sort()).toEqual(['televised', 'untelevised'])
   })
 })

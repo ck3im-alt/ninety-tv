@@ -1,10 +1,12 @@
 import type Hls from 'hls.js'
+import type { AudioTrackSwitchedData, MediaPlaylist } from 'hls.js'
 import { toDevHlsProxyUrl } from '../net/devCorsProxy'
+import { buildAudioTrackLabel } from './audioLanguage'
 import { createStallWatchdog } from './playbackStallWatchdog'
 import type { StallWatchdog } from './playbackStallWatchdog'
 import { resolvePlayerEngineConfig } from './playerEngineConfig'
 import type { HlsEngineConfig, MpegTsEngineConfig, PlayerEngineConfig } from './playerEngineConfig'
-import type { Player, PlayerError, PlayerState, SubtitleTrack } from './types'
+import type { AudioTrack, Player, PlayerError, PlayerState, SubtitleTrack } from './types'
 
 const INITIAL_STATE: PlayerState = {
   status: 'idle',
@@ -13,6 +15,8 @@ const INITIAL_STATE: PlayerState = {
   error: null,
   subtitleTracks: [],
   activeSubtitleTrack: null,
+  audioTracks: [],
+  activeAudioTrack: null,
   // The <video> element is rendered with the `muted` attribute so autoplay
   // is allowed before any user gesture (browser/Tizen autoplay policy) —
   // this default mirrors that until attach() reads the element's real value.
@@ -45,6 +49,37 @@ export function preloadPlayerEngine(sampleSourceUrl: string): void {
   } else {
     void import('hls.js').catch(() => {})
   }
+}
+
+// The HTML5 AudioTrackList the spec defines on HTMLMediaElement.
+//
+// Feature-detected, never assumed: Chromium ships AudioTrackList behind a
+// disabled-by-default flag, so on desktop Chrome AND on the Tizen 6.5
+// (Chromium 76) firmware this app targets, `video.audioTracks` is simply
+// absent — the TypeScript DOM lib declaring it does not make it exist. The
+// `enabled` check matters just as much as the list's existence: a runtime
+// that exposes entries with no writable `enabled` flag can list tracks but
+// cannot SWITCH them, which is not support.
+interface NativeAudioTrackLike {
+  id?: string
+  kind?: string
+  label?: string
+  language?: string
+  enabled: boolean
+}
+interface NativeAudioTrackListLike {
+  length: number
+  [index: number]: NativeAudioTrackLike | undefined
+  addEventListener?: (type: string, listener: () => void) => void
+}
+
+function nativeAudioTrackList(el: HTMLVideoElement): NativeAudioTrackListLike | null {
+  const list = (el as unknown as { audioTracks?: unknown }).audioTracks
+  if (!list || typeof list !== 'object') return null
+  const candidate = list as NativeAudioTrackListLike
+  if (typeof candidate.length !== 'number') return null
+  if (candidate.length > 0 && typeof candidate[0]?.enabled !== 'boolean') return null
+  return candidate
 }
 
 function bufferedRangesOf(el: HTMLVideoElement): Array<{ start: number; end: number }> {
@@ -134,6 +169,13 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
   // call and checks it's still current after the only await point, so a
   // superseded load is a no-op instead of a race.
   let loadGeneration = 0
+  // Our stable AudioTrack.id -> the index the CURRENT engine wants for a
+  // switch (hls.js's `audioTrack` setter and the native AudioTrackList are
+  // both positional). Rebuilt from scratch every time the track list is
+  // read, and cleared on every load/teardown, so an engine index can never
+  // outlive the source it was derived from — that mapping is exactly what
+  // must not leak between two different streams.
+  const audioTrackIndexById = new Map<string, number>()
 
   function setState(patch: Partial<PlayerState>): void {
     state = { ...state, ...patch }
@@ -161,6 +203,100 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
       if (track.mode === 'showing') active = id
     }
     setState({ subtitleTracks: tracks, activeSubtitleTrack: active })
+  }
+
+  // Identity for one hls.js audio rendition, derived from the manifest
+  // rather than from its position in the array.
+  //
+  // MediaPlaylist.id is a counter assigned while PARSING the master
+  // playlist, so it is unique and stable for the whole life of one loaded
+  // source — but it is NOT the index into `hls.audioTracks`, which is the
+  // subset of renditions in the currently selected AUDIO group (see
+  // AudioTrackController.tracksInGroup). Pairing it with groupId is what
+  // makes this unambiguous. Using the array index as the id instead would
+  // "work" right up until a stale id from the previous channel selected a
+  // completely different language on the new one.
+  function hlsAudioTrackId(track: MediaPlaylist): string {
+    return `hls:${track.groupId}:${track.id}`
+  }
+
+  // Reads whatever hls.js currently considers selectable and republishes it
+  // as platform-neutral AudioTracks. Called on every event that can change
+  // either the list or the selection, so the OSD always reflects the
+  // engine's own view rather than what we last asked for.
+  //
+  // `switchedTo` is the MediaPlaylist carried by AUDIO_TRACK_SWITCHED. It is
+  // preferred over reading `hls.audioTrack` back because that getter returns
+  // the controller's internal trackId, and relying on it being assigned
+  // before the event is dispatched would be an ordering bet on library
+  // internals. The payload IS the track that was switched to.
+  function refreshHlsAudioTracks(switchedTo?: MediaPlaylist): void {
+    if (!hls) return
+    audioTrackIndexById.clear()
+    const tracks: AudioTrack[] = hls.audioTracks.map((track, index) => {
+      const id = hlsAudioTrackId(track)
+      audioTrackIndexById.set(id, index)
+      return { id, label: buildAudioTrackLabel(track.name, track.lang, index), language: track.lang }
+    })
+    // Before hls.js has settled on a rendition, `audioTrack` is -1 — which
+    // indexes to undefined here, i.e. an honest "nothing selected yet"
+    // rather than a fabricated default.
+    const switchedId = switchedTo ? hlsAudioTrackId(switchedTo) : null
+    const activeAudioTrack = (switchedId !== null && audioTrackIndexById.has(switchedId) ? switchedId : tracks[hls.audioTrack]?.id) ?? null
+    setState({ audioTracks: tracks, activeAudioTrack })
+  }
+
+  function refreshNativeAudioTracks(el: HTMLVideoElement): void {
+    audioTrackIndexById.clear()
+    const list = nativeAudioTrackList(el)
+    if (!list) {
+      setState({ audioTracks: [], activeAudioTrack: null })
+      return
+    }
+    const tracks: AudioTrack[] = []
+    let activeAudioTrack: string | null = null
+    for (let index = 0; index < list.length; index++) {
+      const track = list[index]
+      if (!track) continue
+      // A runtime-supplied id is preferred (it survives reordering); the
+      // positional fallback is still scoped to one loaded source, since the
+      // whole map is cleared on load.
+      const id = track.id ? `native:${track.id}` : `native:${index}`
+      audioTrackIndexById.set(id, index)
+      tracks.push({ id, label: buildAudioTrackLabel(track.label, track.language, tracks.length), language: track.language })
+      if (track.enabled) activeAudioTrack = id
+    }
+    setState({ audioTracks: tracks, activeAudioTrack })
+  }
+
+  // The one entry point every caller uses — which engine is answering is
+  // this module's business, not the session controller's or the screen's.
+  //
+  // mpegts.js has NO branch here on purpose, and that is a finding rather
+  // than an omission: its TS demuxer keeps a single `already_has_audio`
+  // guard while walking the PMT (node_modules/mpegts.js/src/demux/
+  // ts-demuxer.ts), so the FIRST audio elementary stream wins and every
+  // further audio PID — the second and third commentary language on a
+  // channel like V Sport Ultra — is dropped before it ever reaches MSE. It
+  // also parses the ISO 639 language descriptor only for PGS subtitle
+  // streams, never for audio, and its Player interface exposes no track
+  // enumeration or selection at all. So an mpegts source falls through to
+  // the native probe, which on Chromium/Tizen finds no AudioTrackList and
+  // yields an empty list: the honest answer that this playback path cannot
+  // offer the choice. MULTI-AUDIO-NOTES.md records the verification and the
+  // platform route (Samsung AVPlay) that can, plus why swapping to it is not
+  // a change this ticket could make blind.
+  function refreshAudioTracks(switchedTo?: MediaPlaylist): void {
+    if (hls) {
+      refreshHlsAudioTracks(switchedTo)
+      return
+    }
+    if (video) {
+      refreshNativeAudioTracks(video)
+      return
+    }
+    audioTrackIndexById.clear()
+    setState({ audioTracks: [], activeAudioTrack: null })
   }
 
   // Generic "currentTime stopped advancing" safety net — see
@@ -201,11 +337,25 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
     el.addEventListener('waiting', () => setState({ status: 'loading' }))
     el.addEventListener('timeupdate', () => setState({ currentTime: el.currentTime }))
     el.addEventListener('durationchange', () => setState({ duration: el.duration || 0 }))
+    // The native path (plain `video.src`, incl. Safari-style native HLS)
+    // has no engine event to hang discovery off — metadata arriving IS the
+    // moment its track list becomes readable.
+    el.addEventListener('loadedmetadata', () => refreshAudioTracks())
     el.addEventListener('error', () => {
       setError({ code: 'unknown', message: el.error?.message ?? 'Video playback error' })
     })
     el.textTracks.addEventListener('addtrack', () => refreshSubtitleTracks(el))
     el.textTracks.addEventListener('removetrack', () => refreshSubtitleTracks(el))
+    // Only bound where an AudioTrackList genuinely exists — see
+    // nativeAudioTrackList. 'change' is the event the spec fires when a
+    // track's `enabled` flips, including when something other than us
+    // flipped it, which is what keeps activeAudioTrack the ENGINE's view.
+    const audioTrackList = nativeAudioTrackList(el)
+    if (typeof audioTrackList?.addEventListener === 'function') {
+      for (const type of ['addtrack', 'removetrack', 'change']) {
+        audioTrackList.addEventListener(type, () => refreshAudioTracks())
+      }
+    }
     // Setting el.muted fires 'volumechange' (spec-guaranteed), so this is
     // the single source of truth for keeping state.muted in sync, whether
     // the change came from setMuted() or (in principle) elsewhere.
@@ -217,6 +367,9 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
     hls = null
     mpegtsPlayer?.destroy()
     mpegtsPlayer = null
+    // The engine that owned these indexes is gone; keeping them would let a
+    // switch aimed at the old stream land on the new one's track list.
+    audioTrackIndexById.clear()
   }
 
   async function loadHls(sourceUrl: string, generation: number): Promise<void> {
@@ -232,6 +385,17 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
       if (!data.fatal) return
       setError({ code: 'network', message: data.details })
     })
+    // AUDIO_TRACKS_UPDATED fires whenever the set of selectable renditions
+    // changes — on manifest parse, and again if a level switch moves
+    // playback to a different AUDIO group. hls.js deliberately does NOT
+    // dispatch it for a stream that never had alternate audio, which is
+    // precisely why an ordinary single-audio channel leaves audioTracks
+    // empty and shows no Audio control.
+    hls.on(HlsCtor.Events.AUDIO_TRACKS_UPDATED, () => refreshAudioTracks())
+    // Covers a switch we did NOT initiate as well as one we did (hls.js
+    // picks the manifest's DEFAULT rendition itself on startup), so the
+    // checkmark always follows the engine.
+    hls.on(HlsCtor.Events.AUDIO_TRACK_SWITCHED, (_event, data: AudioTrackSwitchedData) => refreshAudioTracks(data))
     // hls.js fetches the manifest and every segment via JS, so it hits the
     // CORS wall a plain <video src> wouldn't — dev-only, routed through the
     // manifest-rewriting proxy (see vite.config.ts). Not needed in the
@@ -280,6 +444,11 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
       const generation = ++loadGeneration
       teardownActiveEngine()
       userPaused = false
+      // Audio state is cleared here, not just on dispose: a new source can
+      // arrive from a quality pick, an automatic failover, or a stall
+      // reload, and in every one of those cases the previous stream's
+      // renditions are meaningless. teardownActiveEngine() above has
+      // already dropped the id -> engine-index map that went with them.
       setState({
         status: 'loading',
         error: null,
@@ -287,6 +456,8 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
         duration: 0,
         subtitleTracks: [],
         activeSubtitleTrack: null,
+        audioTracks: [],
+        activeAudioTrack: null,
       })
 
       if (isMpegTsSource(sourceUrl)) {
@@ -347,6 +518,38 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
         hls.subtitleDisplay = id !== null
       }
       refreshSubtitleTracks(video)
+    },
+
+    setAudioTrack(id) {
+      // An id that isn't in the CURRENT list is a stale selection (a
+      // previous channel's, or a track that disappeared on a group switch).
+      // Dropping it here is the whole reason ids are content-derived rather
+      // than positional — there is no index to misapply.
+      const index = audioTrackIndexById.get(id)
+      if (index === undefined) return
+
+      if (hls) {
+        // Switches the audio rendition in place: hls.js keeps the same
+        // level, the same buffered position and the same media element, so
+        // playback, live edge, mute state and subtitles are all untouched.
+        // AUDIO_TRACK_SWITCHED then reports the result back through
+        // refreshAudioTracks, which is what moves the OSD's checkmark.
+        hls.audioTrack = index
+        return
+      }
+
+      const list = video ? nativeAudioTrackList(video) : null
+      if (!list) return
+      // AudioTrackList is a radio group expressed as a set of booleans —
+      // exactly one entry may be enabled, so the others must be cleared.
+      for (let i = 0; i < list.length; i++) {
+        const track = list[i]
+        if (track) track.enabled = i === index
+      }
+      // Some implementations fire 'change' for this, some don't; refreshing
+      // directly makes the state update unconditional rather than dependent
+      // on an event that may never arrive.
+      refreshAudioTracks()
     },
 
     getState() {

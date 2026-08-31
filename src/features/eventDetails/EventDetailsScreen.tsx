@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FocusContext, doesFocusableExist, getCurrentFocusKey, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useBackHandler, useFocusScrollIntoView } from '../../core/platform'
-import { BACK_FOCUS_KEY, SCREEN_FOCUS_KEY } from './eventDetailsFocusKeys'
+import { BACK_FOCUS_KEY, BROWSE_CHANNELS_FOCUS_KEY, REFRESH_PLAYLIST_FOCUS_KEY, SCREEN_FOCUS_KEY } from './eventDetailsFocusKeys'
+import { NoStreamState, type PlaylistRefresh } from './NoStreamState'
 import { matchChannelsForEvent } from '../../data/sports/channelMatch'
 import type { ChannelMatch, BroadcastStationInfo } from '../../data/sports/channelMatch'
 import { buildEventStreamOptions, rankEventStreamOptions, partitionStreamOptions } from './buildEventStreamOptions'
@@ -9,7 +10,7 @@ import type { PartitionedStreamOptions, RankedEventStreamOption } from './buildE
 import { FootballEventHeader, GenericEventHeader } from './EventHeader'
 import { StreamList } from './StreamSections'
 import { loadPreferences } from '../../data/preferences'
-import { broadcastAvailabilityOf, isNegativeBroadcastAvailability } from '../../data/sports/broadcastAvailability'
+import { broadcastAvailabilityOf } from '../../data/sports/broadcastAvailability'
 import type { SportEvent } from '../../data/sports/types'
 import type { EventPlaybackGroup } from './eventPlaybackGroup'
 import type { Channel } from '../../data/channel'
@@ -44,6 +45,10 @@ interface Props {
   onWatch: (group: EventPlaybackGroup) => void
   onBack: () => void
   onBrowseChannels: () => void
+  // The EXISTING playlist library's resync, threaded down from App — see
+  // NoStreamState's PlaylistRefresh. Optional so a caller with no playlists
+  // (and every existing test) simply gets an empty state with one action.
+  playlistRefresh?: PlaylistRefresh
 }
 
 type MatchState =
@@ -68,8 +73,23 @@ export function EventDetailsScreen({
   onWatch,
   onBack,
   onBrowseChannels,
+  playlistRefresh,
 }: Props) {
   const [state, setState] = useState<MatchState>({ status: 'loading' })
+  const [refreshing, setRefreshing] = useState(false)
+  // Guards a SECOND activation while the first is still running — checked
+  // synchronously, because two Enter presses in one frame both read the same
+  // stale `refreshing` state and would both start a sync.
+  const refreshingRef = useRef(false)
+  // A refresh outlives a fast Back, so the completion handler has to know
+  // whether there is still a screen to update.
+  const aliveRef = useRef(true)
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
 
   // Read by the matching effect without being dependencies of it. `channels`
   // gets a new array reference on every playlist generation and `xtream` a
@@ -145,6 +165,36 @@ export function EventDetailsScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.id, playlistGenerationId, identityIndex])
 
+  // REFRESHING GOES THROUGH THE PLAYLIST LIBRARY, and nothing else. It is
+  // the same coordinator Settings' Resync uses (see usePlaylistLibrary's
+  // resyncPlaylist/resyncAll), which already deduplicates against a
+  // background sync that happens to be in flight and already forces a
+  // manual result to install even during playback.
+  //
+  // Nothing here re-runs matching by hand. Installing a new generation
+  // changes `playlistGenerationId`, and the matching effect above is keyed
+  // on it — so the re-evaluation happens through exactly the same path a
+  // background refresh takes, including its stale-while-revalidate
+  // behaviour. That is deliberate: bypassing it with a bespoke re-match
+  // would step around the generation-isolation this screen is tested for.
+  //
+  // The viewer stays on Event Details throughout. A failed refresh is not
+  // surfaced as an error state — the empty state they are already looking at
+  // IS the outcome, and replacing it with a second failure message would
+  // just be the same information twice.
+  const refreshPlaylists = useCallback(() => {
+    if (!playlistRefresh || refreshingRef.current) return
+    refreshingRef.current = true
+    setRefreshing(true)
+    void playlistRefresh
+      .refresh()
+      .catch(() => {})
+      .finally(() => {
+        refreshingRef.current = false
+        if (aliveRef.current) setRefreshing(false)
+      })
+  }, [playlistRefresh])
+
   useBackHandler(() => {
     onBack()
     return true
@@ -212,6 +262,19 @@ export function EventDetailsScreen({
   const initialFocusKey =
     topPickFocusKey ?? (partitioned && partitioned.candidates.length > 0 ? partitioned.candidates[0].key : undefined)
 
+  // WHERE FOCUS LANDS WHEN THERE ARE NO STREAMS AT ALL. Previously nowhere:
+  // the empty state's one button had no focus key and the container fell
+  // back to Back, so a viewer arriving at a fixture with nothing to play was
+  // pointed at the exit rather than at the two things that might change
+  // that. Refresh when it is offered (see NoStreamState), otherwise the
+  // manual-browse action, which is always rendered.
+  const emptyStateFocusKey =
+    state.status !== 'not-found'
+      ? undefined
+      : playlistRefresh && playlistRefresh.resyncableCount > 0
+        ? REFRESH_PLAYLIST_FOCUS_KEY
+        : BROWSE_CHANNELS_FOCUS_KEY
+
   // This screen is lazy-loaded (see App.tsx's SCREEN_FOCUS_KEYS) — the root
   // container is targeted by its own key rather than ROOT_FOCUS_KEY so
   // initial focus resolves correctly even if `screen` changes to
@@ -224,18 +287,25 @@ export function EventDetailsScreen({
   const { ref, focusKey } = useFocusable({
     focusKey: SCREEN_FOCUS_KEY,
     trackChildren: true,
-    preferredChildFocusKey: initialFocusKey ?? BACK_FOCUS_KEY,
+    preferredChildFocusKey: initialFocusKey ?? emptyStateFocusKey ?? BACK_FOCUS_KEY,
   })
 
-  // Explicitly advances focus onto the first stream row the moment matches
-  // finish resolving — changing preferredChildFocusKey above only
-  // affects FUTURE focus resolutions (e.g. if this container gets
-  // setFocus'd again later), it does not retroactively move focus that's
-  // already sitting on Back. Keyed on the status transition alone (not on
-  // `partitioned`, which is a fresh object every render) so this fires
-  // exactly once per loading->ready transition, not on every render while
-  // already ready — it must never repeatedly yank focus back to the top
-  // pick while the user is actively browsing other streams.
+  // WHERE FOCUS GOES ONCE MATCHING FINISHES, whichever way it finishes: the
+  // first stream row when there are streams, and the empty state's own
+  // action when there are none.
+  //
+  // Both halves are needed, and preferredChildFocusKey above cannot do
+  // either on its own — it only affects FUTURE focus resolutions (e.g. if
+  // this container gets setFocus'd again later) and does not retroactively
+  // move focus that is already sitting on Back. In the real app it always
+  // is: App focuses this screen the moment `screen` changes, which is while
+  // status is still 'loading', when Back is the only resolvable target.
+  //
+  // Keyed on the status transition alone (not on `partitioned`, which is a
+  // fresh object every render) so this fires exactly once per
+  // loading->resolved transition, not on every render while already
+  // resolved — it must never repeatedly yank focus back to the top pick
+  // while the user is actively browsing other streams.
   //
   // The `currentFocusKey` guard covers the sub-frame race the hardening
   // audit called out: while loading, Back is the only focusable, so that is
@@ -245,12 +315,13 @@ export function EventDetailsScreen({
   // exists. Claiming focus in that case would yank the viewer off the row
   // they were on. Claim it only from the loading-state fallback, or from
   // nothing at all.
+  const resolvedFocusKey = initialFocusKey ?? emptyStateFocusKey
   useEffect(() => {
-    if (state.status !== 'ready' || !initialFocusKey) return
+    if (state.status === 'loading' || !resolvedFocusKey) return
     const current = getCurrentFocusKey()
     const holdsRealFocus = current != null && current !== BACK_FOCUS_KEY && current !== SCREEN_FOCUS_KEY && doesFocusableExist(current)
     if (holdsRealFocus) return
-    void setFocus(initialFocusKey)
+    void setFocus(resolvedFocusKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status])
 
@@ -292,7 +363,15 @@ export function EventDetailsScreen({
         <section className="stream-area">
           {state.status === 'loading' && <StreamAreaLoading />}
           {state.status === 'not-found' && (
-            <NoMatchState event={event} apiStations={state.apiStations} onBrowseChannels={onBrowseChannels} />
+            <NoStreamState
+              apiStations={state.apiStations}
+              availability={broadcastAvailabilityOf(event)}
+              availabilityReason={event.broadcastAvailabilityReason}
+              playlistRefresh={playlistRefresh}
+              refreshing={refreshing}
+              onRefreshPlaylists={refreshPlaylists}
+              onBrowseChannels={onBrowseChannels}
+            />
           )}
           {state.status === 'ready' && partitioned && (
             <StreamList
@@ -355,61 +434,6 @@ function StreamAreaLoading() {
       <div className="stream-row-skeleton" />
       <div className="stream-row-skeleton" />
     </div>
-  )
-}
-
-function NoMatchState({
-  event,
-  apiStations,
-  onBrowseChannels,
-}: {
-  event: SportEvent
-  apiStations: BroadcastStationInfo[]
-  onBrowseChannels: () => void
-}) {
-  // The one place the objective broadcast verdict is worth saying out loud.
-  // "No TV channel has been reported for this event YET" implies data we are
-  // still waiting on; when ninety-api has actually concluded that nobody is
-  // expected to televise the fixture, that sentence is simply wrong, and the
-  // honest version stops the viewer re-checking a screen that will never
-  // change. Only ever shown in the already-empty state, and only for a
-  // verdict the backend genuinely stated — UNKNOWN (which includes every
-  // event from a backend predating the field) keeps the original wording.
-  const notExpected = isNegativeBroadcastAvailability(broadcastAvailabilityOf(event))
-  return (
-    <div className="stream-area-empty">
-      {apiStations.length > 0 ? (
-        <>
-          <p>This event is reported on:</p>
-          <ul className="stream-area-station-list">
-            {apiStations.map((station, i) => (
-              <li key={i}>
-                {station.name}
-                {station.country && <span className="stream-area-station-country"> — {station.country}</span>}
-              </li>
-            ))}
-          </ul>
-          <p>None of these channels were found in your connected playlist.</p>
-        </>
-      ) : notExpected ? (
-        <p>No TV coverage is expected for this event.</p>
-      ) : (
-        <p>No TV channel has been reported for this event yet.</p>
-      )}
-      <BrowseManuallyButton onClick={onBrowseChannels} />
-    </div>
-  )
-}
-
-function BrowseManuallyButton({ onClick }: { onClick: () => void }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onClick })
-  useEffect(() => {
-    if (focused) ref.current?.scrollIntoView({ block: 'nearest' })
-  }, [focused, ref])
-  return (
-    <button ref={ref} className={`stream-area-browse-manually ${focused ? 'focused' : ''}`} onClick={onClick}>
-      Think we got it wrong? Check your channels manually
-    </button>
   )
 }
 

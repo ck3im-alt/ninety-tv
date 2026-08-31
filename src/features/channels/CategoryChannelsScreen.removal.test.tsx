@@ -133,5 +133,13 @@ describe('unfavoriting the focused row deep in Favorites', () => {
     // And the viewer must still be where they were.
     expect(windowTop(container)).toBe(topBefore)
     expect(mountedNames(container)).not.toContain(`CH${focusedIndex}`)
-  })
+    // NOT a slow assertion — a genuinely expensive setup. scrollDeep drives
+    // ~20 real focus-then-ArrowDown cycles through a 500-channel list, each
+    // one re-rendering the ~50 mounted rows and re-registering their
+    // focusables, and only then is the removal exercised. Vitest's 5s
+    // default is a framework default rather than a budget for this, and on
+    // a cold transform cache in a full parallel run it was the one test in
+    // the suite that could tip over it. Stated explicitly instead of being
+    // left to flake in CI; nothing here is waiting on a timer.
+  }, 30_000)
 })

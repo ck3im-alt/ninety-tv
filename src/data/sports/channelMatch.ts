@@ -97,6 +97,16 @@ export interface ChannelMatch {
 export interface BroadcastStationInfo {
   name: string
   country: string | null
+  // The Ninety channel-catalog id this broadcast resolved to
+  // (event.broadcasts[].logicalChannelId, e.g. "gb_tnt_sports_1") — the
+  // strongest broadcaster identity anywhere in the pipeline.
+  //
+  // Carried so the display layer has a STABLE key for a station: Event
+  // Details' no-stream state lists these, and one real broadcaster can
+  // legitimately appear under more than one spelling, so keying its card on
+  // array position or display name is the wrong identity. Metadata only —
+  // it changes nothing about matching, which is decided above.
+  logicalChannelId: string
   // Present only when a ChannelIdentityIndex was available to evaluate
   // this broadcast's logical channel against the user's playlist.
   // AMBIGUOUS/NONE never produce a ChannelMatch (see Part 9/10 of the
@@ -149,7 +159,7 @@ function matchViaNinetyApi(event: SportEvent, identityIndex: ChannelIdentityInde
 
   const matches: ChannelMatch[] = []
   const apiStations: BroadcastStationInfo[] = broadcasts.map((b) => {
-    if (!identityIndex) return { name: b.name, country: b.country }
+    if (!identityIndex) return { name: b.name, country: b.country, logicalChannelId: b.logicalChannelId }
 
     const resolution = identityIndex.getResolution(b.logicalChannelId)
     const classification = resolution?.classification
@@ -178,7 +188,13 @@ function matchViaNinetyApi(event: SportEvent, identityIndex: ChannelIdentityInde
       }
     }
 
-    return { name: b.name, country: b.country, identityClassification: classification, ambiguousPlaylistChannelNames }
+    return {
+      name: b.name,
+      country: b.country,
+      logicalChannelId: b.logicalChannelId,
+      identityClassification: classification,
+      ambiguousPlaylistChannelNames,
+    }
   })
 
   return { matches, apiHasData: true, apiStations }

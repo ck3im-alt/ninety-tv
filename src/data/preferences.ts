@@ -104,12 +104,17 @@ export interface SportPreferences {
   homeContentMode: HomeContentMode
 }
 
-// What a user who skips onboarding (or an old install predating the
-// Countries step) still gets — matches the onboarding screen's own
-// pre-checked starting state. Canonical ninety-api competition ids (not
-// TheSportsDB ids) since 2026-08-20 — see migrateFootballLeagueIds for how
-// a pre-existing install's saved TheSportsDB-id selections get upgraded to
-// match.
+// What an install with NO stored preferences reads as — a user who never
+// finished onboarding, or a stored object so damaged that readStored falls
+// all the way back. Deliberately a usable Home rather than an empty one:
+// nothing here is a claim about what the viewer chose, only about what
+// Ninety shows before they have chosen anything.
+//
+// NOT onboarding's starting state — see ONBOARDING_INITIAL_SPORTS below for
+// why those two deliberately differ now. Canonical ninety-api competition
+// ids (not TheSportsDB ids) since 2026-08-20 — see migrateFootballLeagueIds
+// for how a pre-existing install's saved TheSportsDB-id selections get
+// upgraded to match.
 export const DEFAULT_PREFERENCES: SportPreferences = {
   sports: ['football', 'f1'],
   footballLeagueIds: ['football_premier_league', 'football_champions_league'],
@@ -121,6 +126,31 @@ export const DEFAULT_PREFERENCES: SportPreferences = {
   // upgrade resolves to. See HomeContentMode.
   homeContentMode: RECOMMENDED_HOME_CONTENT_MODE,
 }
+
+// WHAT ONBOARDING STARTS ON, which is a different question from what an
+// un-onboarded install falls back to (DEFAULT_PREFERENCES above).
+//
+// A viewer standing in onboarding is being ASKED. Every box already ticked
+// when they arrive is an answer Ninety put in their mouth, and the league
+// grid made that concrete: Premier League and Champions League arrived
+// pre-selected purely because they are the two most common answers, which
+// is a recommendation wearing selection's clothes. Step 2 already shows its
+// recommendations as a pinned, visually distinct row (see
+// recommendedLeagues.ts) — that row is how Ninety promotes them, and it
+// stays. Selection is the viewer's alone.
+//
+// Football stays on because the step would otherwise open with its entire
+// league section unmounted and nothing to do; it is the sport Ninety is
+// built around, and it is one press to turn off. F1 is not — it is a real,
+// separate interest, and pre-selecting it seeds Home with motorsport for
+// every viewer who never asked for any.
+//
+// Changing these does NOT touch anyone's saved preferences: onboarding only
+// ever writes what the viewer leaves selected when they press Finish (see
+// OnboardingFlow's finish()), and an existing install never runs onboarding
+// again.
+export const ONBOARDING_INITIAL_SPORTS: readonly SportKey[] = ['football']
+export const ONBOARDING_INITIAL_FOOTBALL_LEAGUE_IDS: readonly string[] = []
 
 // One shared toggle rule for every place that edits the preferred-country
 // list (onboarding + Settings), so the cap/primary behavior can't drift

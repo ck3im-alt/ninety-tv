@@ -44,6 +44,30 @@ export interface SubtitleTrack {
   label: string
 }
 
+// One selectable audio rendition on the current source — the Norwegian /
+// Swedish / Danish commentary variants a channel like V Sport Ultra carries
+// inside one stream. Same honesty rule as SubtitleTrack: only ever
+// populated from what the stream itself declares through an engine that can
+// actually SWITCH between them, so an empty list means "this playback path
+// cannot offer a choice here", never "we didn't look". A list of one is
+// equally honest — the stream has exactly one audio rendition — and the OSD
+// simply offers no control for it.
+export interface AudioTrack {
+  // Stable within one loaded source, and derived from the track's own
+  // metadata rather than its position, so an id left over from a previous
+  // channel MISSES (a safe no-op in setAudioTrack) instead of silently
+  // selecting whatever now happens to sit at that array index.
+  id: string
+  // Already resolved for display — see buildAudioTrackLabel in
+  // audioLanguage.ts for the preference order.
+  label: string
+  // The RAW value the stream declared ('nb', 'nor', 'sv-SE'), never
+  // normalized and never inferred from the channel name. Kept on the model
+  // so presentation can improve (better chips, a future "prefer Norwegian"
+  // preference) without re-reading the engine.
+  language?: string
+}
+
 export interface PlayerState {
   status: PlayerStatus
   currentTime: number
@@ -51,6 +75,12 @@ export interface PlayerState {
   error: PlayerError | null
   subtitleTracks: SubtitleTrack[]
   activeSubtitleTrack: string | null
+  audioTracks: AudioTrack[]
+  // id of the rendition the ENGINE reports as playing — not the one we last
+  // asked for. A switch is only reflected here once the engine confirms it,
+  // which is what lets the OSD's checkmark mean "this is what you're
+  // hearing" rather than "this is what you clicked".
+  activeAudioTrack: string | null
   muted: boolean
 }
 
@@ -67,6 +97,16 @@ export interface Player {
   // Pass null to turn subtitles off. No-op if the id isn't in the current
   // subtitleTracks list (e.g. stale selection from a previous channel).
   setSubtitleTrack(id: string | null): void
+  // Switches which audio rendition is playing. No id means "off" here (you
+  // cannot turn audio off, only pick one), so unlike setSubtitleTrack there
+  // is no null. An id that isn't in the current audioTracks list is a safe
+  // no-op — stale selections from a previous source must never reach the
+  // engine as an index.
+  //
+  // Must not disturb anything else the viewer set up: no reload, no source
+  // or quality change, no seek away from the live edge, no mute change, and
+  // no effect on subtitles.
+  setAudioTrack(id: string): void
   getState(): PlayerState
   subscribe(listener: (state: PlayerState) => void): () => void
   dispose(): void

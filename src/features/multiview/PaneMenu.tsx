@@ -1,6 +1,6 @@
 // One pane's lightweight popup menu — built on useModalFocusScope, the same
 // primitive behind ChannelPlayerScreen's Source/Subtitles popups and
-// FilterPopup/AdminPanel, so it gets focus-trap/Back-to-close/restore for
+// AdminPanel, so it gets focus-trap/Back-to-close/restore for
 // free. Deliberately a single small popup (not a duplicate of the full
 // single-stream player's OSD) reused for BOTH grid and maximized
 // presentation of a pane — see MultiviewScreen's view-mode toggle.

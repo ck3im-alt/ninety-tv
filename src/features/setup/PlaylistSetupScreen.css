@@ -285,3 +285,23 @@
   margin-top: var(--space-3);
   color: var(--warning);
 }
+
+/* A CONNECT FAILURE, SIZED TO BE READ FROM A SOFA. The shared .setup-status
+   is 16px muted text, which is right for an inline hint under a form field
+   and wrong for the one message explaining why nothing happened — and on
+   this hardware there is no console, so this line is the entire diagnosis.
+
+   Literal rgba rather than color-mix(--live-red): the Tizen floor is
+   Chromium 76, which has no color-mix, and this must not degrade to an
+   invisible background. Same reasoning as EventDetailsScreen.css's text
+   shadows. Inline-block so the tint hugs the sentence instead of drawing a
+   full-width band across the heading. */
+.setup-connect-error {
+  display: inline-block;
+  margin-top: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(243, 60, 77, 0.45);
+  background: rgba(243, 60, 77, 0.12);
+  font-size: var(--font-body);
+}

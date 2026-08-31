@@ -6,7 +6,14 @@ import { OnboardingTeamsScreen } from './OnboardingTeamsScreen'
 import { OnboardingHomeScreen } from './OnboardingHomeScreen'
 import { OnboardingCountriesScreen } from './OnboardingCountriesScreen'
 import { pickInitialPrimaryCountry } from './recommendedCountries'
-import { DEFAULT_PREFERENCES, markOnboardingComplete, savePreferences, withCountryToggled } from '../../data/preferences'
+import {
+  DEFAULT_PREFERENCES,
+  ONBOARDING_INITIAL_FOOTBALL_LEAGUE_IDS,
+  ONBOARDING_INITIAL_SPORTS,
+  markOnboardingComplete,
+  savePreferences,
+  withCountryToggled,
+} from '../../data/preferences'
 import type { HomeContentMode } from '../../data/preferences'
 import { useViewerCountry } from '../../data/useViewerCountry'
 import { playlistCountries } from '../../data/viewerCountry'
@@ -56,8 +63,12 @@ export function OnboardingFlow({ onDone }: Props) {
   const [step, setStep] = useState<Step>(1)
   const [channels, setChannels] = useState<Channel[]>([])
   const [source, setSource] = useState<PlaylistSourceRecord | null>(null)
-  const [selectedSports, setSelectedSports] = useState<Set<SportKey>>(new Set(DEFAULT_PREFERENCES.sports))
-  const [selectedLeagues, setSelectedLeagues] = useState<Set<string>>(new Set(DEFAULT_PREFERENCES.footballLeagueIds))
+  // Football only, and no leagues at all — see ONBOARDING_INITIAL_SPORTS /
+  // ONBOARDING_INITIAL_FOOTBALL_LEAGUE_IDS for why these are onboarding's
+  // own constants rather than DEFAULT_PREFERENCES. Step 2 still PROMOTES
+  // recommended leagues in its pinned top row; none of them start ticked.
+  const [selectedSports, setSelectedSports] = useState<Set<SportKey>>(() => new Set(ONBOARDING_INITIAL_SPORTS))
+  const [selectedLeagues, setSelectedLeagues] = useState<Set<string>>(() => new Set(ONBOARDING_INITIAL_FOOTBALL_LEAGUE_IDS))
   // Canonical ninety-api team ids. Starts EMPTY and stays optional: unlike
   // sports and leagues there is no defensible default here — guessing which
   // clubs someone supports would be worse than asking nothing at all.

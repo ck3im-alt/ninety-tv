@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FocusContext, doesFocusableExist, useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
-import { usePlayerSession } from '../../core/player'
-import type { SubtitleTrack } from '../../core/player'
+import { audioLanguageChip, usePlayerSession } from '../../core/player'
+import type { AudioTrack, SubtitleTrack } from '../../core/player'
 import type { ChannelSource } from '../../data/channel'
 import { NavIntent, keyEventToIntent, useBackHandler, useFocusScrollIntoView, useModalFocusScope } from '../../core/platform'
 import type { Channel } from '../../data/channel'
@@ -52,8 +52,10 @@ const MUTE_FOCUS_KEY = 'player-mute'
 const MULTIVIEW_FOCUS_KEY = 'player-multiview'
 const SOURCE_TOGGLE_FOCUS_KEY = 'player-source-toggle'
 const SUBTITLES_TOGGLE_FOCUS_KEY = 'player-subtitles-toggle'
+const AUDIO_TOGGLE_FOCUS_KEY = 'player-audio-toggle'
 const SOURCE_POPUP_FOCUS_KEY = 'player-source-popup'
 const SUBTITLES_POPUP_FOCUS_KEY = 'player-subtitles-popup'
+const AUDIO_POPUP_FOCUS_KEY = 'player-audio-popup'
 const OVERLAY_IDLE_MS = 6000
 
 function sourceIndexFor(channel: Channel | null, label?: string): number {
@@ -292,6 +294,61 @@ function SubtitlesPopup({
   )
 }
 
+// Same TV interaction model as SubtitlesPopup and VariantPopup — a modal
+// focus scope that owns Back while open, lands focus on the row that is
+// already active, and hands focus back to its opener on close.
+//
+// No "Off" row, unlike subtitles: audio is not something a viewer can turn
+// off, only something they pick between. Every row is therefore a real
+// choice, and exactly one is always checked.
+function AudioPopup({
+  tracks,
+  activeTrack,
+  onSelectTrack,
+  onClose,
+}: {
+  tracks: AudioTrack[]
+  activeTrack: string | null
+  onSelectTrack: (id: string) => void
+  onClose: () => void
+}) {
+  // The active track is what the ENGINE reports as playing. It can legitimately
+  // be null (hls.js has not settled on a rendition yet) or name a track that
+  // just left the list on an audio-group switch — in both cases focus falls
+  // back to the first row rather than to norigin's geometry-based guess.
+  const activeExists = activeTrack !== null && tracks.some((track) => track.id === activeTrack)
+  const focusTarget = activeExists ? activeTrack : tracks[0]?.id
+  const preferredChildFocusKey = focusTarget !== undefined ? `player-audio-option-${focusTarget}` : undefined
+  const { ref, focusKey } = useModalFocusScope({ focusKey: AUDIO_POPUP_FOCUS_KEY, onClose, preferredChildFocusKey })
+  return (
+    <FocusContext.Provider value={focusKey}>
+      <div ref={ref} className="options-popup">
+        <div className="options-group">
+          {tracks.length > 0 ? (
+            tracks.map((track) => (
+              <OptionRow
+                key={track.id}
+                focusKey={`player-audio-option-${track.id}`}
+                // A short language code, never a flag: an audio track has a
+                // language, and a language is not a country (Norwegian
+                // commentary on a stream sold across the Nordics is still
+                // Norwegian). Falls back to a neutral chip when the stream
+                // declared no language at all.
+                chip={audioLanguageChip(track.language)}
+                label={track.label}
+                active={activeTrack === track.id}
+                onSelect={() => onSelectTrack(track.id)}
+              />
+            ))
+          ) : (
+            <p className="options-empty">No alternate audio tracks available for this channel.</p>
+          )}
+        </div>
+      </div>
+    </FocusContext.Provider>
+  )
+}
+
 export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGroup, onBack, onAddToMultiview }: Props) {
   // Resolved ONCE at mount, like the `selected` channel it replaces: the
   // underlying session reads its URL list only at construction (see
@@ -320,6 +377,7 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
   const [menuVisible, setMenuVisible] = useState(false)
   const [sourcePopupOpen, setSourcePopupOpen] = useState(false)
   const [subtitlesPopupOpen, setSubtitlesPopupOpen] = useState(false)
+  const [audioPopupOpen, setAudioPopupOpen] = useState(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Whether the user has explicitly muted playback via the toolbar — once
   // set, the auto-unmute-on-interaction effect below backs off and leaves
@@ -378,9 +436,13 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
     revealTargetRef.current = key
   }
 
+  // Every popup this screen owns, in one place — the idle auto-hide and the
+  // Back handler both go through here, so a popup added without being
+  // listed would survive an OSD that has already gone away.
   const closePopups = () => {
     setSourcePopupOpen(false)
     setSubtitlesPopupOpen(false)
+    setAudioPopupOpen(false)
   }
 
   // Single source of truth for "hide the OSD" — the idle timeout used to
@@ -424,6 +486,11 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
 
   function closeSubtitlesPopup() {
     setSubtitlesPopupOpen(false)
+    scheduleIdleHide()
+  }
+
+  function closeAudioPopup() {
+    setAudioPopupOpen(false)
     scheduleIdleHide()
   }
 
@@ -569,6 +636,13 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
 
   const isPaused = playerState.status === 'paused'
   const hasSubtitles = playerState.subtitleTracks.length > 0
+  // Strictly MORE than one: a stream with a single audio rendition gives the
+  // viewer nothing to decide, and a channel whose engine cannot enumerate
+  // tracks at all reports zero. Either way the control is not rendered, so
+  // it registers no focusable and cannot be reached by the remote — the same
+  // "nothing invisible is a spatial-nav target" rule the hidden OSD follows,
+  // applied to a control that does not exist rather than one that is hidden.
+  const hasMultipleAudioTracks = playerState.audioTracks.length > 1
   // Choices handed over by Event Details are the quality tiers of a single
   // logical stream, so the control that switches between them is a Quality
   // picker. An ordinary channel's choices are genuine source mirrors the
@@ -661,6 +735,7 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
                   onFocus={rememberRevealTarget(SOURCE_TOGGLE_FOCUS_KEY)}
                   onSelect={() => {
                     setSubtitlesPopupOpen(false)
+                    setAudioPopupOpen(false)
                     setSourcePopupOpen((open) => !open)
                   }}
                 />
@@ -683,6 +758,43 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
                   />
                 )}
               </div>
+
+              {hasMultipleAudioTracks && (
+                <div className="toolbar-item">
+                  <ToolbarButton
+                    focusKey={AUDIO_TOGGLE_FOCUS_KEY}
+                    icon="♫"
+                    label="Audio"
+                    active={audioPopupOpen}
+                    focusable={menuVisible}
+                    onFocus={rememberRevealTarget(AUDIO_TOGGLE_FOCUS_KEY)}
+                    onSelect={() => {
+                      setSourcePopupOpen(false)
+                      setSubtitlesPopupOpen(false)
+                      setAudioPopupOpen((open) => !open)
+                    }}
+                  />
+                  {audioPopupOpen && (
+                    <AudioPopup
+                      tracks={playerState.audioTracks}
+                      activeTrack={playerState.activeAudioTrack}
+                      onSelectTrack={(id) => {
+                        // Switching audio only tells the Player which
+                        // rendition to decode — it never touches the source,
+                        // the live position, mute, or subtitles. The popup
+                        // stays open and the OSD's idle window restarts, so
+                        // the viewer can hear the change and pick again
+                        // without the overlay vanishing under them. The
+                        // checkmark moves when the engine confirms the
+                        // switch, not on the keypress.
+                        controller.setAudioTrack(id)
+                        showMenu()
+                      }}
+                      onClose={closeAudioPopup}
+                    />
+                  )}
+                </div>
+              )}
 
               {onAddToMultiview && (
                 <ToolbarButton
@@ -707,6 +819,7 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
                   onFocus={rememberRevealTarget(SUBTITLES_TOGGLE_FOCUS_KEY)}
                   onSelect={() => {
                     setSourcePopupOpen(false)
+                    setAudioPopupOpen(false)
                     setSubtitlesPopupOpen((open) => !open)
                   }}
                 />

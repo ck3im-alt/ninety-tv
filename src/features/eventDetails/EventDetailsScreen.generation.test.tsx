@@ -219,7 +219,7 @@ describe('a new playlist generation while Match View is open', () => {
     await settle()
 
     expect(container.querySelector('.stream-area-loading')).toBeNull()
-    expect(container.querySelector('.stream-area-empty')).not.toBeNull()
+    expect(container.querySelector('.no-stream')).not.toBeNull()
   })
 
   it('keeps the streams already on screen when a revalidation fails outright', async () => {
@@ -236,6 +236,6 @@ describe('a new playlist generation while Match View is open', () => {
 
     // Real, playable rows beat an empty state produced by one failed poll.
     expect(container.querySelectorAll('.stream-row')).toHaveLength(3)
-    expect(container.querySelector('.stream-area-empty')).toBeNull()
+    expect(container.querySelector('.no-stream')).toBeNull()
   })
 })

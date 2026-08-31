@@ -13,8 +13,18 @@ import { SettingsAction, SettingsColumnHeader, SettingsPaneHeader, SettingsRow }
 import { PANE_ENTRY_FOCUS_KEY } from './useSettingsFocusable'
 import { formatLastSynced } from './formatLastSynced'
 import type { PlaylistLibrary, PlaylistSyncStatus } from '../../data/playlists/usePlaylistLibrary'
+import type { ResetScope } from '../../data/resetAppData'
 
 const ADD_FOCUS_KEY = 'settings-playlists-add'
+// The two reset actions live at the bottom of THIS pane rather than in a
+// sixth rail section, because the rail is deliberately capped at five (see
+// settingsSections.ts, and the test that guards the count). Of the five,
+// Playlists is the one documented as "what a user opening Settings after
+// something went wrong is looking for" — and it is the default section, so
+// a reset is two presses from opening Settings. A full reset also removes
+// the playlists, which makes this the section it visibly acts on.
+const RESET_ONBOARDING_FOCUS_KEY = 'settings-reset-onboarding'
+const RESET_EVERYTHING_FOCUS_KEY = 'settings-reset-everything'
 // The detail column's actions. Explicit keys, not the library's
 // auto-generated ones: they are the destination of every "Left, back to the
 // list" and they are what focus has to be able to SURVIVE ON (or be
@@ -50,13 +60,19 @@ export type PlaylistDialogRequest =
   | { kind: 'edit'; playlist: PlaylistDefinition }
   | { kind: 'remove'; playlist: PlaylistDefinition }
 
+// Kept OUT of PlaylistDialogRequest deliberately: a reset is not a playlist
+// operation, it just happens to be hosted here, and folding it into that
+// union would make every consumer of PlaylistDialogRequest handle a case
+// that has nothing to do with playlists.
 export function PlaylistsPane({
   library,
   onRequestDialog,
+  onRequestReset,
   onLeaveToRail,
 }: {
   library: PlaylistLibrary
   onRequestDialog: (request: PlaylistDialogRequest) => void
+  onRequestReset: (scope: ResetScope) => void
   onLeaveToRail: () => void
 }) {
   const { playlists } = library
@@ -101,6 +117,38 @@ export function PlaylistsPane({
     dependentFocusKeys: isDetailFocusKey,
   })
 
+  // Rendered in both the populated and the empty branch: after a full reset
+  // there are no playlists, and that is exactly when someone may still want
+  // to clear preferences — a reset the empty state hid would be unreachable
+  // in the state resets produce.
+  // `aboveFocusKey` is passed in rather than assumed: the populated branch
+  // has "+ Add playlist" above this group, the empty branch has its own
+  // "Add playlist" registered under PANE_ENTRY_FOCUS_KEY. Hardcoding either
+  // one would make Up a dead press in the other branch.
+  const resetActions = (aboveFocusKey: string) => (
+    <div className="settings-reset-group">
+      <SettingsColumnHeader title="Reset" />
+      <SettingsAction
+        focusKey={RESET_ONBOARDING_FOCUS_KEY}
+        label="Reset onboarding & preferences"
+        tone="danger"
+        onEnter={() => onRequestReset('onboarding')}
+        onLeft={onLeaveToRail}
+        onUp={() => void setFocus(aboveFocusKey)}
+        onDown={() => void setFocus(RESET_EVERYTHING_FOCUS_KEY)}
+      />
+      <SettingsAction
+        focusKey={RESET_EVERYTHING_FOCUS_KEY}
+        label="Reset everything"
+        tone="danger"
+        onEnter={() => onRequestReset('everything')}
+        onLeft={onLeaveToRail}
+        onUp={() => void setFocus(RESET_ONBOARDING_FOCUS_KEY)}
+        onDown={() => {}}
+      />
+    </div>
+  )
+
   if (playlists.length === 0) {
     return (
       <>
@@ -117,7 +165,9 @@ export function PlaylistsPane({
             tone="primary"
             onEnter={() => onRequestDialog({ kind: 'add' })}
             onLeft={onLeaveToRail}
+            onDown={() => void setFocus(RESET_ONBOARDING_FOCUS_KEY)}
           />
+          {resetActions(PANE_ENTRY_FOCUS_KEY)}
         </div>
       </>
     )
@@ -170,8 +220,9 @@ export function PlaylistsPane({
             onLeft={onLeaveToRail}
             onRight={() => void setFocus(ACTION_RENAME_FOCUS_KEY)}
             onUp={() => void setFocus(rowFocusKey(playlists[playlists.length - 1].id, playlists.length - 1))}
-            onDown={() => {}}
+            onDown={() => void setFocus(RESET_ONBOARDING_FOCUS_KEY)}
           />
+          {resetActions(ADD_FOCUS_KEY)}
         </div>
 
         <div className="settings-column detail">

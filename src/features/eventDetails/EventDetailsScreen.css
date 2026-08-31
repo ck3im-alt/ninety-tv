@@ -1007,35 +1007,192 @@
   opacity: 0.5;
 }
 
-.stream-area-empty {
+/* ---------- No stream: the empty state ----------
+
+   NOT AN ERROR BOX. It sits in the stream area where the rows would have
+   been, in the same vocabulary as the rest of the screen, because in the
+   most interesting case nothing has gone wrong at all: Ninety knows exactly
+   who is showing the fixture and simply cannot prove which of this viewer's
+   channels is that broadcaster. See NoStreamState.tsx.
+
+   Centred as a column and capped in width so the copy stays two or three
+   words shy of the full 1700px content column — a line that runs the width
+   of a TV is unreadable from a sofa however large the type is. */
+.no-stream {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  /* Sits well below where the stream rows would have started. The rows are
+     pulled up over the header artwork by .stream-area's negative margin,
+     which is right for a dense list and wrong for a short centred message —
+     it landed the title in the busiest part of the backdrop. */
+  padding: var(--space-20) 0 var(--space-8);
+  text-align: center;
+}
+
+/* WIDE ENOUGH FOR THE EXPLANATION TO SIT ON ONE LINE. The longest string
+   this holds is the known-broadcasters body — ~108 characters, ~910px at
+   --font-body — and at the old 820px cap it wrapped onto a second line, one
+   or two words orphaned. A wrapped sentence reads as two thoughts from a
+   sofa. Still well inside the 1700px content column, so this is a
+   one-line-fits cap rather than a full-bleed line, which would be its own
+   readability problem. */
+.no-stream-message {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  color: var(--text-secondary);
-  font-size: var(--font-body);
+  max-width: 1240px;
 }
 
-.stream-area-empty p {
+.no-stream-title {
   margin: 0;
-}
-
-.stream-area-station-list {
-  margin: 0;
-  padding-left: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  font-size: var(--font-section);
+  font-weight: var(--weight-medium);
   color: var(--text-primary);
 }
 
-.stream-area-station-country {
+.no-stream-body {
+  margin: 0;
+  font-size: var(--font-body);
+  font-weight: var(--weight-light);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ---- Available on TV ----
+   The broadcasters ninety-api reported. Deliberately styled as INFORMATION
+   — plain cards, no chevron, no cursor, no focus state — because none of
+   them is a thing the viewer can press. They are the channels that did NOT
+   resolve to a trusted match; a card that looked pressable would be
+   promising playback Ninety cannot deliver. */
+.no-stream-stations {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.no-stream-section-title {
+  margin: 0;
+  font-size: var(--font-meta);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* A ROW OF CHIPS, CENTRED — not a stack of full-width bars. There are
+   typically one or two broadcasters, and a 1040px-wide box around "SporTV ·
+   Brazil" is mostly empty box. Each card is sized to its own contents and
+   they wrap when there are enough to need it. */
+.no-stream-station-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.no-stream-station {
+  /* Shrink to contents, but never past the point where a long ambiguous
+     hint would force a one-word-per-line column. */
+  flex: 0 1 auto;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-primary);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.no-stream-station-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.no-stream-station-name {
+  min-width: 0;
+  font-size: var(--font-body);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-stream-station-country {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  font-size: var(--font-meta);
   color: var(--text-secondary);
 }
 
-.stream-area-browse-manually {
-  align-self: flex-start;
-  margin-top: var(--space-4);
-  height: 52px;
+/* Same circular flag treatment as the stream rows' country headers and
+   Schedule's competition marks — one flag look across the app. */
+.no-stream-station-flag {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* A DIAGNOSTIC HINT, and dressed like one. These are playlist channels
+   Ninety could not choose between (resolver tier AMBIGUOUS), so the styling
+   has to stay clearly below the station name it sits under and clearly
+   below anything that looks like a recommendation. */
+.no-stream-station-hint {
+  margin: 0;
+  font-size: var(--font-meta);
+  font-weight: var(--weight-light);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.no-stream-station-hint-label {
+  color: var(--text-secondary);
+}
+
+/* ---- Actions ----
+   Two balanced buttons. The primary is NOT filled accent-green at rest:
+   green is the focus border's colour, and a control that already wears it
+   leaves real focus with nothing left to say (the focus-state contract in
+   tokens.css, rule 1). It gets the dimmed --border-selected instead, and
+   focus then colours in the full vocabulary. */
+.no-stream-actions {
+  display: flex;
+  /* Top-aligned, not centred: the refresh button carries a caption under it
+     and the two buttons must still line up with each other. */
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.no-stream-action-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Quiet by design — it is a receipt, not a control. */
+.no-stream-refreshed {
+  margin: 0;
+  font-size: var(--font-meta);
+  font-weight: var(--weight-light);
+  color: var(--text-muted);
+}
+
+.no-stream-action {
+  min-width: 280px;
+  height: 56px;
   padding: 0 var(--space-6);
   font: inherit;
   font-size: var(--font-body);
@@ -1044,11 +1201,27 @@
   background: var(--surface-primary);
   color: var(--text-primary);
   cursor: pointer;
+  transition:
+    background var(--motion-focus),
+    border-color var(--motion-focus);
 }
 
-.stream-area-browse-manually.focused {
-  border-color: var(--border-focus);
+.no-stream-action.primary {
+  background: var(--surface-elevated);
+  border-color: var(--border-selected);
+}
+
+.no-stream-action.focused {
   background: var(--surface-focus);
+  border-color: var(--border-focus);
+}
+
+/* Subtle on purpose: a refresh takes a few seconds and the viewer must be
+   able to see it is happening without the screen rearranging itself around
+   them. The button keeps its size, its position and its focus. */
+.no-stream-action.busy {
+  color: var(--text-secondary);
+  cursor: default;
 }
 
 /* ---------- Dev debug ---------- */

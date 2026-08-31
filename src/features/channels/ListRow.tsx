@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useFocusable, setFocus } from '@noriginmedia/norigin-spatial-navigation'
+import { useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { useFocusScrollIntoView } from '../../core/platform'
 import './ListRow.css'
 
@@ -10,14 +10,12 @@ interface Props {
   label: string
   count: number
   onSelect: () => void
-  // Only categories are favoritable so far — optional so the country list
-  // doesn't need to pass anything. Also the supported way to hide the star
-  // in a layout that doesn't have room for it (e.g. Browse Cascade's
-  // 4-column view) — omit both `favorited` and `onToggleFavorite` rather
-  // than CSS-hiding it, so it stops being a registered spatial-nav target
-  // too, not just an invisible one.
-  favorited?: boolean
-  onToggleFavorite?: () => void
+  // NO FAVORITE STAR. This component used to render one for category rows;
+  // the favorite-category feature was removed on 2026-08-31 (see
+  // BrowseCascadeScreen's category column and data/session.ts), and with it
+  // this row's second focusable, its Right/Left star handling and the
+  // 4-column CSS rule that had to hide it. Channel rows keep their own star
+  // — that is ChannelRow, a different component.
   // Highlights this row as the currently drilled-into selection — used by
   // the cascade browser, where the full list stays visible instead of
   // collapsing, so the chosen entry needs its own visual marker.
@@ -35,14 +33,8 @@ interface Props {
   // Recently Watched/Favorites) — that row doesn't horizontally overlap any
   // cascade column, so default geometry-based nav can't reliably reach it.
   onArrowUp?: () => void
-  // Stable identity for this row — lets the favorite star get an explicit,
-  // deterministic focusKey (`${focusKey}-favorite`) instead of depending on
-  // geometry for Right (row -> star) / Left (star -> row). The row and its
-  // star register as SIBLINGS in the focus tree (this component doesn't
-  // introduce its own FocusContext), so without this, Right from a row
-  // could land on the wrong row's star, and there was previously no way
-  // back for Left from the star at all except accidental geometry.
-  // Optional — omit for a row with no favorite star.
+  // Stable identity for this row, so a column can be entered at a SPECIFIC
+  // row rather than by geometry. Optional.
   focusKey?: string
   // Flag-only rail mode, used ONLY by Browse Cascade's Country column in its
   // fully-expanded four-pane state (see BrowseCascadeScreen.css's
@@ -58,43 +50,6 @@ interface Props {
   compact?: boolean
 }
 
-function FavoriteStar({
-  favorited,
-  onToggle,
-  focusKey,
-  rowFocusKey,
-}: {
-  favorited: boolean
-  onToggle: () => void
-  focusKey?: string
-  rowFocusKey?: string
-}) {
-  const { ref, focused } = useFocusable({
-    focusKey,
-    onEnterPress: onToggle,
-    onArrowPress: (direction) => {
-      if (direction === 'left' && rowFocusKey) {
-        void setFocus(rowFocusKey)
-        return false
-      }
-      return true
-    },
-  })
-  return (
-    <button
-      ref={ref}
-      className={`list-row-favorite ${favorited ? 'active' : ''} ${focused ? 'focused' : ''}`}
-      onClick={(e) => {
-        e.stopPropagation()
-        onToggle()
-      }}
-      aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
-    >
-      {favorited ? '★' : '☆'}
-    </button>
-  )
-}
-
 // Shared row component for both the Country list and the Category list, per
 // NINETY_Channels_Design_System.md consistency rule #1 ("Country and
 // Category use the same row component").
@@ -103,8 +58,6 @@ export function ListRow({
   label,
   count,
   onSelect,
-  favorited,
-  onToggleFavorite,
   active,
   onFocus,
   onArrowLeft,
@@ -112,7 +65,6 @@ export function ListRow({
   focusKey,
   compact,
 }: Props) {
-  const starFocusKey = onToggleFavorite && focusKey ? `${focusKey}-favorite` : undefined
   const { ref, focused } = useFocusable({
     focusKey,
     onEnterPress: onSelect,
@@ -124,10 +76,6 @@ export function ListRow({
       }
       if (direction === 'up' && onArrowUp) {
         onArrowUp()
-        return false
-      }
-      if (direction === 'right' && starFocusKey) {
-        void setFocus(starFocusKey)
         return false
       }
       return true
@@ -153,9 +101,6 @@ export function ListRow({
           <span className="list-row-label">{label}</span>
           <span className="list-row-count">{count} channels</span>
         </>
-      )}
-      {onToggleFavorite && (
-        <FavoriteStar favorited={!!favorited} onToggle={onToggleFavorite} focusKey={starFocusKey} rowFocusKey={focusKey} />
       )}
       {!compact && <span className="list-row-chevron">›</span>}
     </div>

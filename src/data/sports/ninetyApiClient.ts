@@ -177,7 +177,7 @@ export interface GetEventsParams {
   // the leagues a user follows, out of Ninety's full 50-competition
   // catalog) -- ninety-api's /v1/events takes a comma-separated
   // competition_id for the multi case. OMITTED entirely means "every
-  // tracked competition", which is what useTodaysSchedule.ts relies on.
+  // tracked competition", which is what useScheduleDay.ts relies on.
   competitionId?: string | string[]
   from?: string
   to?: string

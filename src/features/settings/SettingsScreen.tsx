@@ -23,6 +23,7 @@ import { SportsLeaguesPane } from './SportsLeaguesPane'
 import { CountriesPane } from './CountriesPane'
 import { PersonalisationPane } from './PersonalisationPane'
 import { ChannelVisibilityPane } from './ChannelVisibilityPane'
+import { resetAppData, type ResetScope } from '../../data/resetAppData'
 import { SettingsConfirmDialog, SettingsPromptDialog } from './SettingsDialogs'
 import { PlaylistConnectDialog } from './PlaylistConnectDialog'
 import { TeamPickerDialog } from './TeamPickerDialog'
@@ -49,6 +50,12 @@ type Dialog =
   | { kind: 'remove-playlist'; playlistId: string }
   | { kind: 'clear-recent' }
   | { kind: 'manage-teams' }
+  | { kind: 'confirm-reset'; scope: ResetScope }
+  // A reset that could not complete. Surfaced as its own dialog rather than
+  // an inline status because the screen is about to be reloaded on the
+  // success path — there is no stable place on this screen for a message
+  // that only ever appears when the reload does NOT happen.
+  | { kind: 'reset-failed' }
 
 interface Props {
   library: PlaylistLibrary
@@ -61,6 +68,19 @@ interface Props {
   recentlyWatchedCount: number
   onClearRecentlyWatched: () => void
   onBack: () => void
+  // WHICH SECTION SETTINGS OPENS ON, when it was opened FOR something
+  // rather than browsed to.
+  //
+  // Channels' toolbar deep-links here (its "Channel Visibility" action) —
+  // that action used to open a Channels-local popup reimplementing this
+  // very pane, and landing the viewer on Playlists and asking them to walk
+  // the rail would be a worse answer than the popup was. Omitted for a
+  // normal entry, which keeps INITIAL_SETTINGS_SECTION exactly as it was.
+  //
+  // Read once, at mount: this is where Settings STARTS, not a controlled
+  // value — the viewer moving the rail afterwards must not be undone by a
+  // re-render.
+  initialSection?: SettingsSectionId
 }
 
 export function SettingsScreen({
@@ -72,8 +92,9 @@ export function SettingsScreen({
   recentlyWatchedCount,
   onClearRecentlyWatched,
   onBack,
+  initialSection,
 }: Props) {
-  const [section, setSection] = useState<SettingsSectionId>(INITIAL_SETTINGS_SECTION)
+  const [section, setSection] = useState<SettingsSectionId>(initialSection ?? INITIAL_SETTINGS_SECTION)
   const [dialog, setDialog] = useState<Dialog>({ kind: 'none' })
   const [prefs, setPrefs] = useState(() => loadPreferences())
 
@@ -208,6 +229,30 @@ export function SettingsScreen({
     [channelIndex],
   )
 
+  function requestReset(scope: ResetScope): void {
+    setDialog({ kind: 'confirm-reset', scope })
+  }
+
+  // A full page reload is the only reliable way back to a genuine
+  // first-launch render: this screen sits under a tree that has already read
+  // preferences, the playlist library and the channel index into memory, and
+  // there is no in-place "forget everything" path through all of it. The
+  // reload lands on onboarding by itself — resolveInitialScreen (see
+  // core/appScreens.ts) opens onboarding whenever hasCompletedOnboarding()
+  // is false, which the reset has just made true. No debug force-flag is
+  // involved, which is why this works in a production Tizen build where the
+  // AdminPanel's own reset does not exist at all.
+  async function performReset(scope: ResetScope): Promise<void> {
+    const ok = await resetAppData(scope)
+    if (!ok) {
+      // Storage refused part of the wipe. Reloading now would drop the user
+      // into a half-cleared app, which is worse than not resetting at all.
+      setDialog({ kind: 'reset-failed' })
+      return
+    }
+    window.location.reload()
+  }
+
   function handlePlaylistDialog(request: PlaylistDialogRequest) {
     if (request.kind === 'add') setDialog({ kind: 'add-playlist' })
     else if (request.kind === 'rename') setDialog({ kind: 'rename-playlist', playlistId: request.playlist.id })
@@ -259,7 +304,12 @@ export function SettingsScreen({
 
           <section className="settings-pane">
             {section === 'playlists' && (
-              <PlaylistsPane library={library} onRequestDialog={handlePlaylistDialog} onLeaveToRail={returnToRail} />
+              <PlaylistsPane
+                library={library}
+                onRequestDialog={handlePlaylistDialog}
+                onRequestReset={requestReset}
+                onLeaveToRail={returnToRail}
+              />
             )}
             {section === 'sports' && (
               <SportsLeaguesPane
@@ -385,6 +435,39 @@ export function SettingsScreen({
               onClearRecentlyWatched()
               setDialog({ kind: 'none' })
             }}
+            onCancel={() => setDialog({ kind: 'none' })}
+          />
+        )}
+
+        {dialog.kind === 'confirm-reset' && (
+          <SettingsConfirmDialog
+            title={dialog.scope === 'everything' ? 'Reset everything?' : 'Reset onboarding & preferences?'}
+            // Spelled out rather than summarised as "all data": this is
+            // irreversible and the two scopes differ by exactly the thing a
+            // viewer would most regret losing by accident.
+            body={
+              dialog.scope === 'everything'
+                ? 'Ninety goes back to a first launch: your connected playlists and their downloaded channels, sports and leagues, countries, favorites, filters and recently watched are all removed. You will set the app up again from scratch.'
+                : 'Your sports and leagues, countries, favorites, filters and recently watched are removed, and setup starts again from the beginning. Your connected playlists and their downloaded channels are kept.'
+            }
+            confirmLabel={dialog.scope === 'everything' ? 'Reset everything' : 'Reset'}
+            onConfirm={() => {
+              // Deliberately NOT closing the dialog first: the success path
+              // reloads the page, and clearing it would flash the untouched
+              // Settings screen in between. The failure path replaces it.
+              void performReset(dialog.scope)
+            }}
+            onCancel={() => setDialog({ kind: 'none' })}
+          />
+        )}
+
+        {dialog.kind === 'reset-failed' && (
+          <SettingsConfirmDialog
+            title="Reset failed"
+            body="Ninety could not clear its stored data, so nothing was changed. Try again, and if it keeps failing, reinstall the app."
+            confirmLabel="Close"
+            tone="primary"
+            onConfirm={() => setDialog({ kind: 'none' })}
             onCancel={() => setDialog({ kind: 'none' })}
           />
         )}

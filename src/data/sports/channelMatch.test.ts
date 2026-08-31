@@ -531,7 +531,17 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
 
     expect(result.matches).toEqual([])
     expect(result.apiHasData).toBe(true)
-    expect(result.apiStations).toEqual([{ name: 'TNT Sports 1', country: 'GB', identityClassification: 'NONE', ambiguousPlaylistChannelNames: undefined }])
+    expect(result.apiStations).toEqual([
+      {
+        name: 'TNT Sports 1',
+        country: 'GB',
+        // The station's stable identity, carried through so the display
+        // layer can key on the broadcaster rather than on its spelling.
+        logicalChannelId: 'gb_tnt_sports_1',
+        identityClassification: 'NONE',
+        ambiguousPlaylistChannelNames: undefined,
+      },
+    ])
   })
 
   it('reports one apiStations entry per broadcast regardless of match outcome', async () => {
@@ -611,6 +621,6 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
 
     expect(result.matches).toEqual([])
     expect(result.apiHasData).toBe(true)
-    expect(result.apiStations).toEqual([{ name: 'TNT Sports 1', country: 'GB' }])
+    expect(result.apiStations).toEqual([{ name: 'TNT Sports 1', country: 'GB', logicalChannelId: 'gb_tnt_sports_1' }])
   })
 })

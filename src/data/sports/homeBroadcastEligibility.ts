@@ -42,7 +42,7 @@ import type { SportEvent } from './types'
 // CONFIRMED_NOT_BROADCAST -> never, favorite or not. Home is watch-oriented;
 //   a fixture that definitively is not being broadcast has nothing to offer
 //   here, and remains Schedule and Event Details territory (both of which
-//   still list it in full — see useTodaysSchedule.ts).
+//   still list it in full — see useScheduleDay.ts).
 export function isHomeFeedBroadcastEligible(event: SportEvent, context: PersonalizationContext): boolean {
   const availability = broadcastAvailabilityOf(event)
   if (availability === 'CONFIRMED_NOT_BROADCAST') return false

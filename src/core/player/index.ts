@@ -1,4 +1,5 @@
-export type { Player, PlayerState, PlayerStatus, PlayerError, PlayerErrorCode, SubtitleTrack, PlaybackDiagnostics } from './types'
+export type { Player, PlayerState, PlayerStatus, PlayerError, PlayerErrorCode, SubtitleTrack, AudioTrack, PlaybackDiagnostics } from './types'
+export { audioLanguageChip, audioLanguageDisplayName, buildAudioTrackLabel, normalizeAudioLanguage, UNKNOWN_AUDIO_LANGUAGE_CHIP } from './audioLanguage'
 export { createHtmlVideoPlayer, preloadPlayerEngine } from './htmlVideoPlayer'
 export { createPlayerSessionController } from './playerSessionController'
 export type { PlayerSessionController, PlayerSessionState, PlayerSessionOptions } from './playerSessionController'

@@ -43,6 +43,12 @@ export interface PlayerSessionController {
   seekToLive(): void
   setMuted(muted: boolean): void
   setSubtitleTrack(id: string | null): void
+  // Deliberately a pass-through with no policy of its own: which audio
+  // rendition is available, valid, or currently playing is knowledge only
+  // the engine has, and every source load already rebuilds it from scratch
+  // (see Player.load). Nothing here remembers a language across sources —
+  // that is a preference feature, not failover behaviour.
+  setAudioTrack(id: string): void
   dispose(): void
 }
 
@@ -262,6 +268,7 @@ export function createPlayerSessionController(
     seekToLive: () => player.seekToLive(),
     setMuted: (muted) => player.setMuted(muted),
     setSubtitleTrack: (id) => player.setSubtitleTrack(id),
+    setAudioTrack: (id) => player.setAudioTrack(id),
 
     dispose() {
       disposed = true

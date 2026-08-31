@@ -2,6 +2,8 @@ export { NavIntent, keyEventToIntent, isTizen, registerTizenRemoteKeys, exitApp 
 export { pushBackHandler, attachGlobalBackListener, handleBackPress, getBackStackDepth } from './backHandler'
 export { useBackHandler } from './useBackHandler'
 export { useFocusScrollIntoView } from './useFocusScrollIntoView'
+export { scrollFocusIntoView, nextScrollOffset, TV_FOCUS_SCROLL_INSET } from './focusScroll'
+export type { FocusScrollOptions, FocusScrollGeometry } from './focusScroll'
 export { pickFallbackAfterRemoval, pickFallbackAfterIdRemoval } from './focusRecovery'
 export type { FallbackAfterRemoval } from './focusRecovery'
 export { useFocusRecovery } from './useFocusRecovery'

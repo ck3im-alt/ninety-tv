@@ -4,6 +4,7 @@ import type { Player, PlayerState } from './types'
 
 function createFakePlayer(): Player & {
   loadedUrls: string[]
+  audioTrackCalls: string[]
   fail(): void
   stall(): void
   setStatus(status: PlayerState['status']): void
@@ -15,10 +16,13 @@ function createFakePlayer(): Player & {
     error: null,
     subtitleTracks: [],
     activeSubtitleTrack: null,
+    audioTracks: [],
+    activeAudioTrack: null,
     muted: true,
   }
   const listeners = new Set<(state: PlayerState) => void>()
   const loadedUrls: string[] = []
+  const audioTrackCalls: string[] = []
 
   function setState(patch: Partial<PlayerState>): void {
     state = { ...state, ...patch }
@@ -43,6 +47,9 @@ function createFakePlayer(): Player & {
       setState({ muted })
     },
     setSubtitleTrack() {},
+    setAudioTrack(id) {
+      audioTrackCalls.push(id)
+    },
     getState: () => state,
     subscribe(listener) {
       listeners.add(listener)
@@ -52,6 +59,7 @@ function createFakePlayer(): Player & {
       listeners.clear()
     },
     loadedUrls,
+    audioTrackCalls,
     fail() {
       setState({ status: 'error', error: { code: 'unknown', message: 'boom' } })
     },
@@ -383,6 +391,65 @@ describe('createPlayerSessionController', () => {
       expect(playerB.loadedUrls).toEqual(['http://x/1']) // B untouched throughout
       expect(controllerB.getState().sourceIndex).toBe(0)
       expect(controllerB.getState().allSourcesFailed).toBe(false)
+    })
+  })
+
+  // Audio selection is deliberately NOT policy — see PlayerSessionController's
+  // own comment. The controller's whole job here is to not get in the way.
+  describe('audio track pass-through', () => {
+    it('hands the id straight to the player, unchanged', () => {
+      const player = createFakePlayer()
+      const controller = createPlayerSessionController(player, URLS)
+      controller.attach({} as HTMLVideoElement)
+
+      controller.setAudioTrack('hls:aud:4')
+
+      expect(player.audioTrackCalls).toEqual(['hls:aud:4'])
+    })
+
+    it('adds no validation, filtering or memory of its own', () => {
+      const player = createFakePlayer()
+      const controller = createPlayerSessionController(player, URLS)
+      controller.attach({} as HTMLVideoElement)
+
+      // Whether an id is valid is knowledge only the engine has; the
+      // controller must not second-guess it, and must not dedupe repeats
+      // (re-selecting the current track is a legitimate no-op for the
+      // player to decide on).
+      controller.setAudioTrack('does-not-exist')
+      controller.setAudioTrack('hls:aud:3')
+      controller.setAudioTrack('hls:aud:3')
+
+      expect(player.audioTrackCalls).toEqual(['does-not-exist', 'hls:aud:3', 'hls:aud:3'])
+    })
+
+    it('does not reload, re-select a source, or touch failover state', () => {
+      const player = createFakePlayer()
+      const controller = createPlayerSessionController(player, URLS)
+      controller.attach({} as HTMLVideoElement)
+
+      controller.setAudioTrack('hls:aud:5')
+
+      expect(player.loadedUrls).toEqual(['http://x/1'])
+      expect(controller.getState().sourceIndex).toBe(0)
+      expect(controller.getState().allSourcesFailed).toBe(false)
+    })
+
+    // Failover is the case that actually motivates this: the engine has
+    // already thrown away the old source's tracks by the time the new one
+    // loads, so nothing here may carry a language selection across.
+    it('remembers nothing across a source failover', () => {
+      const player = createFakePlayer()
+      const controller = createPlayerSessionController(player, URLS)
+      controller.attach({} as HTMLVideoElement)
+      controller.setAudioTrack('hls:aud:4')
+
+      player.fail()
+
+      expect(controller.getState().sourceIndex).toBe(1)
+      expect(player.loadedUrls).toEqual(['http://x/1', 'http://x/2'])
+      // No re-application of the old selection onto the new stream.
+      expect(player.audioTrackCalls).toEqual(['hls:aud:4'])
     })
   })
 })

@@ -21,6 +21,18 @@ export const GENERIC_TEAM_WORDS = new Set([
   'ALBION', 'FC', 'AFC', 'CF', 'SK', 'FK', 'SC', 'CD', 'RC', 'REAL',
 ])
 
+// A TOKEN THIS SHORT CAN NEVER IDENTIFY A TEAM. textMatchesTeam asks
+// whether a channel name CONTAINS one of these as a substring, so a
+// one- or two-character token matches a large fraction of any playlist —
+// "K" and "S" between them match essentially every channel there is.
+//
+// This is a floor, not the fix: the reason short tokens were being produced
+// at all was that accented letters survived folding and then became word
+// BREAKS here ("KØBENHAVN" -> ["BENHAVN", "K"]), which foldForMatching's
+// ASCII fold now prevents. This stops the whole class from ever reaching
+// the matcher again, whatever future spelling produces it.
+const MIN_SIGNIFICANT_WORD_LENGTH = 3
+
 // Memoized on the team name for the same reason meaningfulWords below is:
 // textMatchesTeam calls this once per (channel, team) pair, so Home's
 // near-term pass ran it 2 x bucket-size x event-count times per refresh —
@@ -36,7 +48,7 @@ export const significantWords = memoize((teamName: string): string[] => {
   const words = foldForMatching(teamName)
     .replace(/[^A-Z0-9 ]+/g, ' ')
     .split(' ')
-    .filter((w) => w.length > 0)
+    .filter((w) => w.length >= MIN_SIGNIFICANT_WORD_LENGTH)
     .sort((a, b) => b.length - a.length)
   // Prefer distinctive words; a team name that's ENTIRELY generic words
   // (essentially never happens for a real club) falls back to the

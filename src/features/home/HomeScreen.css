@@ -233,10 +233,13 @@
   font-size: var(--font-section);
 }
 
+/* Was a flex row holding the scrollable row beside a "scroll right" chevron
+   button. The chevron is gone (see ScrollRow in HomeScreen.tsx — it was a
+   mouse affordance on a screen with no mouse), so this is now just the row's
+   own block; kept as a wrapper so the row's overflow clipping stays separate
+   from the section's own layout. */
 .scroll-row-wrap {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
 }
 
 .scroll-row {
@@ -280,32 +283,6 @@
 
 .scroll-row::-webkit-scrollbar {
   display: none;
-}
-
-.scroll-chevron {
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-primary);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.scroll-chevron svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Already vocabulary A — kept, and only the timing changed. */
-.scroll-chevron.focused {
-  border-color: var(--border-focus);
-  background: var(--surface-focus);
-  color: var(--accent);
 }
 
 .event-card {

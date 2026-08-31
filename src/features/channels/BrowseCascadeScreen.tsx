@@ -11,6 +11,7 @@ import { getShortEpg } from '../../data/xtream/xtreamClient'
 import { extractStreamId } from '../../data/xtream/extractStreamId'
 import { flagSrc } from '../../data/countryCodes'
 import { categoryFavoriteKey, sortFavoritesFirst } from './favorites'
+import { CHANNELS_TOOLBAR_FOCUS_KEYS, type ChannelsEntryIntent } from './channelsEntryIntent'
 import { preferredBoundary, rankCountries } from './rankCountries'
 import { ListRow } from './ListRow'
 import { SearchField } from './SearchField'
@@ -87,15 +88,22 @@ interface Props {
   // category is hidden per-country, not globally, since the same label can
   // mean different things in different countries' lineups.
   hiddenCategories: Set<string>
-  favoriteCategories: Set<string>
-  onToggleFavoriteCategory: (key: string) => void
   favoriteChannels: Set<string>
   onToggleFavoriteChannel: (channelId: string) => void
   onWatch: (channel: Channel, source: ChannelSource) => void
   onOpenFavorites: () => void
   onOpenRecent: () => void
-  onOpenFilter: () => void
+  // Opens Settings on its Channel visibility section — the ONE place
+  // hidden countries/categories are edited. This used to open a
+  // Channels-local filter popup that reimplemented the same two columns
+  // over the same two preferences; see App.tsx for why the duplicate was
+  // deleted rather than restyled.
+  onOpenChannelVisibility: () => void
   onExit: () => void
+  // Why the viewer is arriving (see channelsEntryIntent.ts). Applied once,
+  // then reported spent via onEntryIntentConsumed.
+  entryIntent?: ChannelsEntryIntent | null
+  onEntryIntentConsumed: () => void
   // Lifted to App so the drill-down path (country/category/channel/level)
   // survives navigating away to watch a channel full-screen and coming
   // back — this screen would otherwise reset to the top on remount.
@@ -128,19 +136,26 @@ function makeToolbarArrowPress(downTarget: string) {
   }
 }
 
-function FilterButton({ onOpen, downTarget }: { onOpen: () => void; downTarget: string }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onOpen, onArrowPress: makeToolbarArrowPress(downTarget) })
+// Every toolbar action carries a STABLE focus key (see
+// channelsEntryIntent.ts). They were anonymous focusables, reachable only by
+// geometry — which meant "Back from Favorites returns to the Favorites
+// button" could not even be expressed, let alone go wrong.
+function BarButton({
+  focusKey,
+  label,
+  title,
+  onSelect,
+  downTarget,
+}: {
+  focusKey: string
+  label: string
+  title?: string
+  onSelect: () => void
+  downTarget: string
+}) {
+  const { ref, focused } = useFocusable({ focusKey, onEnterPress: onSelect, onArrowPress: makeToolbarArrowPress(downTarget) })
   return (
-    <button ref={ref} className={`filter-btn ${focused ? 'focused' : ''}`} onClick={onOpen} title="Show or hide entire countries or categories from the lists below">
-      Filter Countries &amp; Categories
-    </button>
-  )
-}
-
-function BarButton({ label, onSelect, downTarget }: { label: string; onSelect: () => void; downTarget: string }) {
-  const { ref, focused } = useFocusable({ onEnterPress: onSelect, onArrowPress: makeToolbarArrowPress(downTarget) })
-  return (
-    <button ref={ref} className={`filter-btn ${focused ? 'focused' : ''}`} onClick={onSelect}>
+    <button ref={ref} className={`filter-btn ${focused ? 'focused' : ''}`} onClick={onSelect} title={title}>
       {label}
     </button>
   )
@@ -301,15 +316,15 @@ export function BrowseCascadeScreen({
   hiddenCountries,
   preferredCountries,
   hiddenCategories,
-  favoriteCategories,
-  onToggleFavoriteCategory,
   favoriteChannels,
   onToggleFavoriteChannel,
   onWatch,
   onOpenFavorites,
   onOpenRecent,
-  onOpenFilter,
+  onOpenChannelVisibility,
   onExit,
+  entryIntent: entryIntentProp,
+  onEntryIntentConsumed,
   level,
   onLevelChange: setLevel,
   selectedCountry,
@@ -329,6 +344,21 @@ export function BrowseCascadeScreen({
   const [query, setQuery] = useState('')
 
   const isSearching = query.trim() !== ''
+
+  // THE INTENT BELONGS TO THIS ARRIVAL, so it is captured once at mount and
+  // never re-read. App is told immediately that it is spent (the effect
+  // below), which clears the prop — deliberately without disturbing anything
+  // here, since every consumer reads this frozen copy. That ordering is what
+  // keeps the clearing re-render from racing the setFocus it would otherwise
+  // invalidate.
+  const [entryIntent] = useState<ChannelsEntryIntent | null>(() => entryIntentProp ?? null)
+  useEffect(() => {
+    onEntryIntentConsumed()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Returning from the player: the row to land back on, by channel identity.
+  const restoreChannelId = entryIntent?.kind === 'channel' ? entryIntent.channelId : undefined
 
   // DEV-perf: companion to App.tsx's markPerf('channels:open-start') fired
   // when the user presses "Channels" — this fires once this screen has
@@ -425,22 +455,21 @@ export function BrowseCascadeScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIndex])
 
+  // BIGGEST FIRST, and nothing else. Categories used to sort favorites to
+  // the top of each block; that star is gone (see this screen's own note on
+  // the category column below), so the only ordering left is the one that
+  // was always underneath it.
   const { regularCategories, ppvCategories } = useMemo(() => {
     if (!selectedCountry) return { regularCategories: [], ppvCategories: [] }
     const all = channelIndex
       .getCategoriesForCountry(selectedCountry)
       .filter((c) => !hiddenCategories.has(categoryFavoriteKey(selectedCountry, c.label)))
-    const sortWithFavorites = (a: { label: string; count: number }, b: { label: string; count: number }) => {
-      const aFav = favoriteCategories.has(categoryFavoriteKey(selectedCountry, a.label))
-      const bFav = favoriteCategories.has(categoryFavoriteKey(selectedCountry, b.label))
-      if (aFav !== bFav) return aFav ? -1 : 1
-      return b.count - a.count
-    }
+    const byCount = (a: { count: number }, b: { count: number }) => b.count - a.count
     return {
-      regularCategories: all.filter((c) => !c.isPpv).sort(sortWithFavorites),
-      ppvCategories: all.filter((c) => c.isPpv).sort(sortWithFavorites),
+      regularCategories: all.filter((c) => !c.isPpv).sort(byCount),
+      ppvCategories: all.filter((c) => c.isPpv).sort(byCount),
     }
-  }, [channelIndex, selectedCountry, hiddenCategories, favoriteCategories])
+  }, [channelIndex, selectedCountry, hiddenCategories])
 
   // selectedCategory === null means nothing selected yet (-> []);
   // selectedCategory === '' means the country's general/unlabeled bucket —
@@ -457,6 +486,19 @@ export function BrowseCascadeScreen({
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIndex, selectedCountry, selectedCategory])
+
+  // The channel column's row keys are positional (see VirtualChannelList's
+  // focusKeyPrefix), so restoring by IDENTITY means resolving the id to its
+  // current index here rather than remembering the index from before
+  // playback — the list can have been rebuilt by a background playlist
+  // refresh in the meantime. Undefined when there is nothing to restore, or
+  // when the channel is no longer in this category at all (the list's own
+  // plan then falls back to the first row — see planChannelRestore).
+  const restoreRowFocusKey = useMemo(() => {
+    if (!restoreChannelId) return undefined
+    const index = channelsInCategory.findIndex((channel) => channel.id === restoreChannelId)
+    return index === -1 ? undefined : `cascade-channel-row-${index}`
+  }, [restoreChannelId, channelsInCategory])
 
   // Previewing (scrolling with arrows) updates the next column's contents
   // immediately, without moving focus/level there — that only happens on
@@ -537,6 +579,17 @@ export function BrowseCascadeScreen({
   const { ref: channelColRef, focusKey: channelColFocusKey } = useFocusable({
     focusKey: CHANNEL_COL_FOCUS_KEY,
     trackChildren: true,
+    // RETURNING FROM THE PLAYER LANDS ON THE CHANNEL YOU WERE WATCHING, not
+    // on row 1. The level effect below focuses this COLUMN, and a column
+    // with no preference resolves to its first child — which is the whole
+    // reason Back used to open the list at the top.
+    //
+    // Undefined for every ordinary entry, so a normal drill-down into a
+    // category still starts at the first channel. Safe to name a key that is
+    // only just about to exist: VirtualChannelList mounts the restored row
+    // in its FIRST render (see its restoreChannelId prop), so by the time
+    // any effect runs it is registered.
+    preferredChildFocusKey: restoreRowFocusKey,
   })
   const { ref: searchColRef, focusKey: searchColFocusKey } = useFocusable({
     focusKey: SEARCH_COL_FOCUS_KEY,
@@ -552,7 +605,17 @@ export function BrowseCascadeScreen({
   // containers' own registration effects to have already run — otherwise
   // setFocus targets a container that isn't registered yet and lands on
   // nothing usable.
+  // A ONE-SHOT toolbar return outranks the cascade-state restoration below:
+  // someone pressing Back out of Favorites is answering "take me back to
+  // where I was", and where they were is a toolbar button, not whichever
+  // column the cascade happens to have been left drilled into.
+  const toolbarIntentAppliedRef = useRef(false)
   useEffect(() => {
+    if (!toolbarIntentAppliedRef.current && entryIntent?.kind === 'toolbar') {
+      toolbarIntentAppliedRef.current = true
+      void setFocus(CHANNELS_TOOLBAR_FOCUS_KEYS[entryIntent.target])
+      return
+    }
     if (level === 'country') void setFocus(COUNTRY_COL_FOCUS_KEY)
     else if (level === 'category') void setFocus(CATEGORY_COL_FOCUS_KEY)
     else if (level === 'channel') void setFocus(CHANNEL_COL_FOCUS_KEY)
@@ -670,9 +733,25 @@ export function BrowseCascadeScreen({
             placeholder="Search channels"
             onArrowDown={() => void setFocus(isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY)}
           />
-          <FilterButton onOpen={onOpenFilter} downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY} />
-          <BarButton label="Recently Watched" onSelect={onOpenRecent} downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY} />
-          <BarButton label="Favorites" onSelect={onOpenFavorites} downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY} />
+          <BarButton
+            focusKey={CHANNELS_TOOLBAR_FOCUS_KEYS.filters}
+            label="Channel Visibility"
+            title="Choose which countries and categories appear while browsing — opens Settings"
+            onSelect={onOpenChannelVisibility}
+            downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY}
+          />
+          <BarButton
+            focusKey={CHANNELS_TOOLBAR_FOCUS_KEYS.recent}
+            label="Recently Watched"
+            onSelect={onOpenRecent}
+            downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY}
+          />
+          <BarButton
+            focusKey={CHANNELS_TOOLBAR_FOCUS_KEYS.favorites}
+            label="Favorites"
+            onSelect={onOpenFavorites}
+            downTarget={isSearching ? SEARCH_COL_FOCUS_KEY : COUNTRY_COL_FOCUS_KEY}
+          />
         </div>
       </FocusContext.Provider>
 
@@ -756,6 +835,14 @@ export function BrowseCascadeScreen({
 
           {selectedCountry && (
             <FocusContext.Provider value={categoryColFocusKey}>
+              {/* CATEGORY ROWS CARRY NO STAR. They used to: favoriting a
+                  category pinned it to the top of this column. It was
+                  removed on 2026-08-31 as a duplicate of the thing viewers
+                  actually use — channel favorites, which have a Favorites
+                  view of their own and name something watchable. Two stars
+                  with different meanings, two columns apart, is a worse
+                  answer than one. Channel favorites are untouched; only the
+                  category star is gone. */}
               <div ref={categoryColRef} className="cascade-col category">
                 <div className="cascade-col-header">
                   <span>Categories</span>
@@ -772,18 +859,6 @@ export function BrowseCascadeScreen({
                       onFocus={() => previewCategory(category.label)}
                       onArrowLeft={() => void setFocus(COUNTRY_COL_FOCUS_KEY)}
                       onArrowUp={index === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined}
-                      // At 4 columns the star is CSS-hidden (see
-                      // BrowseCascadeScreen.css's [data-cols='4'] rule) to
-                      // keep the fully-expanded view calm — omitting these
-                      // two props here (rather than just hiding it visually)
-                      // is what keeps a hidden star from also being a
-                      // registered spatial-nav target a remote user could
-                      // silently land on. See ChannelRow's `showFavorite`
-                      // prop for the equivalent fix on channel rows.
-                      favorited={colCount < 4 ? favoriteCategories.has(categoryFavoriteKey(selectedCountry, category.label)) : undefined}
-                      onToggleFavorite={
-                        colCount < 4 ? () => onToggleFavoriteCategory(categoryFavoriteKey(selectedCountry, category.label)) : undefined
-                      }
                     />
                   ))}
                   {ppvCategories.length > 0 && (
@@ -801,10 +876,6 @@ export function BrowseCascadeScreen({
                           onArrowLeft={() => void setFocus(COUNTRY_COL_FOCUS_KEY)}
                           onArrowUp={
                             index === 0 && regularCategories.length === 0 ? () => void setFocus(TOOLBAR_FOCUS_KEY) : undefined
-                          }
-                          favorited={colCount < 4 ? favoriteCategories.has(categoryFavoriteKey(selectedCountry, category.label)) : undefined}
-                          onToggleFavorite={
-                            colCount < 4 ? () => onToggleFavoriteCategory(categoryFavoriteKey(selectedCountry, category.label)) : undefined
                           }
                         />
                       ))}
@@ -832,6 +903,10 @@ export function BrowseCascadeScreen({
                     // long as the viewer is still in the same country +
                     // category they must stay exactly where they were.
                     listKey={`${selectedCountry}::${selectedCategory}`}
+                    // Mounts the row for the channel the viewer was just
+                    // watching, whatever its position, so the column's
+                    // preferredChildFocusKey above has a real row to land on.
+                    restoreChannelId={restoreChannelId}
                     onSelect={watchChannel}
                     onFocusChannel={selectChannel}
                     onToggleFavorite={onToggleFavoriteChannel}

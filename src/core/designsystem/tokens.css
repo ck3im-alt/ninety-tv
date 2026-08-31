@@ -56,6 +56,13 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+  /* Panel-scale radius, for the few surfaces that are a BLOCK of the page
+     rather than a control on it — Schedule's date navigator and its
+     competition cards. At 1920x1080 a 14px corner on a 1728px-wide card is
+     visually square from a sofa; this is the same curve read at that size.
+     Deliberately one token rather than a per-screen number, so the next
+     full-width panel matches the first. */
+  --radius-xl: 22px;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -90,6 +97,21 @@
   /* TopNav's fixed height — screens that render BELOW the nav bar (rather
      than replacing it) subtract it from the 1080px canvas. */
   --topnav-height: 84px;
+
+  /* ---- TV focus safe area ----
+     How much clear space is kept between the FOCUSED element and the edge
+     of whatever scroll viewport it lives in. A focused row flush against
+     the bottom line of the screen reads as cut off from a sofa even when it
+     is fully painted, and its focus ring genuinely is clipped the moment
+     any ancestor rounds or hides its overflow.
+
+     One rung of the existing spacing scale (--space-8), not a bespoke
+     number: this is the same "a block needs room to breathe inside its
+     container" distance the rest of the app already spends. MIRRORED in
+     TV_FOCUS_SCROLL_INSET (core/platform/focusScroll.ts), which is what
+     actually performs the scroll — CSS cannot, since the scrolling is
+     driven by D-pad focus rather than by layout. If one moves, move both. */
+  --focus-scroll-inset: var(--space-8);
 
   --motion-duration: 200ms;
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);

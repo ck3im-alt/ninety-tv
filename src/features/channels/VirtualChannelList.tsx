@@ -14,7 +14,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getCurrentFocusKey, setFocus } from '@noriginmedia/norigin-spatial-navigation'
 import type { Channel } from '../../data/channel'
 import { ChannelRow } from './ChannelRow'
-import { planWindowShift } from './virtualWindow'
+import { planChannelRestore, planWindowShift } from './virtualWindow'
 
 const DEFAULT_WINDOW_SIZE = 30
 const DEFAULT_OVERSCAN = 10
@@ -50,7 +50,23 @@ interface VirtualChannelListProps {
   onArrowLeft?: () => void
   onArrowUpAtTop?: () => void // only absolute-index 0 gets this
   emptyMessage?: string
+  // This list owns the screen's initial focus. Which ROW that lands on is
+  // `restoreChannelId`'s business, not this flag's — see below. (It kept its
+  // name because "first" is still what it means whenever there is nothing to
+  // restore, which is every ordinary entry.)
   forceFocusFirst?: boolean
+  // THE CHANNEL THE VIEWER IS COMING BACK TO, by identity.
+  //
+  // Set only when returning from the player (see channelsEntryIntent.ts).
+  // The window that mounts this channel's row is computed BEFORE the first
+  // render — a row that is not mounted cannot be focused, and an effect that
+  // moved the window afterwards would land a frame too late for the parent
+  // screen's own setFocus, which is what made the previous attempt at this
+  // silently fall back to row 0.
+  //
+  // Resolved by id on every use, never by a remembered index: the list can
+  // legitimately have changed shape while the player was up.
+  restoreChannelId?: string | null
   // Threaded straight to ChannelRow — see its own doc comment. Defaults true.
   showFavorite?: boolean
 }
@@ -70,9 +86,24 @@ export function VirtualChannelList({
   onArrowUpAtTop,
   emptyMessage,
   forceFocusFirst,
+  restoreChannelId,
   showFavorite = true,
 }: VirtualChannelListProps) {
-  const [windowStart, setWindowStart] = useState(0)
+  // The restore target, decided once at mount. Everything downstream — the
+  // initial window, which row gets `forceFocus` — reads this one plan, so
+  // the row that is mounted and the row that claims focus cannot disagree.
+  // Deliberately not recomputed on later renders: a restore is a single
+  // arrival, and re-running it as `channels` changes would drag the viewer
+  // back to it long after they had moved on.
+  const [restore] = useState(() =>
+    planChannelRestore(
+      channels,
+      restoreChannelId,
+      Math.max(1, Math.min(channels.length, windowSize + 2 * overscan)),
+      Math.max(0, channels.length - Math.max(1, Math.min(channels.length, windowSize + 2 * overscan))),
+    ),
+  )
+  const [windowStart, setWindowStart] = useState(restore.windowStart)
   const [rowStride, setRowStride] = useState(FALLBACK_ROW_STRIDE)
   // Absolute index -> the row wrapper's DOM element, collected via each
   // wrapper's own callback ref below — used only to measure the real
@@ -304,7 +335,7 @@ export function VirtualChannelList({
               onSelect={() => onSelect(channel)}
               onFocus={() => onFocusChannel(channel)}
               onToggleFavorite={() => onToggleFavorite(channel.id)}
-              forceFocus={forceFocusFirst && absoluteIndex === 0}
+              forceFocus={forceFocusFirst && absoluteIndex === Math.max(0, restore.index)}
               onArrowLeft={onArrowLeft}
               onArrowUp={isFirstOverall ? onArrowUpAtTop : nearTop ? () => shiftWindow(absoluteIndex - 1) : undefined}
               onArrowDown={nearBottom ? () => shiftWindow(absoluteIndex + 1) : undefined}

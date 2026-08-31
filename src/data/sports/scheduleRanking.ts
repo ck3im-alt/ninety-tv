@@ -1,19 +1,22 @@
-// Turns "every football fixture Ninety knows about for the viewer's local
-// day" into the order the Schedule screen renders it in: competition groups
-// ranked by a blend of personal relevance and competition importance, each
-// group's fixtures ordered by what's actually useful once you're already
-// inside one competition.
+// Turns "every football fixture Ninety knows about for one of the viewer's
+// local days" into the order the Schedule screen renders it in: competition
+// groups partitioned by whether the viewer follows the competition and then
+// ranked by competition importance, each group's fixtures ordered by what's
+// actually useful once you're already inside one competition.
 //
 // The single hard rule this file exists to keep honest: RANKING CHANGES
 // ORDER ONLY. Nothing here filters. Every fixture handed in comes back out,
 // in exactly one group — a smaller competition can be pushed down the page
-// but can never be dropped off it. (Filtering by competition is a separate,
-// explicit user action — see the league pills in ScheduleScreen.tsx.)
+// but can never be dropped off it. (Nothing narrows the day at all any
+// more: the league-pill filter Schedule used to carry was removed with the
+// 2026-08-31 redesign, because the whole day IS the browse surface now and
+// favorites being pinned first makes a competition picker redundant.)
 //
 // Prestige and stage significance are NOT re-invented here: both come from
 // heroScoring.ts, which is the app's one editorial judgement about how big a
 // competition and how important a round are. A second table would drift.
 import { competitionPrestige, roundSignificance } from './heroScoring'
+import type { LeagueDef } from './leagues'
 import type { SportEvent } from './types'
 
 export interface ScheduleGroup {
@@ -22,38 +25,43 @@ export interface ScheduleGroup {
   competitionId: string
   competitionName: string
   competitionBadge?: string
+  // The competition's own country/region, straight from ninety-api's
+  // canonical registry (GET /v1/competitions via competitionsCatalog.ts) —
+  // 'England', 'Norway', 'Europe', 'International'. NEVER inferred from the
+  // competition's name, and never the viewer's own country. Undefined only
+  // when the competition isn't in the fetched catalog at all.
+  region?: string
+  // ISO-3166-1 alpha-2, or null/undefined for a supranational competition
+  // (UEFA/CONMEBOL/FIFA have no country of their own — see
+  // competitionGrouping.ts). This is what decides whether the section header
+  // can show a national flag; a supranational one shows its badge instead.
+  countryCode?: string | null
   isFavorite: boolean
   fixtures: SportEvent[]
 }
 
-// Weights are an editorial judgement, same spirit as heroScoring's own — the
-// point of writing them down as named constants is that they can be retuned
-// without re-deriving the intent.
+// FAVORITES ARE AN ABSOLUTE PARTITION, NOT A WEIGHT.
 //
-// The calibration target, stated as an inequality that must hold:
+// Until 2026-08-31 a favorite competition got a +0.30 boost and could still
+// be outranked by a big enough competition — a Champions League semifinal
+// deliberately sat above a favorited tier-3 league. That calibration was
+// right for a screen that answers "what's the biggest football on today"
+// and wrong for this one. Schedule is where someone goes to look up THEIR
+// competitions; making them hunt past two European ties for the league they
+// explicitly ticked is the opposite of what the setting means. Home is
+// unchanged and still weights favorites against prestige (see
+// homePersonalization.ts/homeRanking.ts) — the two screens answer different
+// questions and are allowed to order the same day differently.
 //
-//   a Champions League fixture (prestige 1.0)  >  a tier-3 competition the
-//   user happens to have ticked (prestige 0.45, favorite)
-//
-// which is what stops a favorite checkbox from becoming an absolute
-// monopoly. Working it through with regular-season rounds on both sides:
-//   CL, not favorited:      0.55*1.00 + 0.15*0.60 (group stage) = 0.640
-//   tier 3, favorited:      0.30 + 0.55*0.45 + 0.15*0.50        = 0.623
-// while a favorited tier-1 league still comfortably leads the page:
-//   tier 1, favorited:      0.30 + 0.55*0.85 + 0.15*0.50        = 0.843
-// and a favorited tier-2 still outranks an unfollowed tier-1:
-//   tier 2, favorited:      0.30 + 0.55*0.65 + 0.15*0.50        = 0.733
-//   tier 1, not favorited:        0.55*0.85 + 0.15*0.50         = 0.543
-const WEIGHT_FAVORITE = 0.3
+// So: every favorite competition with a fixture precedes every non-favorite
+// one, no exceptions. The score below then orders WITHIN each partition,
+// where it is exactly the ranking it always was.
 const WEIGHT_PRESTIGE = 0.55
 const WEIGHT_SIGNIFICANCE = 0.15
-// A group with something actually in progress gets a small nudge. Small
-// deliberately: it's enough to lift a live competition above an equal one
-// that hasn't kicked off, and enough that a live favorite can edge past a
-// not-yet-started CL group game (0.663 vs 0.640 — a defensible outcome:
-// something you follow is happening RIGHT NOW), but nowhere near enough to
-// reach a CL knockout tie (0.678+), which is the case the calibration above
-// is actually about.
+// A group with something actually in progress gets a small nudge — enough
+// to lift a live competition above an equal one that hasn't kicked off, and
+// nowhere near enough to reach a knockout tie, which is the case the
+// prestige/significance balance is actually about.
 const WEIGHT_LIVE = 0.04
 
 // A competition's own importance is the same for every one of its fixtures;
@@ -62,17 +70,17 @@ const WEIGHT_LIVE = 0.04
 // Using the max, not an average, is deliberate: one semifinal is what makes a
 // competition worth surfacing today, and averaging it against three
 // group-stage games would hide exactly that.
+//
+// `isFavorite` is deliberately NOT an input. It is applied above this, as a
+// partition — a term for it here would be a constant within each partition
+// and could therefore only ever mislead a reader into thinking it still
+// trades off against prestige.
 export function scoreScheduleGroup(group: ScheduleGroup): number {
   const anchor = group.fixtures[0]
   const prestige = anchor ? competitionPrestige(anchor) : 0
   const significance = group.fixtures.reduce((best, ev) => Math.max(best, roundSignificance(ev.round)), 0)
   const hasLive = group.fixtures.some((ev) => ev.isLive)
-  return (
-    WEIGHT_FAVORITE * (group.isFavorite ? 1 : 0) +
-    WEIGHT_PRESTIGE * prestige +
-    WEIGHT_SIGNIFICANCE * significance +
-    WEIGHT_LIVE * (hasLive ? 1 : 0)
-  )
+  return WEIGHT_PRESTIGE * prestige + WEIGHT_SIGNIFICANCE * significance + WEIGHT_LIVE * (hasLive ? 1 : 0)
 }
 
 function kickoffMs(event: SportEvent): number {
@@ -104,10 +112,22 @@ export function orderFixturesWithinGroup(fixtures: readonly SportEvent[]): Sport
   })
 }
 
-// Groups every fixture by competition and ranks the groups. `favoriteIds` is
-// SportPreferences.footballLeagueIds — it only ever affects ORDER here, never
-// which competitions or fixtures exist (see this file's header).
-export function buildScheduleGroups(fixtures: readonly SportEvent[], favoriteIds: readonly string[]): ScheduleGroup[] {
+// Groups every fixture by competition and ranks the groups.
+//
+// `favoriteIds` is SportPreferences.footballLeagueIds — it decides the
+// PARTITION (see above) and nothing else; it never affects which
+// competitions or fixtures exist.
+//
+// `competitions` is the canonical registry entry for each competition
+// present, as resolved by useScheduleDay — the source of the region/country
+// a section header names and flags itself with. Optional: a caller with no
+// catalog (or a competition missing from it) still gets a complete, ordered
+// schedule, just without that metadata.
+export function buildScheduleGroups(
+  fixtures: readonly SportEvent[],
+  favoriteIds: readonly string[],
+  competitions?: ReadonlyMap<string, LeagueDef>,
+): ScheduleGroup[] {
   const favorites = new Set(favoriteIds)
   const byCompetition = new Map<string, ScheduleGroup>()
 
@@ -118,10 +138,13 @@ export function buildScheduleGroups(fixtures: readonly SportEvent[], favoriteIds
     const competitionId = fixture.leagueId || 'unknown'
     let group = byCompetition.get(competitionId)
     if (!group) {
+      const league = competitions?.get(competitionId)
       group = {
         competitionId,
-        competitionName: fixture.league || 'Other fixtures',
-        competitionBadge: fixture.leagueBadge,
+        competitionName: league?.name || fixture.league || 'Other fixtures',
+        competitionBadge: league?.badge ?? fixture.leagueBadge,
+        region: league?.region,
+        countryCode: league?.countryCode,
         isFavorite: favorites.has(competitionId),
         fixtures: [],
       }
@@ -135,12 +158,14 @@ export function buildScheduleGroups(fixtures: readonly SportEvent[], favoriteIds
     fixtures: orderFixturesWithinGroup(group.fixtures),
   }))
 
-  // Deterministic all the way down: score, then the group's earliest
-  // kickoff, then name, then id — so two competitions that genuinely tie
-  // still render in a stable order across re-renders and refreshes rather
-  // than inheriting Map insertion order (which follows whatever order the
-  // API happened to page the events in).
+  // Favorites first, absolutely. Then, within each partition: deterministic
+  // all the way down — score, then the group's earliest kickoff, then name,
+  // then id — so two competitions that genuinely tie still render in a
+  // stable order across re-renders and refreshes rather than inheriting Map
+  // insertion order (which follows whatever order the API happened to page
+  // the events in).
   return groups.sort((a, b) => {
+    if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
     const byScore = scoreScheduleGroup(b) - scoreScheduleGroup(a)
     if (byScore !== 0) return byScore
     const byTime = kickoffMs(a.fixtures[0]) - kickoffMs(b.fixtures[0])
@@ -149,31 +174,4 @@ export function buildScheduleGroups(fixtures: readonly SportEvent[], favoriteIds
     if (byName !== 0) return byName
     return a.competitionId.localeCompare(b.competitionId)
   })
-}
-
-export interface ScheduleFilterOption {
-  competitionId: string
-  competitionName: string
-  competitionBadge?: string
-}
-
-// The league pills, in the SAME order as the sections below them — the pill
-// row then reads as a table of contents for the page rather than a second,
-// differently-sorted list of the same competitions. Only competitions that
-// actually have a fixture today appear, because buildScheduleGroups only
-// produces groups for fixtures that exist.
-export function scheduleFilterOptions(groups: readonly ScheduleGroup[]): ScheduleFilterOption[] {
-  return groups.map((group) => ({
-    competitionId: group.competitionId,
-    competitionName: group.competitionName,
-    competitionBadge: group.competitionBadge,
-  }))
-}
-
-// `null` is the "All" pill — the default on entering Schedule, and the only
-// state in which every competition is shown. Selecting a league is the one
-// thing that narrows the day; nothing else in this file ever does.
-export function applyScheduleFilter(groups: readonly ScheduleGroup[], competitionId: string | null): ScheduleGroup[] {
-  if (competitionId == null) return [...groups]
-  return groups.filter((group) => group.competitionId === competitionId)
 }

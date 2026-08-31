@@ -213,8 +213,20 @@ export function saveFilters(hiddenCountries: Set<string>, hiddenCategories: Set<
 // just be fixed rather than accepted again. Same localStorage pattern as
 // the playlist/filters above.
 const FAVORITE_CHANNELS_KEY = 'ninety.favoriteChannels'
-const FAVORITE_CATEGORIES_KEY = 'ninety.favoriteCategories'
 const RECENTLY_WATCHED_KEY = 'ninety.recentlyWatched'
+
+// There is deliberately no favorite-CATEGORY store any more. Categories
+// could once be starred, which pinned them to the top of the Channels
+// cascade's category column; the feature was removed on 2026-08-31 because
+// it duplicated what channel favorites already do (the Favorites view is
+// per channel, which is the thing a viewer actually watches) while adding a
+// second star with different semantics two columns apart.
+//
+// Any 'ninety.favoriteCategories' array left in a device's localStorage is
+// simply never read again. It is not migrated and not deleted on upgrade:
+// it is a handful of short strings, and a destructive one-time cleanup pass
+// is real risk spent on no user-visible benefit. Settings' Reset clears it
+// with everything else (see resetAppData.ts), which is enough.
 
 export function loadFavoriteChannels(): Set<string> {
   return new Set(readStored<string[]>(FAVORITE_CHANNELS_KEY, []))
@@ -222,14 +234,6 @@ export function loadFavoriteChannels(): Set<string> {
 
 export function saveFavoriteChannels(favoriteChannels: Set<string>): void {
   writeStored<string[]>(FAVORITE_CHANNELS_KEY, [...favoriteChannels])
-}
-
-export function loadFavoriteCategories(): Set<string> {
-  return new Set(readStored<string[]>(FAVORITE_CATEGORIES_KEY, []))
-}
-
-export function saveFavoriteCategories(favoriteCategories: Set<string>): void {
-  writeStored<string[]>(FAVORITE_CATEGORIES_KEY, [...favoriteCategories])
 }
 
 export function loadRecentlyWatched(): string[] {

@@ -80,10 +80,18 @@ describe('ListRow — compact (flag-only rail) mode', () => {
 
 describe('ListRow — Category rows are unaffected by the country rail', () => {
   it('keeps its full row (label, count, chevron) when compact is not passed', () => {
-    render(<ListRow label="Sports" count={57} onSelect={() => {}} focusKey="cat" favorited={false} onToggleFavorite={() => {}} />)
+    render(<ListRow label="Sports" count={57} onSelect={() => {}} focusKey="cat" />)
     expect(screen.getByText('Sports')).toBeTruthy()
     expect(screen.getByText('57 channels')).toBeTruthy()
     expect(row().querySelector('.list-row-chevron')).toBeTruthy()
-    expect(row().querySelector('.list-row-favorite')).toBeTruthy()
+  })
+
+  // The favorite-category feature was removed on 2026-08-31 — a category
+  // row is a plain row with exactly one focusable now, not a row plus a
+  // star. Channel favorites are a different component (ChannelRow) and are
+  // deliberately untouched.
+  it('renders no favorite star at all', () => {
+    render(<ListRow label="Sports" count={57} onSelect={() => {}} focusKey="cat" />)
+    expect(row().querySelector('.list-row-favorite')).toBeNull()
   })
 })

@@ -235,7 +235,7 @@ function CompetitionRow({
     },
   })
 
-  useFocusScrollIntoView(ref, focused, { block: 'nearest' })
+  useFocusScrollIntoView(ref, focused)
 
   return (
     <div

@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { makeFakeLocalStorage } from '../../core/storage/testFakeLocalStorage'
 import { ONBOARDING_STEPS } from './OnboardingStepper'
-import { hasCompletedOnboarding, loadPreferences } from '../../data/preferences'
+import { DEFAULT_PREFERENCES, hasCompletedOnboarding, loadPreferences } from '../../data/preferences'
 import type { Channel } from '../../data/channel'
 
 vi.mock('../setup/PlaylistSetupScreen', () => ({
@@ -40,9 +40,30 @@ vi.mock('../setup/PlaylistSetupScreen', () => ({
 }))
 
 vi.mock('./OnboardingSportsScreen', () => ({
-  OnboardingSportsScreen: ({ onBack, onContinue }: { onBack: () => void; onContinue: () => void }) => (
+  OnboardingSportsScreen: ({
+    selectedSports,
+    selectedLeagues,
+    onToggleSport,
+    onToggleLeague,
+    onBack,
+    onContinue,
+  }: {
+    selectedSports: Set<string>
+    selectedLeagues: Set<string>
+    onToggleSport: (id: string) => void
+    onToggleLeague: (id: string) => void
+    onBack: () => void
+    onContinue: () => void
+  }) => (
     <div>
       <span data-testid="step">2</span>
+      {/* The flow's own starting selection, so "football only, nothing
+          preselected" is an assertion about the FLOW's state rather than
+          about how the real screen happens to paint a card. */}
+      <span data-testid="sports-selected">{[...selectedSports].join(',')}</span>
+      <span data-testid="leagues-selected">{[...selectedLeagues].join(',')}</span>
+      <button onClick={() => onToggleSport('f1')}>toggle-f1</button>
+      <button onClick={() => onToggleLeague('football_premier_league')}>pick-league</button>
       <button onClick={onBack}>back</button>
       <button onClick={onContinue}>continue</button>
     </div>
@@ -194,10 +215,74 @@ describe('onboarding step structure', () => {
   it('carries the chosen leagues into the Teams step', async () => {
     render(<OnboardingFlow onDone={vi.fn()} />)
     await click('connect')
+    await click('pick-league')
     await click('continue')
-    // DEFAULT_PREFERENCES' pre-ticked leagues, unchanged by the stand-in
-    // step 2 — the point is that the Teams step receives them at all.
-    expect(screen.getByTestId('teams-leagues').textContent).toBe('football_premier_league,football_champions_league')
+    expect(screen.getByTestId('teams-leagues').textContent).toBe('football_premier_league')
+  })
+})
+
+// A viewer standing in onboarding is being ASKED. Anything already ticked
+// when they arrive is an answer Ninety put in their mouth — see
+// ONBOARDING_INITIAL_SPORTS / ONBOARDING_INITIAL_FOOTBALL_LEAGUE_IDS.
+describe('what onboarding starts on', () => {
+  it('starts with football selected', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    expect(screen.getByTestId('sports-selected').textContent).toBe('football')
+  })
+
+  it('does NOT start with F1 selected', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    expect(screen.getByTestId('sports-selected').textContent).not.toContain('f1')
+  })
+
+  it('starts with no football leagues selected at all', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    expect(screen.getByTestId('leagues-selected').textContent).toBe('')
+  })
+
+  // A viewer who changes nothing on step 2 finishes with exactly what they
+  // were shown — football, no leagues — never with the app-wide fallback
+  // defaults quietly written on their behalf.
+  it('persists football-only with no leagues when the viewer changes nothing', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('continue')
+    await click('continue')
+    await click('continue')
+    await click('finish')
+
+    const prefs = loadPreferences()
+    expect(prefs.sports).toEqual(['football'])
+    expect(prefs.footballLeagueIds).toEqual([])
+  })
+
+  it('still persists F1 and leagues once the viewer actually picks them', async () => {
+    render(<OnboardingFlow onDone={vi.fn()} />)
+    await click('connect')
+    await click('toggle-f1')
+    await click('pick-league')
+    await click('continue')
+    await click('continue')
+    await click('continue')
+    await click('finish')
+
+    const prefs = loadPreferences()
+    expect(prefs.sports).toEqual(['football', 'f1'])
+    expect(prefs.footballLeagueIds).toEqual(['football_premier_league'])
+  })
+
+  // DEFAULT_PREFERENCES is the fallback for an install with nothing stored,
+  // which is a different question — changing onboarding's starting state
+  // must not have moved it.
+  it('leaves the app-wide fallback preferences alone', () => {
+    expect(DEFAULT_PREFERENCES.sports).toEqual(['football', 'f1'])
+    expect(DEFAULT_PREFERENCES.footballLeagueIds).toEqual([
+      'football_premier_league',
+      'football_champions_league',
+    ])
   })
 })
 
@@ -222,6 +307,7 @@ describe('finishing onboarding', () => {
     const onDone = vi.fn()
     render(<OnboardingFlow onDone={onDone} />)
     await click('connect')
+    await click('pick-league')
     await click('continue')
     await click('pick-team')
     await click('continue')
@@ -230,8 +316,8 @@ describe('finishing onboarding', () => {
     await click('finish')
 
     const prefs = loadPreferences()
-    expect(prefs.sports).toEqual(['football', 'f1'])
-    expect(prefs.footballLeagueIds.length).toBeGreaterThan(0)
+    expect(prefs.sports).toEqual(['football'])
+    expect(prefs.footballLeagueIds).toEqual(['football_premier_league'])
     // Detected home country (NO) seeded as primary, then the user's pick.
     expect(prefs.favoriteCountries).toEqual(['Norway', 'Sweden'])
     expect(prefs.streamType).toBe('auto')
@@ -335,6 +421,7 @@ describe('finishing onboarding', () => {
   it('saves the Home mode alongside every other selection, not instead of any of them', async () => {
     render(<OnboardingFlow onDone={vi.fn()} />)
     await click('connect')
+    await click('pick-league')
     await click('continue')
     await click('pick-team')
     await click('continue')
@@ -345,8 +432,8 @@ describe('finishing onboarding', () => {
 
     const prefs = loadPreferences()
     expect(prefs.homeContentMode).toBe('favorites_only')
-    expect(prefs.sports).toEqual(['football', 'f1'])
-    expect(prefs.footballLeagueIds).toEqual(['football_premier_league', 'football_champions_league'])
+    expect(prefs.sports).toEqual(['football'])
+    expect(prefs.footballLeagueIds).toEqual(['football_premier_league'])
     expect(prefs.favoriteTeamIds).toEqual(['t-glimt'])
     expect(prefs.favoriteCountries).toEqual(['Norway', 'Sweden'])
     // Onboarding never asks the technical TV-channel-vs-event-stream

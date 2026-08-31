@@ -28,11 +28,44 @@ export function foldForDisplay(text: string): string {
   return [...text].map((ch) => MODIFIER_UPPER[ch] ?? SUPERSCRIPT_LOWER[ch] ?? ch).join('')
 }
 
-// Uppercased, same length as input — safe to slice the original by any
-// match length found in this folded version. Used for matching only (tag
-// detection, country-prefix detection), never shown to the user.
+// ACCENTED LETTERS, FOLDED TO THEIR ASCII BASE — matching only, never
+// display.
+//
+// This exists because of a real, severe bug. Every consumer that tokenizes
+// a folded string does it with /[^A-Z0-9 ]+/ -> ' ', so a letter that
+// survives folding but isn't A-Z becomes a WORD BREAK. "København" folded
+// to "KØBENHAVN" and then tokenized to ["BENHAVN", "K"] — and a
+// single-letter token, matched as a substring, matches almost every channel
+// in a playlist. The visible result (2026-08-31, real device): a Danish
+// fixture matched ~50 unrelated PPV slots and a pile of Dutch radio
+// stations, because every one of their names contains a K and an S. See
+// channelMatchCore.ts's significantWords.
+//
+// STRICTLY ONE CHARACTER TO ONE CHARACTER. foldForMatching's contract is
+// that its output is the same length as its input, so callers can slice the
+// ORIGINAL string by offsets found in the folded one (parseCategory does
+// exactly this). So Æ folds to A rather than AE, and Þ to T rather than TH —
+// lossy, but this string is only ever compared, never shown.
+const ASCII_FOLD: Record<string, string> = {
+  À: 'A', Á: 'A', Â: 'A', Ã: 'A', Ä: 'A', Å: 'A', Æ: 'A',
+  Ç: 'C', Ð: 'D',
+  È: 'E', É: 'E', Ê: 'E', Ë: 'E',
+  Ì: 'I', Í: 'I', Î: 'I', Ï: 'I',
+  Ñ: 'N',
+  Ò: 'O', Ó: 'O', Ô: 'O', Õ: 'O', Ö: 'O', Ø: 'O',
+  Ù: 'U', Ú: 'U', Û: 'U', Ü: 'U',
+  Ý: 'Y', Þ: 'T',
+  Š: 'S', Ž: 'Z', Č: 'C', Ć: 'C', Đ: 'D', Ł: 'L', Ń: 'N', Ś: 'S', Ź: 'Z', Ż: 'Z',
+  Ā: 'A', Ē: 'E', Ī: 'I', Ō: 'O', Ū: 'U',
+}
+
+// Uppercased and ASCII-folded, same length as input — safe to slice the
+// original by any match length found in this folded version. Used for
+// matching only (tag detection, country-prefix detection, team-name
+// tokenization), never shown to the user: foldForDisplay is what preserves
+// a name's real spelling for the screen.
 export function foldForMatching(text: string): string {
-  return foldForDisplay(text).toUpperCase()
+  return [...foldForDisplay(text).toUpperCase()].map((ch) => ASCII_FOLD[ch] ?? ch).join('')
 }
 
 // Decorative separators/dividers some panels wrap category names in

@@ -60,23 +60,3 @@
   font-size: 20px;
 }
 
-.list-row-favorite {
-  font: inherit;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-}
-
-.list-row-favorite.active {
-  color: var(--accent);
-}
-
-.list-row-favorite.focused {
-  background: var(--surface-focus);
-  outline: 1px solid var(--border-focus);
-}

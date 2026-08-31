@@ -17,6 +17,14 @@ export const BACK_FOCUS_KEY = 'event-details-back'
 // unmounts it and hands focus to the first candidate row it just revealed.
 export const CANDIDATE_TOGGLE_FOCUS_KEY = 'event-details-candidate-toggle'
 
+// The empty state's two actions (see NoStreamState.tsx). Named rather than
+// anonymous because the screen has to be able to LAND on one of them: with
+// no streams there is nothing else on the page to focus, and falling back to
+// Back — the only other focusable — left the viewer's first press pointing
+// away from the two things they might actually want to do.
+export const REFRESH_PLAYLIST_FOCUS_KEY = 'event-details-refresh-playlist'
+export const BROWSE_CHANNELS_FOCUS_KEY = 'event-details-browse-channels'
+
 // A row's favourite star, derived from the row's own key — same convention
 // as ChannelRow's star. Kept as a function rather than a literal so the two
 // sides of the Left/Right pair can never drift apart.
