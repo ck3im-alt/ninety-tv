@@ -5,6 +5,19 @@ a real Samsung TV — not an emulator, not the VS Code Tizen extension's own
 flow. There are no devtools/console reachable on this hardware, so this is
 also the only reliable way to see whether a build even boots.
 
+> **This is the DEVELOPER/DEVICE-VALIDATION route, and it remains the right
+> tool for our own testing.** It is how the hardware qualification sheet and
+> the pre-submission smoke run actually get executed, and nothing here has
+> been superseded.
+>
+> It is **not** how external testers get the app. That is the Samsung Seller
+> Office Beta Test route — see
+> [`BETA-RELEASE-CHECKLIST.md`](BETA-RELEASE-CHECKLIST.md) §F.2. The two use
+> different packages and different signatures; §F.1 of that document
+> explains why this route cannot scale past TVs we can reach on a LAN
+> (Developer Mode, our IP on the TV, and a DUID-bound distributor
+> signature).
+
 ## 1. One-time setup
 
 ### Install Tizen Studio (Web CLI)

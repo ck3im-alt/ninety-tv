@@ -1,0 +1,36 @@
+/* Global network-disconnected banner (see NetworkOfflineNotice.tsx).
+   Sits above every screen but below the exit confirmation, and takes no
+   focus — Samsung requires the app to stay navigable while offline. */
+
+.network-offline-notice {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-8);
+  background: var(--warning-dark);
+  border-bottom: 2px solid var(--warning);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-body);
+  /* Never intercepts a click/press — this is a notice, not a control. */
+  pointer-events: none;
+}
+
+.network-offline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex: 0 0 auto;
+}
+
+.network-offline-text strong {
+  font-weight: var(--weight-medium);
+  margin-right: var(--space-1);
+}

@@ -11,9 +11,10 @@
 // folds the abort into its own XtreamError vocabulary; this module is for
 // everything else that was still calling bare fetch(). AbortController and
 // fetch's `signal` option are both ES2017-era platform APIs present on the
-// Tizen 6.0 WebKit this app targets — no newer API (AbortSignal.timeout(),
-// AbortSignal.any()) is used, precisely because those are NOT safely
-// available there.
+// Tizen runtime this app targets (the declared floor is 6.5 / Chromium
+// M85) — no newer API (AbortSignal.timeout(), Chromium 103;
+// AbortSignal.any(), Chromium 121) is used, precisely because those are
+// NOT available there.
 
 // Distinguishes "we gave up waiting" from "the server said no", which the
 // caller needs because the two deserve different handling: an HTTP failure
@@ -58,7 +59,7 @@ export async function fetchWithTimeout(
   }, timeoutMs)
 
   // Forwarding the caller's abort by listening rather than by
-  // AbortSignal.any(), which Tizen 6.0's WebKit does not have.
+  // AbortSignal.any(), which the Tizen 6.5 / M85 floor does not have.
   const forwardAbort = () => controller.abort()
   if (callerSignal) {
     if (callerSignal.aborted) controller.abort()

@@ -114,14 +114,15 @@ describe('fetchWithTimeout', () => {
     expect(isRequestTimeout(undefined)).toBe(false)
   })
 
-  // AbortSignal.timeout() and AbortSignal.any() do not exist on the Tizen
-  // 6.0 WebKit this ships to. Reaching for either would pass every test in
+  // AbortSignal.timeout() (Chromium 103) and AbortSignal.any() (Chromium
+  // 121) do not exist on the Tizen 6.5 / Chromium M85 floor this ships to.
+  // Reaching for either would pass every test in
   // jsdom (which has both) and then throw on the actual television.
   //
   // Rather than spying, this REMOVES them for the duration of the test —
   // the honest simulation of the target platform. It fails loudly if
   // anyone reintroduces a dependency on them.
-  it('works on a platform with no AbortSignal.timeout()/any(), as Tizen 6.0 is', async () => {
+  it('works on a platform with no AbortSignal.timeout()/any(), as the Tizen floor is', async () => {
     const signalCtor = AbortSignal as unknown as Record<string, unknown>
     const savedTimeout = signalCtor.timeout
     const savedAny = signalCtor.any

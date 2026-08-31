@@ -12,7 +12,10 @@
 // leagues that nobody quotes in AM/PM.
 //
 // WHY NOT `hour12: false` / `hourCycle: 'h23'`. Both are Intl features and
-// this app's floor is Tizen 6.5 = Chromium 76, on a device build whose ICU
+// this app's floor is Tizen 6.5, i.e. Samsung's 2022 model year / Chromium
+// M85 (Samsung maps 2021 -> Tizen 6.0 -> M76 and 2022 -> Tizen 6.5 -> M85;
+// an earlier comment here mistakenly paired 6.5 with M76), on a device
+// build whose ICU
 // data we do not control — a reduced-ICU build answers locale requests it
 // cannot honour rather than failing loudly, and `hour12: false` has a
 // history of resolving to the h24 cycle, which renders midnight as "24:00".

@@ -37,8 +37,40 @@ export type PlaylistBuildWorkerFactory = () => PlaylistBuildWorkerLike
 // function rather than constructed at module scope so a construction
 // failure surfaces as a caught error here — and therefore as the
 // synchronous fallback — instead of a module-load-time crash.
+//
+// TIZEN/CHROMIUM WORKER COMPATIBILITY — the constructor form is
+// deliberately branched, and both branches are STATIC.
+//
+// Module Workers (`{ type: 'module' }`) require Chromium 80. Samsung maps
+// 2021 sets to Tizen 6.0 / Chromium M76 and 2022 sets to Tizen 6.5 /
+// Chromium M85, so a module Worker throws at construction on any 2021 set
+// — and, less obviously, on any firmware whose runtime is older than its
+// Tizen version implies. That failure is silent-ish: the playlist builder
+// degrades to a main-thread merge, but channel identity resolution has no
+// synchronous fallback by design and simply never produces an index.
+//
+// The build does not need module Workers at all. Vite bundles each worker
+// entry into its OWN self-contained chunk and emits it in `worker.format`,
+// which vite.config.ts pins to 'iife' — a classic script with no import/
+// export in it (verified against dist/assets/*Worker-*.js). So the
+// production constructor omits the option entirely and gets a classic
+// Worker, which every Chromium since 4 supports.
+//
+// The DEV branch cannot do the same. `vite dev` serves the worker entry
+// unbundled, as an ES module with its real `import` statements intact, so
+// a classic Worker would fail with a SyntaxError there. import.meta.env.DEV
+// is statically replaced at build time, so the dev branch is dead code that
+// minification drops from the production bundle — and Vite's worker plugin
+// requires a literal options object to infer the type, which is why this is
+// two whole constructor calls rather than one with a computed option.
+//
+// See workerCompatibility.test.ts for the regression guard that keeps a
+// module Worker from being reintroduced.
 export function createPlaylistBuildWorker(): PlaylistBuildWorkerLike {
-  return new Worker(new URL('./playlistBuildWorker.ts', import.meta.url), { type: 'module' }) as unknown as PlaylistBuildWorkerLike
+  if (import.meta.env.DEV) {
+    return new Worker(new URL('./playlistBuildWorker.ts', import.meta.url), { type: 'module' }) as unknown as PlaylistBuildWorkerLike
+  }
+  return new Worker(new URL('./playlistBuildWorker.ts', import.meta.url)) as unknown as PlaylistBuildWorkerLike
 }
 
 // A Worker that accepts the message and then never answers would otherwise

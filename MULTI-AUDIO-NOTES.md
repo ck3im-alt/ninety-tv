@@ -41,7 +41,10 @@ Two traps worth keeping in mind:
 ### Native `<video>` — feature-detected, usually absent
 
 Chromium ships `AudioTrackList` behind a disabled-by-default flag. On desktop
-Chrome and on the **Tizen 6.5 / Chromium 76** firmware this app targets,
+Chrome and on the **Tizen 6.5 / Chromium M85** firmware this app targets
+(Samsung's model-year mapping is 2021 -> Tizen 6.0 -> Chromium M76 and
+2022 -> Tizen 6.5 -> Chromium M85; an earlier revision of this note paired
+6.5 with M76, which is wrong),
 `video.audioTracks` is simply absent. The TypeScript DOM lib declaring it does
 not make it exist, so the code probes for the list *and* for a boolean
 `enabled` on its entries — a list that cannot be switched is not support, and

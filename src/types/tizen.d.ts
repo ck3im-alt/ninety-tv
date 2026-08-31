@@ -53,4 +53,35 @@ declare global {
   interface Window {
     tizen?: Tizen;
   }
+
+  // ---- Samsung Product API (`window.webapis`) ----
+  //
+  // Injected by the Samsung TV web runtime only. NOT part of Tizen's own
+  // `tizen` namespace, and absent in every browser and every unit test —
+  // hence optional everywhere, and only ever reached through the
+  // feature-detecting accessors in core/platform/samsungProductApi.ts.
+  //
+  // Using webapis.network requires the Samsung Product Network privilege
+  // (http://developer.samsung.com/privilege/network.public) in config.xml;
+  // without it the calls throw at runtime rather than returning an error.
+  interface SamsungWebapisNetwork {
+    NetworkState?: Record<string, number>;
+    isConnectedToGateway?(): boolean;
+    addNetworkStateChangeListener?(callback: (state: number) => void): number;
+    removeNetworkStateChangeListener?(listenerId: number): void;
+  }
+
+  interface SamsungWebapisAppCommon {
+    AppCommonScreenSaverState?: Record<string, number>;
+    setScreenSaver?(state: number, callback?: (result: unknown) => void): void;
+  }
+
+  interface SamsungWebapis {
+    network?: SamsungWebapisNetwork;
+    appcommon?: SamsungWebapisAppCommon;
+  }
+
+  interface Window {
+    webapis?: SamsungWebapis;
+  }
 }

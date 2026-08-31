@@ -81,7 +81,8 @@ export function measurePerf(name: string, start: string, end?: string): void {
 // on-device measurement — on a Tizen WebKit older than that, `findLast`
 // would have thrown a TypeError out of App's very first mount effect and
 // taken the whole diagnostic build down with it. config.xml declares
-// required_version 6.0, i.e. Chromium 76. esbuild's es2017 target rewrites
+// required_version 6.5, i.e. Chromium M85 — still below 97. esbuild's
+// es2017 target rewrites
 // SYNTAX but never polyfills a built-in method, so this has to be written
 // out.
 function lastMark(log: NinetyPerfLog | null, name: string): { name: string; time: number } | undefined {

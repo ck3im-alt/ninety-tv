@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { handleBackPress, pushBackHandler } from './backHandler'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { dispatchBackPress, handleBackPress, pushBackHandler, setUnhandledBackHandler } from './backHandler'
 
 // Regression coverage for the LIFO Back-stack (see backHandler.ts's own
 // header) — the bug this guards against: a background screen re-rendering
@@ -103,5 +103,73 @@ describe('Back-handler stack', () => {
 
     unregisterA()
     expect(handleBackPress()).toBe(false)
+  })
+})
+
+// SAMSUNG RETURN/EXIT CONTRACT (see backHandler.ts's header). The module
+// used to call exitApp() itself whenever nothing consumed a Return press,
+// with a comment claiming that was what Samsung certification expected —
+// it is the opposite: Return at the application root must raise an
+// app-owned confirmation, and only the affirmative option in that
+// confirmation may quit. These lock in that an unconsumed press asks, and
+// never exits.
+describe('unhandled Return at the application root', () => {
+  afterEach(() => {
+    setUnhandledBackHandler(null)
+  })
+
+  it('asks the application what to do instead of exiting, when no handler consumes the press', () => {
+    const askedToExit = vi.fn()
+    setUnhandledBackHandler(askedToExit)
+
+    dispatchBackPress()
+
+    expect(askedToExit).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reach the application fallback while a screen handler consumes the press', () => {
+    const askedToExit = vi.fn()
+    setUnhandledBackHandler(askedToExit)
+    const unregisterScreen = pushBackHandler(() => true)
+
+    dispatchBackPress()
+
+    expect(askedToExit).not.toHaveBeenCalled()
+    unregisterScreen()
+  })
+
+  it('reaches the application fallback when every registered handler declines', () => {
+    const askedToExit = vi.fn()
+    setUnhandledBackHandler(askedToExit)
+    const unregisterScreen = pushBackHandler(() => false)
+    const unregisterModal = pushBackHandler(() => false)
+
+    dispatchBackPress()
+
+    expect(askedToExit).toHaveBeenCalledTimes(1)
+    unregisterModal()
+    unregisterScreen()
+  })
+
+  it('does nothing at all when no fallback is registered — never a silent exit', () => {
+    // The regression this guards: a missing/failed registration must not be
+    // able to resurrect "quit on the first unhandled Return".
+    expect(() => dispatchBackPress()).not.toThrow()
+    expect(handleBackPress()).toBe(false)
+  })
+
+  it('unregistering the fallback does not clobber a newer one', () => {
+    // React effect cleanup order makes this real: a re-registration can run
+    // BEFORE the previous registration's cleanup.
+    const first = vi.fn()
+    const second = vi.fn()
+    const disposeFirst = setUnhandledBackHandler(first)
+    setUnhandledBackHandler(second)
+    disposeFirst()
+
+    dispatchBackPress()
+
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
   })
 })

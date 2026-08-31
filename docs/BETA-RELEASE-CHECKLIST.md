@@ -50,7 +50,9 @@ Order matters. The API must be able to serve the payload the TV build expects be
 5. **Tag the TV commit** `v0.1.0-beta.1`.
 6. **Build and sign the `.wgt` from exactly that tag** (section D).
 7. **Smoke the signed artifact on real hardware** (section E).
-8. **Distribute** with installation instructions (section F).
+8. **Distribute** (section F) — choosing the right route:
+   - our own hardware validation and the section E/E-S smoke run → **F.1**, Developer Mode sideload;
+   - external testers → **F.2**, Samsung Seller Office Beta Test. Start F.2.a (Partner Seller approval for Norway) *early*: it is an administrative dependency with a lead time we do not control, and everything else in F.2 waits on it.
 
 ---
 
@@ -71,6 +73,23 @@ Order matters. The API must be able to serve the payload the TV build expects be
 
 ## D. Build the artifact
 
+### The three packages, which are not interchangeable
+
+`scripts/build-tizen.mjs` produces the **first** of these. The other two are
+made from it by signing, and each is for a different audience.
+
+| Package | Contains | Made by | Used for |
+|---|---|---|---|
+| **Unsigned intermediate** — `dist-tizen/ninety-tv.wgt` | `config.xml` only | `npm run build:tizen` | Nothing on its own. It is the input to signing. Will be **rejected** by both a TV and Seller Office. |
+| **Developer-testing package** — `ninety-tv-signed.wgt` | `config.xml`, `author-signature.xml`, `signature1.xml` | `tz pack` with the Samsung VD Author + **VD DEVELOPER** distributor certs | F.1 sideload. The distributor cert is **DUID-bound**: it installs only on TVs whose DUID is in the profile. |
+| **Seller Office upload package** | `config.xml`, `author-signature.xml`, `signature1.xml` | `tz pack` with the Samsung VD Author cert + a distributor signature | F.2 upload. Samsung **replaces** the pseudo-distributor signature with the store's own distributor signature during store processing — so the distributor half is provisional, and the **author** half is the identity that must never change or be lost. |
+
+The author certificate is the long-term identity for this App ID: Samsung
+requires the author information to match the existing version on every
+update. Back it up off this machine. Never commit certificates or passwords.
+
+### Steps
+
 - [ ] Working tree clean, checked out at the tag
 - [ ] `npm ci` (not `npm install` — the lockfile is the input)
 - [ ] `VITE_NINETY_API_URL=<production URL> npm run build:tizen`
@@ -80,6 +99,20 @@ Order matters. The API must be able to serve the payload the TV build expects be
 - [ ] No dotfiles in the package: `unzip -l dist-tizen/ninety-tv.wgt | grep '/\.'` → nothing
 - [ ] No secret leaked into the bundle: `grep -rl "INTERNAL_API_KEY\|DATABASE_URL" .tizen-staging/` → nothing
 - [ ] `config.xml` version matches `package.json` version, and `config.xml` is at the ROOT of the `.wgt`: `unzip -l dist-tizen/ninety-tv.wgt | grep -E ' config\.xml$'` → one entry, no directory prefix
+- [ ] **Samsung network privilege present** — required for `webapis.network`, and its absence makes those calls throw rather than fail softly:
+
+      unzip -p dist-tizen/ninety-tv.wgt config.xml | grep -c 'developer.samsung.com/privilege/network.public'
+
+  → `1`
+- [ ] **Platform floor is what we mean to ship**: `unzip -p dist-tizen/ninety-tv.wgt config.xml | grep required_version` → `6.5`
+- [ ] **No module Workers reached the artifact** — a `{type:"module"}` Worker throws at construction on Chromium < 80 and silently disables channel-identity resolution:
+
+      grep -o 'new Worker([^)]*)' dist/assets/*.js
+
+  → every match is a bare `new Worker(new URL(...))`, none has a `type` option. `src/core/platform/workerCompatibility.test.ts` guards the source and toolchain; this checks the artifact.
+- [ ] **Worker chunks are classic scripts**: `head -c 30 dist/assets/*Worker-*.js` → each starts `(function(){`, and `grep -cE '(^|[};,)[:space:]])(import|export)[ ({*]' dist/assets/*Worker-*.js` → `0`
+- [ ] **No AVPlay implementation** (deliberately out of scope — see `MULTI-AUDIO-NOTES.md`): `grep -rl "AVPlay\|avplay" dist/assets/` → nothing
+- [ ] **The removed FilterPopup has not returned**: `find src -name 'FilterPopup*'` → nothing, and `grep -rn '<FilterPopup' src/` → nothing. (The *name* still appears in three comments explaining why it was removed, and `categoryFavoriteKey` in `features/channels/favorites.ts` is the composite key for **hidden categories** in Settings — not the removed category-favourites feature. Grep for the component, not the word.)
 - [ ] Sign with the **Samsung** author + distributor certificates — one command, and it is `tz pack`:
 
       ~/.tizen-extension-platform/server/sdktools/data/tools/tizen-core/tz \
@@ -116,47 +149,207 @@ Run on a physical Samsung TV, against the signed `.wgt` from section D. This is 
 | E17 | Settings: add/remove a country, remove a followed-league chip, remove a playlist — after each, the highlight is on a visible control **in the same section**, never back on Playlists | — |
 | E18 | Home personalisation: switch the mode in Settings, return to Home — the feed re-shapes immediately, with no spinner and no reload | — |
 
-**Not covered by automated tests and only verifiable here:** E1, E6, E7, E8, E11, E14, E15, E16, and all of E12/E13's real-network behaviour. (E17 and E18 have jsdom coverage — `SettingsScreen.test.tsx`'s focus-continuity suite waits past norigin's 300 ms auto-restore, and `useHomeFeed.test.ts` pins the no-refetch mode change — but neither has been seen on a remote.) Everything above is hardware-verified only when a human has run it on the signed artifact.
+### E-S. Samsung quality-requirement compliance — ALL REQUIRE HARDWARE VERIFICATION
+
+Every row below is **mandatory for Seller Office** and **none of it can be
+signed off from an automated test**. jsdom has no remote, no Samsung Product
+API, no screensaver and no real network interface: the unit tests prove the
+logic, the TV proves the requirement. All of these are currently
+**UNVERIFIED ON HARDWARE**.
+
+| # | Check | Samsung requirement | Automated coverage that is *not* a substitute |
+|---|---|---|---|
+| S1 | On Home (the app root), press Return → the "Exit Ninety?" popup appears, focused on **Cancel** | Root Return shows an app-owned exit popup | `ExitConfirmDialog.test.tsx` |
+| S2 | Cancel → popup closes, app stays open, highlight returns to where it was | Only "Yes" may exit | `ExitConfirmDialog.test.tsx` |
+| S3 | Return **while the popup is open** → popup closes, app stays open | Return cancels the confirmation | `ExitConfirmDialog.test.tsx` |
+| S4 | Exit → app quits, once, cleanly | Only the affirmative option calls `exit()` | `ExitConfirmDialog.test.tsx` |
+| S5 | On a detail page (Match View, Settings, a Channels sub-level), Return goes **back one page** and never raises the exit popup | Detail Return → previous page | `backHandler.test.ts` |
+| S6 | **Long-press** Return behaves as Samsung's platform defines it — the app must not intercept or alter it | Do not interfere with forced long-press Return/Exit | none — the app deliberately registers nothing for it |
+| S7 | Disconnect the network while on Home → the offline notice appears within a few seconds; arrows/OK/Return still work; no indefinite spinner | Visible disconnect notice; app must not freeze | `networkStatus.test.ts` |
+| S8 | Disconnect the network **during playback** → the app stays responsive and Return still leaves the player | App must not freeze when disconnected | — |
+| S9 | Reconnect → the notice disappears on its own and the current screen becomes usable **without relaunching** | Reconnection recovers into a usable app | `networkStatus.test.ts` |
+| S10 | Disconnect **while the app is hidden**, then return to it → the notice is showing (the state was re-read on resume, not missed) | Network can change while hidden | `useAppLifecycle.test.tsx` |
+| S11 | During playback, press Home to background the app → playback stops; returning to the app lands on the originating screen, not a black player | Hidden during playback = same behaviour as Return | `useAppLifecycle.test.tsx` |
+| S12 | Same as S11 from **Multiview** — all panes stop, the preceding screen is restored | Same, for every player session | `usePlayerSession.screenSaver.test.tsx` |
+| S13 | Background and resume from **Home** → no reload, playlists/preferences/navigation intact, a focusable element is highlighted | Resume must not reload or lose state | `useAppLifecycle.test.tsx` |
+| S14 | Play a stream and **leave the remote untouched past the TV's screensaver timeout** (set it to its shortest value first) → the screensaver must NOT activate | Screensaver disabled while playing | `screenSaver.test.ts` |
+| S15 | Stop/pause playback and wait again → the screensaver **does** activate | Screensaver re-enabled when playback stops | `screenSaver.test.ts` |
+| S16 | Multiview: close one pane while others still play, wait past the timeout → the screensaver must still NOT activate | One release must not undo the others | `screenSaver.test.ts` |
+| S17 | Exit the app entirely, wait past the timeout on the TV's own menu → the screensaver activates (the app restored the system setting) | Teardown returns SCREEN_SAVER_ON | `useAppLifecycle.test.tsx` |
+| S18 | Cold launch from a fully powered-down TV: reaches a usable screen, no blank screen, no error | — | — |
+| S19 | Record the **launch time** from OK-on-icon to first interactive paint | — | — |
+| S20 | Confirm `webapis.network` is actually available — if it is not, the app silently uses the `navigator.onLine` fallback and S7–S10 are testing the weaker path. Check the privilege was accepted at install time. | Product Network API + `network.public` privilege | `networkStatus.test.ts` covers both paths |
+| S21 | Multi-audio (HLS): a stream with Norwegian/Swedish/Danish commentary offers the Audio control and switching actually changes the language, with no reload and no seek | — | `ChannelPlayerScreen.audioTracks.test.tsx` |
+| S22 | Confirm the TV's real Chromium version (`navigator.userAgent`) and record it against its Tizen version — see the model-year note in [`TIZEN-HARDWARE-QUALIFICATION.md`](TIZEN-HARDWARE-QUALIFICATION.md) | — | — |
+
+**Not covered by automated tests and only verifiable here:** E1, E6, E7, E8, E11, E14, E15, E16, all of E12/E13's real-network behaviour, and **every S row**. (E17 and E18 have jsdom coverage — `SettingsScreen.test.tsx`'s focus-continuity suite waits past norigin's 300 ms auto-restore, and `useHomeFeed.test.ts` pins the no-refetch mode change — but neither has been seen on a remote.) Everything above is hardware-verified only when a human has run it on the signed artifact.
 
 ---
 
 ## F. Distribution
 
-### How this beta is actually distributed — read before promising anyone anything
+There are **two entirely separate things** called "testing this build", and
+conflating them is what the previous version of this document did. They use
+different packages, different signatures, different audiences, and one of
+them is the official route to an external beta.
 
-There is **no Samsung-hosted distribution channel for this build.** NINETY is
-not on the Samsung TV App Store, and this beta is not going through Samsung
-Seller Office. That is not an oversight to be worked around; it is what the
-build is.
+| | Developer/device validation | Official external closed beta |
+|---|---|---|
+| Purpose | Our own hardware testing, qualification, pre-submission smoke | Real external testers on their own TVs |
+| Route | Developer Mode + LAN sideload | **Samsung Seller Office → Beta Test** |
+| Package | DUID-bound developer-signed `.wgt` | Seller Office upload package |
+| Who installs | Us, on a TV we can reach | The tester, from Samsung's beta channel |
+| Reach | TVs on our LAN, per-DUID | Any tester with an activation code, in a service country |
+| Instructions | [`TIZEN-DEVICE-TESTING.md`](TIZEN-DEVICE-TESTING.md) | F.2 below |
 
-What that leaves is **developer-mode sideloading, performed by us, per TV**:
+### F.1 Developer/device validation — KEEP USING THIS
 
-1. The tester's TV must be put into Developer Mode with **our** machine's IP
-   entered on it, and must be on the same LAN as that machine.
-2. The `.wgt` must be signed with a Samsung distributor certificate that is
-   **bound to that TV's DUID**. A package signed for one TV will not install
-   on another. Adding a tester therefore means: collect their DUID, add it to
-   the Samsung certificate profile, **re-sign**, and re-run section D's
-   checks on the new artifact.
-3. Installation is `tizen install` over the LAN
-   ([`TIZEN-DEVICE-TESTING.md`](TIZEN-DEVICE-TESTING.md) section 2).
+The Developer Mode / DUID-bound sideload workflow is **not obsolete and is
+not replaced**. It is how sections C–E of this document actually get run,
+and it is the only way to put a build on a TV in minutes rather than days.
+It stays the tool for:
 
-**"Just send the tester the .wgt" does not work.** They have no way to
-install it: there is no sideload path on a retail Samsung TV without
-developer mode, our IP registered on their TV, and a DUID-matched signature.
+- our own physical-TV testing during development,
+- the full device-qualification sheet
+  ([`TIZEN-HARDWARE-QUALIFICATION.md`](TIZEN-HARDWARE-QUALIFICATION.md)),
+- the section E + E-S smoke run **before** anything is uploaded to Seller
+  Office.
 
-So the practical shape of this closed beta is **local, hands-on, and small** —
-testers whose TVs we can reach on a LAN. Anything wider needs Samsung Seller
-Office, which is a different piece of work and not part of this release.
+The complete, already-proven procedure stays in
+[`TIZEN-DEVICE-TESTING.md`](TIZEN-DEVICE-TESTING.md). Nothing in it was
+removed.
 
-### Checklist
+Its limits, stated plainly so they are not rediscovered:
 
-- [ ] Every tester TV's DUID is registered in the Samsung certificate profile, and the artifact each tester receives was signed AFTER their DUID was added
-- [ ] Section D's checks were re-run on each per-tester signed artifact, not only on the first one
-- [ ] Someone other than the author has followed [`TIZEN-DEVICE-TESTING.md`](TIZEN-DEVICE-TESTING.md) end to end on a TV that was not already set up
+1. The tester's TV must be in Developer Mode with **our** machine's IP on
+   it, on the same LAN.
+2. The `.wgt` must be signed with a distributor certificate **bound to that
+   TV's DUID**. Adding a tester means: collect their DUID, add it to the
+   certificate profile, **re-sign**, re-run section D on the new artifact.
+3. "Just send the tester the `.wgt`" does not work. There is no sideload
+   path on a retail Samsung TV without all of the above.
+
+So F.1 does not scale past people whose TVs we can physically reach. That
+is exactly why F.2 exists.
+
+### F.2 Official external closed beta — Samsung Seller Office Beta Test
+
+**This is the canonical external-beta path for Ninety.** An earlier revision
+of this document said "there is no Samsung-hosted distribution channel for
+this build". That is wrong for the beta we intend to run, and it has been
+removed.
+
+#### F.2.a Account and seller type — DO THIS FIRST, IT HAS THE LONGEST LEAD TIME
+
+- [ ] A **TV Seller Office** account exists (`seller.samsungapps.com/tv`)
+- [ ] **Norway requires Partner Seller status.** A *Public Seller* can use
+      most of Seller Office but can launch TV application services **only in
+      the United States**. Launching anywhere else — including Norway,
+      Sweden and Denmark, i.e. Ninety's entire actual market — requires
+      **Partner Seller** membership, granted through an approval process
+      with a **Samsung Content Manager** via a partnership request in Seller
+      Office.
+- [ ] Partner Seller approval **granted** (not merely requested) — this
+      gates everything downstream and is an administrative dependency we do
+      not control the timing of
+- [ ] Service countries configured (Applications → Service Country/Region)
+      to include NO/SE/DK. **Beta testing is only available in the
+      application's service country**: on a TV in a country that is not
+      selected, the app does not appear and the tester cannot install it,
+      activation code or not.
+
+#### F.2.b The package
+
+- [ ] Built and signed per section D, from a tagged commit
+- [ ] The `.wgt` contains **`config.xml`, `author-signature.xml` and
+      `signature1.xml`** — verify, do not assume:
+
+      unzip -l dist-tizen/ninety-tv-signed.wgt | grep -E 'config\.xml|author-signature\.xml|signature1\.xml'
+
+      Three entries, all at the package root. An unsigned intermediate
+      `.wgt` has only `config.xml` and will be rejected.
+- [ ] **The author certificate is backed up, off this machine, and its
+      password is recorded somewhere that is not this repository.**
+      When updating a published application Samsung requires that *the
+      author information must be the same as the existing version*. Losing
+      the author certificate means never being able to ship an update to
+      this App ID again — a new certificate is a new identity, and the only
+      remedy is a new App ID and a new listing. This is the single
+      unrecoverable failure in the whole process.
+- [ ] Certificates and passwords are **not** in Git (they are not, and must
+      not become so)
+- [ ] Version numbering planned — see F.2.e
+
+#### F.2.c Submitting the beta
+
+- [ ] Application registered in Seller Office (title, description, icons,
+      screenshots, category, age rating)
+- [ ] Upload the signed `.wgt`
+- [ ] **Pre-test** runs automatically against the application information
+      and the selected model group — clear it before requesting anything
+- [ ] Select **model groups**. Ninety declares `required_version="6.5"`, so
+      the target is **2022 and newer**; 2021 is deliberately out of scope
+      for Beta 1 (see [`TIZEN-HARDWARE-QUALIFICATION.md`](TIZEN-HARDWARE-QUALIFICATION.md)).
+      Note that model groups **can be added** during a running beta but an
+      active one **cannot be deleted** — so start narrow.
+- [ ] Create the **Beta Test**: model groups, tester count, test duration
+- [ ] **Samsung Content Manager approval** obtained
+
+#### F.2.d Activation codes and what the tester does
+
+- [ ] Activation codes issued **after approval**, downloaded as CSV
+- [ ] Each code is **single-use**; up to 100,000 additional codes can be
+      requested if needed
+- [ ] Tester instructions written and sent:
+      1. On the TV, open **Settings** and enter the hidden key **`134678`**
+         on the remote. An activation-code input window appears.
+      2. Enter the one-time activation code we sent.
+      3. Review the precautions, then **Install** Ninety from Samsung's beta
+         channel.
+- [ ] Testers told to **update their TV firmware first** — if the firmware
+      is too old the beta-enable screen may not work at all
+- [ ] Testers told, explicitly, that **this Samsung activation code has
+      nothing to do with Ninety's own QR playlist-pairing flow.** They are
+      two unrelated one-time codes at two different moments: the Samsung
+      code installs the app; Ninety's QR pairing then connects their
+      playlist inside the app. Confusing the two is the most predictable
+      support question this beta will generate.
+
+#### F.2.e Version rules — verified against Samsung's documentation, not assumed
+
+- Version format is `[0-255].[0-255].[0-65535]` (a fourth digit up to
+  `[0-99999]` for multi-architecture packages).
+- **Before** beta approval, the version can be changed freely.
+- **After** approval, only an **upgrade to a higher version** is accepted.
+  Downgrades are rejected. Plan the numbering before submitting.
+- **A version submitted for a beta or alpha test cannot later be submitted
+  as the release version.** Samsung's documentation states this outright
+  ("We plan on supporting so that it can be possible later"), so budget at
+  least one version number to be permanently burned by the beta and keep the
+  release version above it.
+- If the major version ever reaches **255**, no higher version can be
+  registered at all and a **new App ID** is required. Not a near-term risk
+  at `0.1.0`, but it is why the major must not be used as a build counter.
+- Model-group-specific beta packages/versions are possible — different
+  binaries can be targeted at different model groups within one beta.
+
+#### F.2.f What Samsung does NOT do for a beta
+
+**Samsung does not run its normal release verification suite on a beta
+build.** Content Manager approval is an administrative gate, not a QA pass.
+
+Nothing about the beta route therefore reduces our own obligation: section
+E, section E-S and the full qualification sheet remain **mandatory and ours
+to run**, on real hardware, before any code reaches a tester. A beta that
+Samsung approved is not a beta Samsung tested.
+
+### F.3 Checklist common to both routes
+
 - [ ] Testers know how to report: TV model, firmware, what they did, what happened
 - [ ] Testers know which provider/playlist types are supported (Xtream panel, M3U URL, M3U file, QR pairing)
-- [ ] Known limitations for this beta are written down and shared, including **this distribution limitation** — the build cannot be passed on to a third party by the tester
+- [ ] Known limitations for this beta are written down and shared — including the supported-model floor (**2022 and newer**)
+- [ ] For F.1 only: every tester TV's DUID is registered, and each artifact was signed AFTER that DUID was added, with section D re-run per artifact
+- [ ] Someone other than the author has followed [`TIZEN-DEVICE-TESTING.md`](TIZEN-DEVICE-TESTING.md) end to end on a TV that was not already set up
 
 ---
 

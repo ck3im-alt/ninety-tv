@@ -183,6 +183,24 @@ export default defineConfig(({ command, mode }) => {
   // so one setting covers both targets — no per-target branching needed.
     base: './',
     build: { target: 'es2017' },
+    // WORKER OUTPUT FORMAT — pinned, not left to the default.
+    //
+    // 'iife' emits each Worker entry as a self-contained CLASSIC script
+    // (no import/export), which is what lets the Worker constructors in
+    // data/playlists/playlistBuildWorkerClient.ts and
+    // data/sports/channelIdentityWorkerClient.ts drop `{ type: 'module' }`
+    // in production builds. Module Workers need Chromium 80; Samsung maps
+    // 2021 sets to Tizen 6.0 / Chromium M76, so a module Worker throws at
+    // construction there and channel identity resolution — which has no
+    // synchronous fallback by design — silently never runs.
+    //
+    // This IS Vite's current default, and it was already producing IIFE
+    // worker chunks before this was written. It is stated explicitly
+    // anyway because the app's platform floor depends on it: a default is
+    // free to change in a major version, and 'es' here would break TVs
+    // rather than fail the build. Changing it must be a deliberate,
+    // reviewed act — see workerCompatibility.test.ts, which asserts it.
+    worker: { format: 'iife' },
     plugins: [react(), iptvDevProxyPlugin(), bootDiagnosticsFlagPlugin(diagnostics), stripDotfilesFromOutputPlugin()],
   }
 })

@@ -404,7 +404,7 @@ describe('engines that cannot enumerate audio tracks', () => {
 
   it('reports no tracks when the runtime exposes no AudioTrackList at all', async () => {
     // Chromium ships AudioTrackList behind a disabled-by-default flag, so
-    // on desktop Chrome and on the Tizen 6.5 (Chromium 76) firmware this
+    // on desktop Chrome and on the Tizen 6.5 / Chromium M85 firmware this
     // app targets, `video.audioTracks` is simply absent. The TypeScript DOM
     // lib declaring it does not make it exist, which is why this is
     // feature-detected rather than cast.

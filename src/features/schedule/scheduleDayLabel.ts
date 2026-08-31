@@ -11,7 +11,7 @@ import { localDayRangeOffset } from '../../data/sports/localDay'
 // NAMES ARE HARDCODED ENGLISH rather than asked of Intl. Two reasons, and
 // the app already works this way (see mapEvent.ts's WEEKDAYS and
 // core/time/clockFormat.ts): the whole UI is English, and the Tizen floor is
-// Chromium 76 on a device build whose ICU data we do not control — a
+// 6.5 / Chromium M85 on a device build whose ICU data we do not control — a
 // reduced-ICU build answers a locale request it cannot honour rather than
 // failing loudly. It also makes these tests mean the same thing on every
 // machine that runs them.

@@ -54,8 +54,10 @@ export function preloadPlayerEngine(sampleSourceUrl: string): void {
 // The HTML5 AudioTrackList the spec defines on HTMLMediaElement.
 //
 // Feature-detected, never assumed: Chromium ships AudioTrackList behind a
-// disabled-by-default flag, so on desktop Chrome AND on the Tizen 6.5
-// (Chromium 76) firmware this app targets, `video.audioTracks` is simply
+// disabled-by-default flag, so on desktop Chrome AND on the Tizen 6.5 /
+// Chromium M85 firmware this app targets (Samsung's mapping: 2021 -> 6.0 ->
+// M76, 2022 -> 6.5 -> M85 — an earlier comment here said 6.5 was M76, which
+// is wrong), `video.audioTracks` is simply
 // absent — the TypeScript DOM lib declaring it does not make it exist. The
 // `enabled` check matters just as much as the list's existence: a runtime
 // that exposes entries with no writable `enabled` flag can list tracks but

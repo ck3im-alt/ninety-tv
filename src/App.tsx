@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
 import { ROOT_FOCUS_KEY, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
-import { FocusDebugOverlay } from './core/platform'
+import { FocusDebugOverlay, exitApp, setUnhandledBackHandler, useAppLifecycle, useNetworkStatus } from './core/platform'
+import { ExitConfirmDialog } from './features/exit/ExitConfirmDialog'
+import { NetworkOfflineNotice } from './features/network/NetworkOfflineNotice'
 import { TopNav } from './features/navigation/TopNav'
 import { HomeScreen } from './features/home/HomeScreen'
 import { AdminPanel } from './features/admin/AdminPanel'
@@ -385,6 +387,100 @@ function App() {
   useEffect(() => {
     setPlaybackActive(screen === 'player' || screen === 'multiview')
   }, [screen, setPlaybackActive])
+
+  // ---- Samsung TV lifecycle: Return/Exit, network, multitasking ----
+
+  // LEAVING PLAYBACK, stated once. Both the Player's own Back button and
+  // the multitasking handler below need "return from playback", and Samsung
+  // requires the hidden-app behaviour to be the SAME semantic action as
+  // Return during playback — so it is one function called from both places
+  // rather than two implementations that can drift.
+  //
+  // Idempotent: a second call while already off the player screen is a
+  // harmless no-op (setScreen to the same value, an intent nobody consumes),
+  // which matters because visibilitychange can fire again during app exit.
+  const exitPlayback = useCallback(
+    (from: Screen) => {
+      if (from === 'player') {
+        // BACK FROM THE PLAYER RETURNS TO THE CHANNEL, not to the top of
+        // the list — the return intent introduced in 201126f, preserved
+        // exactly (see channelsEntryIntent.ts).
+        if (playingChannel && CHANNEL_LIST_SCREENS.includes(playerReturnScreen)) {
+          setChannelsEntryIntent({ kind: 'channel', channelId: playingChannel.id })
+        }
+        setScreen(playerReturnScreen)
+        // Immediate silent refresh on Player exit — the primary staleness
+        // scenario this feature exists for (watch a live match for two
+        // hours, Home/Event Details must already show the final state on
+        // return). Safe unconditionally: useHomeFeed's in-flight guard
+        // no-ops a refresh that is already running.
+        homeFeedState.refresh()
+        return
+      }
+      if (from === 'multiview') {
+        setScreen(multiviewReturnScreen)
+      }
+    },
+    [playingChannel, playerReturnScreen, multiviewReturnScreen, homeFeedState],
+  )
+
+  // THE APP-OWNED EXIT CONFIRMATION Samsung requires on a root Return.
+  // Nothing else in the app may call exitApp(); backHandler.ts no longer
+  // does (see its header), and this dialog's affirmative option is the one
+  // and only path to it.
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
+
+  // Registered once, for the app's whole lifetime: whenever a Return press
+  // reaches the bottom of the LIFO handler stack unconsumed — i.e. the
+  // viewer is at a root screen with nothing left to back out of — raise the
+  // confirmation instead of quitting.
+  //
+  // Guarded on the current value so a repeated Return while the dialog is
+  // already up cannot re-open (and therefore re-run useModalFocusScope's
+  // opener capture with the dialog itself as the "opener"). In practice the
+  // dialog's own Back handler consumes those presses first; the guard is
+  // there so this does not depend on that ordering.
+  useEffect(() => {
+    return setUnhandledBackHandler(() => setExitConfirmOpen((open) => (open ? open : true)))
+  }, [])
+
+  // Samsung Product Network API on TV, navigator.onLine in browser dev —
+  // see core/platform/networkStatus.ts for why this is TV connectivity only
+  // and deliberately not "the provider/API is reachable".
+  const network = useNetworkStatus()
+  const recheckNetwork = network.recheck
+
+  // MULTITASKING. One listener for the whole app (Samsung requires
+  // visibilitychange handling; feature components deliberately do not each
+  // add their own).
+  //
+  // `screenRef` rather than a `screen` dependency: re-subscribing the
+  // document listener on every navigation would be pointless churn, and the
+  // handler must read the screen at FIRE time, not at subscribe time.
+  const screenRef = useRef<Screen>(screen)
+  screenRef.current = screen
+  const exitPlaybackRef = useRef(exitPlayback)
+  exitPlaybackRef.current = exitPlayback
+
+  useAppLifecycle({
+    // Tear playback down through the EXISTING lifecycle: leaving the
+    // player/Multiview screen unmounts ChannelPlayerScreen / MultiviewPane,
+    // which disposes each PlayerSessionController, which disposes the
+    // underlying Player — destroying the hls.js/mpegts.js instance,
+    // detaching the <video> and stopping the stall watchdog. Nothing keeps
+    // decoding or polling behind a hidden app, and no separate teardown
+    // path exists to drift from the Back one.
+    onHidden: () => exitPlaybackRef.current(screenRef.current),
+    // Restore a valid focus target. Deliberately NOT a reload: cached
+    // playlists, preferences and navigation state are all still in memory
+    // and must survive backgrounding untouched. Reuses the same resolution
+    // the screen-change effect uses, so a lazy screen still resolves to its
+    // own root key rather than to ROOT.
+    onVisible: () => {
+      void setFocus(SCREEN_FOCUS_KEYS[screenRef.current] ?? ROOT_FOCUS_KEY)
+    },
+    recheckNetwork,
+  })
 
   const previousScreenRef = useRef<Screen>(screen)
   useEffect(() => {
@@ -863,26 +959,11 @@ function App() {
           channels={playerChannels}
           initialSourceLabel={playingSourceLabel}
           playbackGroup={playingGroup}
-          onBack={() => {
-            // BACK FROM THE PLAYER RETURNS TO THE CHANNEL, not to the top of
-            // the list. Stated as an identity, which is the only thing that
-            // survives the list being rebuilt by a background playlist
-            // refresh while the match was on. Harmless on the paths that do
-            // not consume it (Home, Event Details) — the intent is cleared
-            // by whichever screen mounts next either way.
-            if (playingChannel && CHANNEL_LIST_SCREENS.includes(playerReturnScreen)) {
-              setChannelsEntryIntent({ kind: 'channel', channelId: playingChannel.id })
-            }
-            setScreen(playerReturnScreen)
-            // Immediate silent refresh on Player exit — the primary
-            // staleness scenario this feature exists for (watch a live
-            // match for two hours, Home/Event Details must already show
-            // the final state on return, not wait up to 60s for the next
-            // periodic tick). Safe to call unconditionally: useHomeFeed's
-            // own in-flight guard already no-ops this if a refresh is
-            // already running.
-            homeFeedState.refresh()
-          }}
+          // Identical to what the multitasking handler runs when the app
+          // is hidden during playback — Samsung requires those to be the
+          // same semantic action, so they are literally the same function
+          // (see exitPlayback above for the return-intent behaviour).
+          onBack={() => exitPlayback('player')}
           onAddToMultiview={startMultiview}
         />
       )}
@@ -898,7 +979,7 @@ function App() {
           favoriteChannelsList={favoriteChannelsList}
           recentChannelsList={recentChannelsList}
           homeFeed={homeFeedState.feed}
-          onBack={() => setScreen(multiviewReturnScreen)}
+          onBack={() => exitPlayback('multiview')}
         />
       )}
 
@@ -918,6 +999,24 @@ function App() {
         <FocusDebugOverlay screen={screen} region={screen === 'browse-cascade' ? cascadeLevel : undefined} overlay={adminOpen ? 'admin' : null} />
       )}
       </Suspense>
+
+      {/* Both of these sit OUTSIDE the Suspense boundary on purpose: a lazy
+          screen's fallback would otherwise hide them for exactly as long as
+          a chunk takes to load, which is precisely when a viewer on a dead
+          network most needs to be told why nothing is happening. */}
+      {network.status === 'offline' && <NetworkOfflineNotice />}
+
+      {exitConfirmOpen && (
+        <ExitConfirmDialog
+          onCancel={() => setExitConfirmOpen(false)}
+          onConfirm={() => {
+            // THE ONLY call to exitApp() in the application. Samsung
+            // requires that the app quits only from the affirmative option
+            // of its own confirmation popup.
+            exitApp()
+          }}
+        />
+      )}
     </>
   )
 }

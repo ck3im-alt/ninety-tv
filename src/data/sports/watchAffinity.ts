@@ -99,8 +99,9 @@ function read(): StoredAffinity {
   if (!stored || stored.version !== AFFINITY_VERSION) return emptyStore()
   // A plain loop rather than Object.fromEntries: this runs at app start on
   // a Samsung TV, and nothing else in this codebase depends on that built-in
-  // (Chrome 73+). The packaged widget declares Tizen 6.0, which does have
-  // it — but a TypeError here would take out Home's ranking for no benefit
+  // (Chrome 73+). The packaged widget declares Tizen 6.5 (Chromium M85),
+  // which does have it — but a TypeError here would take out Home's
+  // ranking for no benefit
   // over three lines of loop.
   const clean = (record: unknown): Record<string, AffinityEntry> => {
     const cleaned: Record<string, AffinityEntry> = {}

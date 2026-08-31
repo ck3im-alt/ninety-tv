@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createHtmlVideoPlayer } from './htmlVideoPlayer'
 import { createPlayerSessionController } from './playerSessionController'
 import type { PlayerSessionController, PlayerSessionOptions, PlayerSessionState } from './playerSessionController'
+import { playbackScreenSaver } from '../platform/screenSaver'
 
 // Only compares the fields any current consumer actually reads — status,
 // error, muted, subtitles, audio tracks, sourceIndex, allSourcesFailed.
@@ -86,6 +87,31 @@ export function usePlayerSession(sourceUrls: readonly string[], initialIndex = 0
       controller.dispose()
     }
   }, [controller])
+
+  // SAMSUNG SCREENSAVER LEASE. This hook is the right seam for it because
+  // it is the ONE place both playback surfaces meet: ChannelPlayerScreen
+  // instantiates it once, and every Multiview pane instantiates its own
+  // (see MultiviewPane.tsx) — verified against both call sites, not
+  // assumed. Putting the lease here therefore covers four concurrent panes
+  // and the full-screen player with one implementation, and the
+  // coordinator (not this hook) is what turns N leases into the single
+  // correct system-wide state.
+  //
+  // Driven off the ENGINE-reported status rather than "the screen is
+  // mounted": a paused or errored session is not playing, and Samsung's
+  // requirement is that the screensaver comes back when playback
+  // stops/pauses. 'loading' deliberately does not hold a lease either —
+  // a channel that never manages to start must not suppress the
+  // screensaver indefinitely.
+  //
+  // The cleanup runs on every status change away from 'playing' AND on
+  // unmount, and the release function is idempotent, so pause -> dispose
+  // -> unmount releases exactly one lease.
+  const playing = state.playerState.status === 'playing'
+  useEffect(() => {
+    if (!playing) return
+    return playbackScreenSaver.acquire()
+  }, [playing])
 
   return { videoRef, state, controller }
 }

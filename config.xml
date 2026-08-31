@@ -4,9 +4,31 @@
         id="https://ninety.tv/app"
         version="0.1.0"
         viewmodes="fullscreen">
+    <!-- SUPPORTED PLATFORM FLOOR: Tizen 6.5 = Samsung's 2022 model year =
+         Chromium M85. Raised from 6.0 (2021 / Chromium M76) for the first
+         Seller Office beta.
+
+         Samsung's model-year mapping is 2021 -> Tizen 6.0 -> Chromium M76
+         and 2022 -> Tizen 6.5 -> Chromium M85.
+
+         WHY 2021 IS NOT DECLARED. It is not the Workers — those were fixed
+         and now build as classic scripts that M76 can construct (see
+         vite.config.ts's worker.format and workerCompatibility.test.ts).
+         It is the LAYOUT: 143 CSS rules in this app set `gap` on a
+         `display: flex` container, and flexbox gap is Chromium 84. On M76
+         every one of those spacings silently collapses to zero, across the
+         top navigation, Home, Schedule, Channels and Match View. There is
+         no autoprefixer/PostCSS step to fall back on, and converting all
+         143 to margins would be a rewrite of exactly the product work this
+         release is built on.
+
+         So 2021 is UNSUPPORTED for Beta 1, and said so honestly here
+         rather than declared and left to fail on a viewer's set. See
+         docs/TIZEN-HARDWARE-QUALIFICATION.md for the full evidence and for
+         what it would take to lower this again. -->
     <tizen:application id="NinetyTvAp.NinetyTV"
                         package="NinetyTvAp"
-                        required_version="6.0"/>
+                        required_version="6.5"/>
     <name>NINETY</name>
     <icon src="icon.png"/>
     <content src="index.html"/>
@@ -14,6 +36,15 @@
     <tizen:profile name="tv-samsung"/>
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
     <tizen:privilege name="http://tizen.org/privilege/tvinputdevice"/>
+    <!-- Samsung Product Network API (webapis.network). Required to read
+         gateway connectivity and to register a network-state-change
+         listener; without it those calls THROW at runtime rather than
+         returning an error. Samsung's quality requirements make visible
+         network-disconnect handling mandatory — see
+         src/core/platform/networkStatus.ts, which is the only consumer and
+         which feature-detects the API so browser dev and unit tests (where
+         `webapis` does not exist) degrade to navigator.onLine. -->
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
     <!-- WARP access policy: grants the packaged widget permission to make
          cross-origin XHR/fetch requests (e.g. to users' own IPTV/Xtream
          panels) without those servers needing to send CORS headers.

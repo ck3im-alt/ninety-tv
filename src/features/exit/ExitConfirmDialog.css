@@ -1,0 +1,77 @@
+/* Exit confirmation — the app-owned popup Samsung requires on a root
+   Return press (see ExitConfirmDialog.tsx). Follows the focus contract in
+   core/designsystem/tokens.css: focus is surface elevation + accent border,
+   transitioned with --motion-focus (0ms), and nothing at rest borrows that
+   vocabulary. */
+
+.exit-confirm-scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Opaque enough that the dialog reads as modal from three metres, not so
+     opaque that the viewer loses the screen they are being asked to leave. */
+  background: rgba(3, 10, 18, 0.82);
+}
+
+.exit-confirm {
+  width: 620px;
+  max-width: 72vw;
+  padding: var(--space-12) var(--space-10) var(--space-10);
+  border-radius: var(--radius-xl);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.exit-confirm-title {
+  margin: 0 0 var(--space-10);
+  font-size: var(--font-display-lg);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.exit-confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.exit-confirm-button {
+  min-width: 220px;
+  padding: var(--space-4) var(--space-8);
+  font-family: var(--font-ui);
+  font-size: var(--font-channel);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  background: var(--surface-primary);
+  /* Transparent border at rest so gaining focus colours a border that is
+     already occupying space — no layout shift on focus movement. */
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--motion-focus), border-color var(--motion-focus), color var(--motion-focus);
+}
+
+/* Exit is the destructive choice, so it carries a quieter-than-focus
+   at-rest tint (rule 4 of the focus contract: a non-focus state must never
+   compete with focus) — the red is TEXT only at rest. */
+.exit-confirm-button.danger {
+  color: var(--live-red);
+}
+
+.exit-confirm-button.focused {
+  background: var(--surface-focus);
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+}
+
+.exit-confirm-button.danger.focused {
+  border-color: var(--live-red);
+  color: var(--live-red);
+}

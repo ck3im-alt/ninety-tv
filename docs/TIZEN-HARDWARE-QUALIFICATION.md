@@ -6,12 +6,69 @@
 
 **How to use:** Work through each section top to bottom on the target TV(s). Fill in PASS/FAIL and notes inline. Re-run the full sheet per TV model/firmware year tested (note the model at the top of each run). Keep completed sheets in this repo (copy this file to `docs/hardware-runs/<date>-<model>.md` per run, or append results below) so qualification evidence is durable.
 
+---
+
+## 0. Supported model floor — and the evidence behind it
+
+**Ninety Beta 1 declares `required_version="6.5"` and supports Samsung TVs
+from the 2022 model year onward. 2021 is explicitly NOT supported.**
+
+Samsung's model-year mapping, which is what this document uses throughout:
+
+| Model year | Tizen | Chromium |
+|---|---|---|
+| 2021 | 6.0 | **M76** |
+| 2022 | 6.5 | **M85** |
+
+**Correcting a mistake that was in this repository.** Several source
+comments and `MULTI-AUDIO-NOTES.md` stated "Tizen 6.5 / Chromium 76",
+pairing a 6.5 platform version with the M76 runtime that belongs to 6.0.
+Those have been corrected. If a real TV is ever measured reporting Chromium
+76 *while* reporting Tizen 6.5, that is a finding worth recording here —
+but it is not the published mapping, and no comment should assert it
+without a `navigator.userAgent` capture to back it up (smoke check **S22**
+in the release checklist exists to capture exactly that).
+
+### Why 2021 was dropped for Beta 1
+
+The floor was raised from 6.0 during the Seller Office readiness pass. Two
+independent problems were found; only one of them was fixable at
+proportionate cost.
+
+| Problem | Chromium needed | Status |
+|---|---|---|
+| **Module Workers** — both Worker factories passed `{ type: 'module' }`, which **throws at construction** below Chromium 80. The playlist builder has a synchronous fallback and survives; channel identity resolution deliberately has none, so it would simply never build an index and Match View's Ninety-stage matching would silently weaken. | 80 | **FIXED.** Vite already emits worker chunks as self-contained classic IIFE scripts (`worker.format: 'iife'`), so the production constructors now omit the option entirely and build classic Workers. Guarded by `src/core/platform/workerCompatibility.test.ts`. This is no longer a reason to exclude 2021. |
+| **Flexbox `gap`** — **143 CSS rules** in this app set `gap` on a `display: flex` container. Flex gap is Chromium 84. On M76 every one of those spacings collapses to **zero**: the top navigation, Home rails, the Schedule guide, the Channels cascade and Match View all lose their layout. There is no PostCSS/autoprefixer step in this project to fall back on. | 84 | **NOT FIXED.** Converting 143 flex containers to margin-based spacing would be a rewrite of exactly the product work this release is built on, with a high regression risk against a model year we have never once tested on. |
+
+So the honest position is: **the Worker problem is solved; the layout
+problem is not**, and declaring 6.0 would ship an app that installs on a
+2021 set and then looks broken. Beta 1 declares 6.5.
+
+**To lower the floor back to 6.0 later**, the only remaining work is the
+flex-`gap` layout pass (plus a real 2021 device or Remote Test Lab session
+to verify it). The Worker side is already done. Note that Samsung's beta
+testing is available from 2021 sets onward, so 2021 is a *product* decision
+here, not a platform restriction.
+
+### Known cosmetic degradation on 2022 (M85)
+
+`color-mix()` is Chromium **111** and is used in `EventDetailsScreen.css`
+and `PlaylistSetupScreen.css`. It therefore does **not** resolve on M85
+either. This is deliberate and already handled: every legibility-critical
+use is written plain-value-first so the blended value is a progressive
+enhancement, and the worst case is flatter badge tints and a slightly
+crisper row border — never an invisible focus ring. Record in the notes
+below whether the tinted or flat variant is what the TV actually renders.
+
+---
+
 **Run metadata**
 
 | Field | Value |
 |---|---|
 | TV model | |
 | Firmware / Tizen version | |
+| `navigator.userAgent` Chromium version (see S22) | |
 | Tester | |
 | Date | |
 | Build (`.wgt` version / commit SHA) | |
@@ -35,7 +92,8 @@
 |---|---|---|---|---|---|
 | 2.1 | Arrows | Navigate Home, Channels, and Player toolbar using Up/Down/Left/Right | Focus moves predictably between all focusable elements; no dead zones or focus loss | | |
 | 2.2 | Enter | Press Enter/OK on channel cards, toolbar buttons, popup rows | Activates the focused element every time | | |
-| 2.3 | Back | Press Back on: a sub-screen, an open popup (source/subtitle), the player overlay, the root/Home screen | Back closes the innermost thing first (popup → overlay → screen → exits app only from root), matching `backHandler.ts` stack behavior; app never gets stuck unable to exit | | |
+| 2.3 | Back | Press Back on: a sub-screen, an open popup (source/subtitle), the player overlay, the root/Home screen | Back closes the innermost thing first (popup → overlay → screen). On the ROOT screen it raises the **"Exit Ninety?" confirmation** — it must NOT quit directly (Samsung requirement; see BETA-RELEASE-CHECKLIST §E-S rows S1–S5). App never gets stuck unable to exit | | |
+| 2.9 | Long-press Back/Return | Press and hold Return | Samsung's own platform behaviour happens, unmodified — Ninety deliberately registers nothing for the long press and must not alter it | | |
 | 2.4 | Focus restoration | Open then close the player overlay/popups repeatedly; navigate away from Player and back | Focus lands on a sensible, visible element every time (never nothing focused, never off-screen) | | |
 | 2.5 | Player OSD | Press any remote key while OSD is hidden during playback | OSD (toolbar + channel info) reappears; first press is not "eaten" | | |
 | 2.6 | Source popup | Open Source popup on a multi-source channel, navigate rows with arrows, select a different source | Popup opens/focuses correctly; selecting a source switches playback to it | | |
