@@ -1,8 +1,9 @@
 import { Readable } from 'node:stream'
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { validateProductionBuildEnvironment } from './scripts/productionConfig.js'
 
 // Dev-only passthrough proxies so the app works against IPTV/Xtream hosts
 // that don't send CORS headers — which is most of them. Node has no CORS
@@ -171,6 +172,8 @@ function bootDiagnosticsFlagPlugin(isDiagnostic: boolean): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
+  const environment = loadEnv(mode, process.cwd(), '')
+  if (command === 'build' && mode === 'production') validateProductionBuildEnvironment(environment)
   const diagnostics = command === 'serve' || mode === 'development' || process.env.VITE_PERF_DIAGNOSTICS === '1'
   return {
   // Relative, not root-absolute: a packaged Tizen .wgt is loaded via
