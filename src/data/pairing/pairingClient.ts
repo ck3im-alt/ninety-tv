@@ -5,6 +5,7 @@
 // dev-proxy needed" reasoning as sports/ninetyApiClient.ts.
 
 import { fetchWithTimeout } from '../../core/net/fetchWithTimeout'
+import { collectPairingDeviceMetadata } from '../../core/platform/deviceIdentity'
 
 // Shorter than the shared 12s default: these run on a ~2s cadence behind a
 // QR code the viewer is staring at, so a stuck request should be given up
@@ -31,7 +32,16 @@ export interface PairingSession {
 export async function createPairingSession(signal?: AbortSignal): Promise<PairingSession> {
   const baseUrl = getBaseUrl()
   if (!baseUrl) throw new Error('VITE_NINETY_API_URL is not set (see .env.example)')
-  const res = await fetchWithTimeout(`${baseUrl}/api/pairing`, { method: 'POST', signal })
+  if (import.meta.env.PROD && new URL(baseUrl).protocol !== 'https:') {
+    throw new Error('Ninety pairing requires HTTPS in production')
+  }
+  const res = await fetchWithTimeout(`${baseUrl}/api/pairing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // Never log this object: it can contain raw DUID and current-network MAC.
+    body: JSON.stringify(collectPairingDeviceMetadata()),
+    signal,
+  })
   if (!res.ok) throw new Error(`pairing session creation failed: ${res.status}`)
   return (await res.json()) as PairingSession
 }
@@ -41,6 +51,13 @@ export type PairingPollResult =
   | { status: 'ready'; m3uUrl: string }
   | { status: 'expired' }
   | { status: 'consumed' }
+  | {
+      status: 'paired'
+      deviceCredential: string
+      entitlement: { active: boolean; reason: string; accessEndsAt: string | null }
+      m3uUrl?: string
+      playlistSetupComplete: boolean
+    }
 
 export async function pollPairingStatus(pollSecret: string, signal?: AbortSignal): Promise<PairingPollResult> {
   const baseUrl = getBaseUrl()

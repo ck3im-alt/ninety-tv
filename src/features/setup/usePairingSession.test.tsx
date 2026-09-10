@@ -20,13 +20,15 @@ import { usePairingSession } from './usePairingSession'
 // they would fail against the setInterval version and pass against any
 // correct serialization.
 
-const { createPairingSession, pollPairingStatus, ackPairing } = vi.hoisted(() => ({
+const { createPairingSession, pollPairingStatus, ackPairing, saveDeviceCredential } = vi.hoisted(() => ({
   createPairingSession: vi.fn(),
   pollPairingStatus: vi.fn(),
   ackPairing: vi.fn(),
+  saveDeviceCredential: vi.fn(),
 }))
 
 vi.mock('../../data/pairing/pairingClient', () => ({ createPairingSession, pollPairingStatus, ackPairing }))
+vi.mock('../../data/deviceCredential', () => ({ saveDeviceCredential }))
 
 const POLL_INTERVAL_MS = 2000
 
@@ -53,6 +55,7 @@ function deferred<T>() {
 
 interface Harness {
   onReceived: ReturnType<typeof vi.fn>
+  onPaired: ReturnType<typeof vi.fn>
   status: () => string
   activationUrl: () => string | null
   retry: () => void
@@ -61,14 +64,16 @@ interface Harness {
 
 function harness(onReceivedImpl: (m3uUrl: string, secret: string) => Promise<boolean> | boolean): Harness {
   const onReceived = vi.fn(onReceivedImpl)
+  const onPaired = vi.fn()
   let latest: ReturnType<typeof usePairingSession> | null = null
   function Probe() {
-    latest = usePairingSession(onReceived)
+    latest = usePairingSession(onReceived, onPaired)
     return null
   }
   const view = render(<Probe />)
   return {
     onReceived,
+    onPaired,
     status: () => latest!.status,
     activationUrl: () => latest!.activationUrl,
     retry: () => act(() => latest!.retry()),
@@ -96,6 +101,7 @@ beforeEach(() => {
   createPairingSession.mockReset().mockResolvedValue(session())
   pollPairingStatus.mockReset().mockResolvedValue({ status: 'waiting' })
   ackPairing.mockReset().mockResolvedValue(undefined)
+  saveDeviceCredential.mockReset().mockReturnValue(true)
 })
 
 afterEach(() => {
@@ -265,6 +271,46 @@ describe('usePairingSession — rejected playlist URLs', () => {
     await flush()
     expect(await h.onReceived.mock.results[0].value).toBe(false)
     expect(ackPairing).not.toHaveBeenCalled()
+  })
+})
+
+describe('usePairingSession — account pairing credential bootstrap', () => {
+  it('persists the TV credential before acknowledging a completed phone setup', async () => {
+    pollPairingStatus.mockResolvedValue({
+      status: 'paired',
+      deviceCredential: 'device-credential',
+      entitlement: { active: true, reason: 'trial', accessEndsAt: '2030-01-08T00:00:00Z' },
+      playlistSetupComplete: true,
+    })
+    const h = harness(() => true)
+    await flush()
+    await tick()
+    await flush()
+
+    expect(saveDeviceCredential).toHaveBeenCalledWith('device-credential')
+    expect(ackPairing).toHaveBeenCalledWith('secret-1')
+    expect(saveDeviceCredential.mock.invocationCallOrder[0]).toBeLessThan(ackPairing.mock.invocationCallOrder[0])
+    expect(h.onPaired).toHaveBeenCalledTimes(1)
+    expect(h.onReceived).not.toHaveBeenCalled()
+  })
+
+  it('does not consume pairing when the credential cannot be persisted', async () => {
+    saveDeviceCredential.mockReturnValue(false)
+    pollPairingStatus.mockResolvedValue({
+      status: 'paired',
+      deviceCredential: 'device-credential',
+      entitlement: { active: true, reason: 'trial', accessEndsAt: '2030-01-08T00:00:00Z' },
+      playlistSetupComplete: true,
+    })
+    const h = harness(() => true)
+    await flush()
+    await tick()
+    await flush()
+
+    expect(ackPairing).not.toHaveBeenCalled()
+    expect(h.onPaired).not.toHaveBeenCalled()
+    await tick()
+    expect(pollPairingStatus).toHaveBeenCalledTimes(2)
   })
 })
 

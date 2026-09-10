@@ -1,0 +1,11 @@
+.entitlement-required {
+  width: 100vw; height: 100vh; padding: 70px 96px; background: var(--bg-primary); color: var(--text-primary);
+}
+.entitlement-wordmark { margin: 0; color: var(--text-secondary); font-size: 22px; letter-spacing: .34em; }
+.entitlement-required section { max-width: 800px; margin-top: 190px; }
+.entitlement-kicker { color: var(--accent); text-transform: uppercase; letter-spacing: .16em; font-size: 17px; }
+.entitlement-required h1 { margin: 12px 0 20px; font-size: 54px; font-weight: var(--weight-medium); letter-spacing: -.03em; }
+.entitlement-required section > p { color: var(--text-secondary); font-size: 23px; line-height: 1.5; }
+.entitlement-required strong { color: var(--text-primary); font-weight: var(--weight-medium); }
+.entitlement-required button { margin-top: 32px; min-width: 220px; padding: 17px 28px; border: 2px solid transparent; border-radius: var(--radius-md); background: var(--surface-elevated); color: var(--text-primary); font-size: 20px; }
+.entitlement-required button.focused { background: var(--surface-focus); border-color: var(--accent); }

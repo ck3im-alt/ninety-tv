@@ -199,6 +199,9 @@
         }, 20000)
       })()
     </script>
+    <!-- Required by Samsung for window.webapis Product APIs. The path is
+         resolved by the TV runtime and is absent in ordinary browsers. -->
+    <script src="$WEBAPIS/webapis/webapis.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

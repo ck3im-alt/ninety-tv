@@ -6,7 +6,7 @@ TV-focused frontend for NINETY — a smart TV app for browsing an IPTV playlist 
 
 - **This repo (`ninety-tv`)** is the UI only. It has no server-side logic and holds no sports/broadcast data of its own.
 - **[`ninety-api`](../ninety-api)** is a separate backend repo/service that resolves football fixtures, team/league metadata, and real linear TV broadcast channels via its own EPG resolver. `ninety-tv` depends on it for all football data — there is no bundled or fallback data source.
-- The user's own IPTV playlist (Xtream or plain M3U) is connected client-side and stored locally (`src/data/session.ts`, `src/data/xtream/`); it is never uploaded anywhere.
+- The user's own IPTV playlist (Xtream or plain M3U) is consumed and stored locally (`src/data/session.ts`, `src/data/xtream/`). When the user chooses phone setup, the API holds a credential-bearing playlist URL only as a short-lived pairing handoff and clears it after TV acknowledgement; Ninety never stores it as account data.
 - `src/data/sports/channelMatch.ts` matches a football fixture to the channels in the user's own playlist, using ninety-api's broadcast data first and an EPG-programme-title fallback second.
 - Third-party sports metadata (team badges, etc.) still comes from TheSportsDB (`src/data/sports/theSportsDbClient.ts`) alongside ninety-api. Sportmonks was used previously but was dropped entirely (2026-08-17) in favor of ninety-api's own resolver.
 - There is no router yet — `App.tsx` uses an in-memory `Screen` union as a temporary screen switcher.
@@ -28,7 +28,7 @@ TV-focused frontend for NINETY — a smart TV app for browsing an IPTV playlist 
    npm install
    npm run dev
    ```
-4. On first launch you'll be prompted to connect an IPTV playlist (Xtream credentials or an M3U URL) to browse channels.
+4. A fresh TV shows an account-activation QR code. After the user signs in and connects the TV on Ninety Web, playlist setup can continue on the phone or use the existing manual Xtream/M3U alternatives on the TV.
 
 ## Browser dev vs Tizen build
 

@@ -190,6 +190,7 @@ export function OnboardingFlow({ onDone }: Props) {
     return (
       <PlaylistSetupScreen
         variant="onboarding"
+        onPaired={() => setStep(2)}
         onLoaded={(loaded, connectedSource) => {
           setChannels(loaded)
           setSource(connectedSource)

@@ -3,6 +3,8 @@ import { ROOT_FOCUS_KEY, setFocus, useFocusable } from '@noriginmedia/norigin-sp
 import { FocusDebugOverlay, exitApp, setUnhandledBackHandler, useAppLifecycle, useNetworkStatus } from './core/platform'
 import { ExitConfirmDialog } from './features/exit/ExitConfirmDialog'
 import { NetworkOfflineNotice } from './features/network/NetworkOfflineNotice'
+import { EntitlementRequiredScreen } from './features/entitlement/EntitlementRequiredScreen'
+import { useDeviceEntitlement } from './data/useDeviceEntitlement'
 import { TopNav } from './features/navigation/TopNav'
 import { HomeScreen } from './features/home/HomeScreen'
 import { AdminPanel } from './features/admin/AdminPanel'
@@ -448,6 +450,7 @@ function App() {
   // see core/platform/networkStatus.ts for why this is TV connectivity only
   // and deliberately not "the provider/API is reachable".
   const network = useNetworkStatus()
+  const deviceEntitlement = useDeviceEntitlement()
   const recheckNetwork = network.recheck
 
   // MULTITASKING. One listener for the whole app (Samsung requires
@@ -681,6 +684,19 @@ function App() {
     setScreen('multiview')
   }
 
+  // The API remains authoritative after activation. Never expose playback
+  // before a credential has been checked; a transient failure gets a retry
+  // screen rather than being mistaken for permission.
+  if (deviceEntitlement.status === 'checking') {
+    return <LoadingScreen title="Checking your Ninety access" />
+  }
+  if (deviceEntitlement.status === 'unavailable') {
+    return <EntitlementRequiredScreen unavailable onRetry={deviceEntitlement.retry} />
+  }
+  if (deviceEntitlement.status === 'inactive') {
+    return <EntitlementRequiredScreen onRetry={deviceEntitlement.retry} />
+  }
+
   return (
     <>
       {screen !== 'player' &&
@@ -815,6 +831,7 @@ function App() {
       {screen === 'setup' && (
         <PlaylistSetupScreen
           variant="standalone"
+          onPaired={() => setScreen('home')}
           notice={library.reconnectNotice ?? undefined}
           onLoaded={(loaded, source) => {
             // ADDS a playlist rather than replacing the library — Settings

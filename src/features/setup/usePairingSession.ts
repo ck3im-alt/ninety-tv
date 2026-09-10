@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ackPairing, createPairingSession, pollPairingStatus } from '../../data/pairing/pairingClient'
+import { saveDeviceCredential } from '../../data/deviceCredential'
 
 // Gap BETWEEN polls, not a fixed period. See the scheduling note below —
 // with a serialized loop this is measured from the end of one poll to the
@@ -48,11 +49,16 @@ interface State {
 // The chain below schedules the next poll only from the completion of the
 // previous one, so at most one poll — and at most one ready-processing
 // operation — is ever in flight.
-export function usePairingSession(onReceived: (m3uUrl: string, pollSecret: string) => Promise<boolean> | boolean) {
+export function usePairingSession(
+  onReceived: (m3uUrl: string, pollSecret: string) => Promise<boolean> | boolean,
+  onPairedWithoutPlaylist?: () => void,
+) {
   const [state, setState] = useState<State>({ status: 'loading', activationUrl: null })
   const [retryToken, setRetryToken] = useState(0)
   const onReceivedRef = useRef(onReceived)
   onReceivedRef.current = onReceived
+  const onPairedRef = useRef(onPairedWithoutPlaylist)
+  onPairedRef.current = onPairedWithoutPlaylist
   // Guards against React StrictMode's dev-only double-invoke of this
   // effect creating two sessions for one screen visit — see spec's "do not
   // create multiple pairing sessions unnecessarily". No effect in a real
@@ -88,6 +94,28 @@ export function usePairingSession(onReceived: (m3uUrl: string, pollSecret: strin
         // Re-checked after EVERY await: this is the point a stale response
         // from a superseded session would otherwise take effect.
         if (cancelled || myGeneration !== generation) return
+
+        if (result.status === 'paired') {
+          // The credential came through the TV-only poll capability, never
+          // the public QR token. Persist before acknowledging so a dropped
+          // write cannot consume the only route to it.
+          if (!saveDeviceCredential(result.deviceCredential)) return scheduleNext(myGeneration, pollSecret)
+          if (result.m3uUrl) {
+            if (result.m3uUrl === lastFailedUrl) return scheduleNext(myGeneration, pollSecret)
+            const accepted = await onReceivedRef.current(result.m3uUrl, pollSecret)
+            if (cancelled || myGeneration !== generation) return
+            if (accepted) return
+            lastFailedUrl = result.m3uUrl
+            return scheduleNext(myGeneration, pollSecret)
+          }
+          if (result.playlistSetupComplete) {
+            await ackPairing(pollSecret)
+            if (cancelled || myGeneration !== generation) return
+            onPairedRef.current?.()
+            return
+          }
+          return scheduleNext(myGeneration, pollSecret)
+        }
 
         if (result.status === 'ready') {
           if (result.m3uUrl === lastFailedUrl) return scheduleNext(myGeneration, pollSecret)

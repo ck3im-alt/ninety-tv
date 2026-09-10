@@ -52,6 +52,9 @@ interface Props {
   variant?: 'onboarding' | 'standalone'
   // Onboarding only: continue without connecting anything.
   onSkip?: () => void
+  // Called when account activation completed on the phone and the viewer
+  // explicitly chose to add no playlist there.
+  onPaired?: () => void
   // Shown when this screen is being used to reconnect a playlist that
   // couldn't be auto-recovered (a file-upload source with no valid cache)
   // rather than as a first-time connect — see App.tsx's startup recovery.
@@ -65,7 +68,7 @@ interface Props {
 // looks like" and "what counts as a valid playlist" a second time. One
 // definition, two surfaces.
 
-export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, notice }: Props) {
+export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, onPaired, notice }: Props) {
   const isOnboarding = variant === 'onboarding'
   const [urlValue, setUrlValue] = useState('')
   const [server, setServer] = useState('')
@@ -117,11 +120,14 @@ export function PlaylistSetupScreen({ onLoaded, variant = 'standalone', onSkip, 
   // Independent of `mode`: the phone submitting a playlist is an explicit
   // action of its own, so it auto-submits regardless of which manual method
   // happens to be armed.
-  const pairing = usePairingSession(async (m3uUrl, pollSecret) => {
-    const ok = await connect(m3uUrl)
-    if (ok) await ackPairing(pollSecret)
-    return ok
-  })
+  const pairing = usePairingSession(
+    async (m3uUrl, pollSecret) => {
+      const ok = await connect(m3uUrl)
+      if (ok) await ackPairing(pollSecret)
+      return ok
+    },
+    onPaired,
+  )
 
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]

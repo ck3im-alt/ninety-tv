@@ -69,6 +69,13 @@ declare global {
     isConnectedToGateway?(): boolean;
     addNetworkStateChangeListener?(callback: (state: number) => void): number;
     removeNetworkStateChangeListener?(listenerId: number): void;
+    getMac?(): string;
+  }
+
+  interface SamsungWebapisProductInfo {
+    getDuid?(): string;
+    getModel?(): string;
+    getModelCode?(): string;
   }
 
   interface SamsungWebapisAppCommon {
@@ -79,6 +86,7 @@ declare global {
   interface SamsungWebapis {
     network?: SamsungWebapisNetwork;
     appcommon?: SamsungWebapisAppCommon;
+    productinfo?: SamsungWebapisProductInfo;
   }
 
   interface Window {

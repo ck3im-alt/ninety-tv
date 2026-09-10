@@ -45,6 +45,10 @@
          which feature-detects the API so browser dev and unit tests (where
          `webapis` does not exist) degrade to navigator.onLine. -->
     <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    <!-- Samsung ProductInfo API: DUID is the primary physical-device
+         pairing signal; model/model code are safe support/display metadata.
+         All calls are feature-detected and try/caught. -->
+    <tizen:privilege name="http://developer.samsung.com/privilege/productinfo"/>
     <!-- WARP access policy: grants the packaged widget permission to make
          cross-origin XHR/fetch requests (e.g. to users' own IPTV/Xtream
          panels) without those servers needing to send CORS headers.
