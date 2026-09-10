@@ -53,6 +53,10 @@ describe('pairingClient — wire contract', () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0]
     expect(url).toBe('https://api.example/api/pairing')
     expect((init as RequestInit).method).toBe('POST')
+    const metadata = JSON.parse(String((init as RequestInit).body)) as Record<string, unknown>
+    expect(metadata.installationId).toBeTruthy()
+    expect(metadata).not.toHaveProperty('duid')
+    expect(metadata).not.toHaveProperty('mac')
   })
 
   it('pollPairingStatus GETs /api/pairing/status with the secret as a Bearer header', async () => {

@@ -3,8 +3,14 @@ import { readStored, writeStored } from '../storage/localStore'
 const INSTALLATION_ID_KEY = 'ninety.device.installationId'
 
 export interface PairingDeviceMetadata {
+  // Continuity for this app installation only. The API must never treat this
+  // resettable local value as physical-TV evidence for trial eligibility.
   installationId: string
+  // Samsung ProductInfo DUID is the authoritative physical-TV trial signal.
+  // It is optional because older/restricted TVs can deny ProductInfo access;
+  // pairing must still proceed safely in that case.
   duid?: string
+  // Network metadata only; MAC addresses are not a trial identity.
   mac?: string
   platform: 'samsung-tizen'
   model?: string
