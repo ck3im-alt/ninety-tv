@@ -17,8 +17,13 @@ const INDEX_HTML = readFileSync(resolve(import.meta.dirname, '../../../index.htm
 // exactly as Vite would.
 async function transformIndexHtml(env: { command: 'build' | 'serve'; mode: string; perfFlag?: string }) {
   const previous = process.env.VITE_PERF_DIAGNOSTICS
+  const previousApiUrl = process.env.VITE_NINETY_API_URL
   if (env.perfFlag === undefined) delete process.env.VITE_PERF_DIAGNOSTICS
   else process.env.VITE_PERF_DIAGNOSTICS = env.perfFlag
+  // These tests exercise the HTML transform, not production configuration.
+  // Give Vite a valid, inert origin so the suite remains hermetic on CI,
+  // where a repository variable is not automatically a process env var.
+  process.env.VITE_NINETY_API_URL = 'https://api.example.test'
   try {
     // The hook is declared in Vite's object form ({ order, handler }) so it
     // can run BEFORE inline-script minification strips its comment markers;
@@ -38,6 +43,8 @@ async function transformIndexHtml(env: { command: 'build' | 'serve'; mode: strin
   } finally {
     if (previous === undefined) delete process.env.VITE_PERF_DIAGNOSTICS
     else process.env.VITE_PERF_DIAGNOSTICS = previous
+    if (previousApiUrl === undefined) delete process.env.VITE_NINETY_API_URL
+    else process.env.VITE_NINETY_API_URL = previousApiUrl
   }
 }
 
