@@ -222,4 +222,30 @@ describe('Tizen AVPlay adapter', () => {
 
     player.dispose()
   })
+
+  it('re-arms the active AVPlay audio track after the startup mute is removed', async () => {
+    const fake = fakeAvPlay({
+      tracks: [
+        { type: 'AUDIO', index: 4, extra_info: JSON.stringify({ language: 'eng' }) },
+        { type: 'AUDIO', index: 8, extra_info: JSON.stringify({ language: 'nor' }) },
+      ],
+    })
+    const { player } = attach(fake)
+
+    await player.load('https://provider.example/sky-sports-main-event-uhd.m3u8')
+    await player.play()
+    fake.listener()?.oncurrentplaytime?.(1_000)
+    player.setMuted(false)
+
+    expect(fake.disableAudioStream).toHaveBeenCalledOnce()
+    expect(fake.enableAudioStream).toHaveBeenCalledOnce()
+    expect(fake.setSelectTrack).toHaveBeenCalledWith('AUDIO', 4)
+    expect(player.getState()).toMatchObject({
+      status: 'playing',
+      muted: false,
+      activeAudioTrack: 'avplay:AUDIO:4',
+    })
+
+    player.dispose()
+  })
 })

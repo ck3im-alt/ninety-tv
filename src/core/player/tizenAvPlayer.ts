@@ -11,6 +11,7 @@ import type { AudioTrack, Player, PlayerState, SubtitleTrack } from './types'
 const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 1080
 const STARTUP_DEADLINE_MS = 12_000
+const AUDIO_SELECTION_MAX_ATTEMPTS = 3
 
 const INITIAL_STATE: PlayerState = {
   status: 'idle',
@@ -78,6 +79,8 @@ export function createTizenAvPlayer(): Player {
   let lastNativeTime = -1
   let nativeHasPlayed = false
   let subtitlesEnabled = false
+  let nativeAudioSelectionPending = false
+  let nativeAudioSelectionAttempts = 0
   let fallbackAttempted = false
   // Once this session has needed HTML, keep using it for later failover
   // URLs too. The HTML engine can retain an MSE decoder between loads;
@@ -219,6 +222,41 @@ export function createTizenAvPlayer(): Player {
     })
   }
 
+  function restoreNativeAudio(): void {
+    if (!api || engine !== 'avplay' || state.muted) return
+
+    // enableAudioStream() restores the AVPlay output, but on some Samsung
+    // firmware/codec combinations it does not re-arm the selected decoder.
+    // Samsung also requires multi-audio streams to have a track explicitly
+    // selected while PLAYING. Re-select the stream that AVPlay reports as
+    // current (or its first audio stream) after every native load/unmute.
+    try {
+      api.enableAudioStream?.()
+    } catch {
+      // Older firmware may expose AVPlay without audio-stream toggles.
+    }
+
+    if (!nativeAudioSelectionPending || !api.setSelectTrack) return
+    try {
+      if (api.getState?.() !== 'PLAYING') return
+      const currentAudio = api.getCurrentStreamInfo?.().find((track) => track.type === 'AUDIO')
+      const firstAudio = api.getTotalTrackInfo?.().find((track) => track.type === 'AUDIO')
+      const audioIndex = currentAudio?.index ?? firstAudio?.index
+      if (audioIndex === undefined) {
+        nativeAudioSelectionAttempts += 1
+        if (nativeAudioSelectionAttempts >= AUDIO_SELECTION_MAX_ATTEMPTS) nativeAudioSelectionPending = false
+        return
+      }
+      api.setSelectTrack('AUDIO', audioIndex)
+      nativeAudioSelectionPending = false
+      nativeAudioSelectionAttempts = 0
+      refreshTracks()
+    } catch {
+      nativeAudioSelectionAttempts += 1
+      if (nativeAudioSelectionAttempts >= AUDIO_SELECTION_MAX_ATTEMPTS) nativeAudioSelectionPending = false
+    }
+  }
+
   async function activateFallback(loadGeneration: number, shouldPlay: boolean): Promise<void> {
     if (disposed || loadGeneration !== generation || fallbackAttempted) return
     fallbackAttempted = true
@@ -265,7 +303,10 @@ export function createTizenAvPlayer(): Player {
         if (loadGeneration === generation && engine === 'avplay') setState({ status: 'loading' })
       },
       onbufferingcomplete() {
-        if (loadGeneration === generation && engine === 'avplay') refreshTracks()
+        if (loadGeneration === generation && engine === 'avplay') {
+          refreshTracks()
+          if (nativeAudioSelectionPending) restoreNativeAudio()
+        }
       },
       oncurrentplaytime(milliseconds) {
         if (loadGeneration !== generation || engine !== 'avplay') return
@@ -282,6 +323,7 @@ export function createTizenAvPlayer(): Player {
           // Keep the last known duration.
         }
         setState({ status: 'playing', error: null, currentTime: milliseconds / 1000, duration })
+        if (nativeAudioSelectionPending) restoreNativeAudio()
       },
       onstreamcompleted() {
         if (loadGeneration === generation && engine === 'avplay') setState({ status: 'ended' })
@@ -325,6 +367,8 @@ export function createTizenAvPlayer(): Player {
       fallbackAttempted = false
       nativeHasPlayed = false
       subtitlesEnabled = false
+      nativeAudioSelectionPending = !state.muted
+      nativeAudioSelectionAttempts = 0
       lastNativeTime = -1
       clearStartupTimer()
       releaseNative()
@@ -387,6 +431,7 @@ export function createTizenAvPlayer(): Player {
       const playGeneration = generation
       try {
         api.play()
+        if (!state.muted) restoreNativeAudio()
         startProgressWatchdog(playGeneration)
         clearStartupTimer()
         startupTimer = setTimeout(() => {
@@ -447,11 +492,18 @@ export function createTizenAvPlayer(): Player {
       if (engine === 'html') {
         // fallback.setMuted above emits the authoritative HTML state.
       } else {
-        try {
-          if (muted) api?.disableAudioStream?.()
-          else api?.enableAudioStream?.()
-        } catch {
-          // Older firmware may expose AVPlay without audio-stream toggles.
+        if (muted) {
+          nativeAudioSelectionPending = false
+          nativeAudioSelectionAttempts = 0
+          try {
+            api?.disableAudioStream?.()
+          } catch {
+            // Older firmware may expose AVPlay without audio-stream toggles.
+          }
+        } else {
+          nativeAudioSelectionPending = true
+          nativeAudioSelectionAttempts = 0
+          restoreNativeAudio()
         }
         emit()
       }
