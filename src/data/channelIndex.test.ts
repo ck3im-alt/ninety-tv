@@ -24,6 +24,12 @@ describe('ChannelIndex', () => {
     // point of this fixture. Names below avoid that ambiguity on purpose.
     raw({ name: 'Nordic Sport One', groupTitle: 'SE| Sports', url: 'u6', epgChannelId: 'epg.6' }),
     raw({ name: 'Mystery Channel', groupTitle: 'Random Group', url: 'u7', epgChannelId: 'epg.7' }),
+    raw({
+      name: 'VIAPLAY | Manchester United - Manchester City | 17:20',
+      groupTitle: 'NO| Events',
+      url: 'u8',
+      epgChannelId: 'viaplay.event.22',
+    }),
   ]
   const channels = mergeChannelSources(fixture)
   const index = new ChannelIndex(channels)
@@ -42,7 +48,7 @@ describe('ChannelIndex', () => {
     const norway = countries.find((c) => c.name === 'Norway')
     const sweden = countries.find((c) => c.name === 'Sweden')
     const other = countries.find((c) => c.name === 'Other')
-    expect(norway?.count).toBe(5) // Sports x2, Movies, PPV, General
+    expect(norway?.count).toBe(6) // Sports x2, Movies, PPV, General, mapped event row
     expect(sweden?.count).toBe(1)
     expect(other?.count).toBe(1)
   })
@@ -74,7 +80,7 @@ describe('ChannelIndex', () => {
 
   it('getChannelsForCountry returns every channel in that country, across all categories', () => {
     const norwayChannels = index.getChannelsForCountry('Norway')
-    expect(norwayChannels.length).toBe(5)
+    expect(norwayChannels.length).toBe(6)
   })
 
   it('getSiblings excludes the channel itself and only includes same country+category channels', () => {
@@ -107,6 +113,12 @@ describe('ChannelIndex', () => {
   it('getPpvChannels only includes category-PPV channels', () => {
     const names = index.getPpvChannels().map((c) => c.name)
     expect(names).toEqual(['PPV Big Fight'])
+  })
+
+  it('event-name candidates include an EPG-mapped fixture row without changing the PPV/unmapped bucket', () => {
+    const eventName = 'VIAPLAY | Manchester United - Manchester City | 17:20'
+    expect(index.getEventNameCandidateEntries().map((entry) => entry.channel.name)).toContain(eventName)
+    expect(index.getPpvOrUnmappedEntries().map((entry) => entry.channel.name)).not.toContain(eventName)
   })
 
   it('getLikelySportChannels includes SPORT-named/grouped channels and PPV channels', () => {

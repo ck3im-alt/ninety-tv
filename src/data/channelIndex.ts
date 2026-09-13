@@ -49,6 +49,12 @@ export interface ChannelIndexEntry {
   // (isPpvCategory(parsed) OR the channel's own name literally says PPV) OR
   // it has no EPG-mapped id at all.
   isPpvOrUnmapped: boolean
+  // Candidate for exact event-title matching. This includes the historical
+  // PPV/unmapped pool plus provider-generated rows that visibly look like a
+  // fixture ("Team A - Team B | 17:20"). Some panels assign those temporary
+  // rows an EPG id, so EPG presence alone must not hide an otherwise explicit
+  // event name from the local matcher.
+  isEventNameCandidate: boolean
   // isLikelySportChannel's exact predicate (matchViaEpg's candidate filter).
   isLikelySport: boolean
   // Original playlist position — lets getChannelsByIdsInPlaylistOrder
@@ -77,6 +83,7 @@ export class ChannelIndex {
   // lookup. The public Channel[]-returning getters below still hand out
   // defensive copies, exactly as they always did.
   private readonly ppvOrUnmappedEntries: ChannelIndexEntry[] = []
+  private readonly eventNameCandidateEntries: ChannelIndexEntry[] = []
   private readonly ppvChannels: Channel[] = []
   private readonly likelySportChannels: Channel[] = []
   // Cache per-distinct-groupTitle folding — a real playlist has vastly fewer
@@ -126,6 +133,9 @@ export class ChannelIndex {
     const nameHasPpvLiteral = /\bPPV\b/.test(foldedChannelName)
     const isTaggedPpv = isCategoryPpv || nameHasPpvLiteral
     const isPpvOrUnmapped = isTaggedPpv || !channel.hasEpgChannelId
+    const hasEventClock = /\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b/.test(foldedChannelName)
+    const hasMatchupSeparator = /(?:\s[-–—]\s|\bV(?:S)?\.?\b)/.test(foldedChannelName)
+    const isEventNameCandidate = isPpvOrUnmapped || (hasEventClock && hasMatchupSeparator)
     const isLikelySport =
       isCategoryPpv || foldedChannelName.includes('SPORT') || this.foldedGroupTitle(channel.groupTitle ?? '').includes('SPORT')
 
@@ -137,6 +147,7 @@ export class ChannelIndex {
       matchName: foldedChannelName,
       isCategoryPpv,
       isPpvOrUnmapped,
+      isEventNameCandidate,
       isLikelySport,
       order: this.nextOrder++,
     }
@@ -169,6 +180,7 @@ export class ChannelIndex {
     bucket.channels.push(channel)
 
     if (isPpvOrUnmapped) this.ppvOrUnmappedEntries.push(entry)
+    if (isEventNameCandidate) this.eventNameCandidateEntries.push(entry)
     if (isCategoryPpv) this.ppvChannels.push(channel)
     if (isLikelySport) this.likelySportChannels.push(channel)
   }
@@ -263,6 +275,13 @@ export class ChannelIndex {
   // never mutate" contract as getEntriesForCountry above.
   getPpvOrUnmappedEntries(): readonly ChannelIndexEntry[] {
     return this.ppvOrUnmappedEntries
+  }
+
+  // Allocation-free candidate pool for matchViaPpvChannelName. Kept separate
+  // from getPpvOrUnmappedEntries so the older getter retains its exact public
+  // semantics for other consumers and diagnostics.
+  getEventNameCandidateEntries(): readonly ChannelIndexEntry[] {
+    return this.eventNameCandidateEntries
   }
 
   getPpvChannels(): Channel[] {

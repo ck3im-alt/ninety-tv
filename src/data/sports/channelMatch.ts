@@ -261,7 +261,7 @@ function matchViaPpvChannelName(event: SportEvent, channels: Channel[]): Channel
   const kickoff = event.dateTimeUtc ? new Date(event.dateTimeUtc) : null
   const index = getChannelIndex(channels)
   const matches: ChannelMatch[] = []
-  // A one-off event entry can be identified two ways, since not every
+  // A one-off event entry can be identified three ways, since not every
   // provider spells it "PPV":
   // 1. Text: the category or the channel's own name literally says PPV
   //    (see the Deportivo/Elche example above).
@@ -271,10 +271,13 @@ function matchViaPpvChannelName(event: SportEvent, channels: Channel[]): Channel
   //    provider; a synthetically-generated per-match stream usually
   //    isn't, since there's no recurring programme to map it to. This
   //    catches providers that never write "PPV" anywhere at all.
-  // ChannelIndex.getPpvOrUnmappedChannels() is exactly this "isTaggedPpv ||
-  // isUnmappedEntry" gate, precomputed once per playlist generation instead
-  // of every channel per event — see data/channelIndex.ts.
-  for (const entry of index.getPpvOrUnmappedEntries()) {
+  // 3. Shape: its own name visibly contains a matchup separator and a clock
+  //    time. Providers sometimes assign a temporary event row an EPG id;
+  //    excluding it merely because of that metadata caused the reported
+  //    Viaplay regression (two explicit fixture rows became zero matches).
+  // ChannelIndex precomputes this narrow candidate pool once per playlist
+  // generation; the actual acceptance check below still requires BOTH teams.
+  for (const entry of index.getEventNameCandidateEntries()) {
     // The actual match still requires BOTH team names to literally appear
     // in the channel's name — that's what keeps this from false-matching
     // ordinary channels once the gate is broadened this far.

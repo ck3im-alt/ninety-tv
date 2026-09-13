@@ -666,6 +666,40 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     ])
   })
 
+  it('finds EPG-mapped Viaplay event rows whose names contain the exact fixture', async () => {
+    const playlist = [
+      testChannel({
+        id: 'viaplay-direct',
+        name: 'VIAPLAY | Manchester United - Manchester City | 17:20',
+        groupTitle: 'NO| Sports',
+        epgChannelIds: ['viaplay.event.21'],
+        hasEpgChannelId: true,
+      }),
+      testChannel({
+        id: 'viaplay-numbered',
+        name: 'Viaplay 22 | Manchester United - Manchester City | 17:20',
+        groupTitle: 'NO| Events',
+        epgChannelIds: ['viaplay.event.22'],
+        hasEpgChannelId: true,
+      }),
+    ]
+    const event = {
+      ...unmatchedEvent(),
+      title: 'Manchester United vs Manchester City',
+      homeTeam: 'Manchester United',
+      awayTeam: 'Manchester City',
+      dateTimeUtc: '2026-09-13T15:30:00Z',
+      timeLabel: '17:30',
+    }
+
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, null)
+
+    expect(result.matches.map((m) => ({ id: m.channel.id, source: m.source }))).toEqual([
+      { id: 'viaplay-direct', source: 'ppvName' },
+      { id: 'viaplay-numbered', source: 'ppvName' },
+    ])
+  })
+
   it('combines a Ninety identity match with a broadcasterMap match for a different channel', async () => {
     const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
     const linear = testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })
