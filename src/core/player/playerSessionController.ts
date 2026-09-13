@@ -22,10 +22,9 @@ export interface PlayerSessionState {
   playerState: PlayerState
   sourceIndex: number
   // Every candidate source has now errored at least once with nothing left
-  // to try — mirrors ChannelPlayerScreen's original allSourcesFailed, INCLUDING
-  // its original quirk of never resetting on a manual selectSource() call
-  // (only a brand-new controller instance resets it) — preserved
-  // deliberately so the refactor changes no observable behavior.
+  // to try. An explicit manual source selection starts a fresh attempt and
+  // clears this state; otherwise one transient failure per source would make
+  // the session permanently unrecoverable until the viewer left the screen.
   allSourcesFailed: boolean
 }
 
@@ -34,9 +33,7 @@ export interface PlayerSessionController {
   getState(): PlayerSessionState
   subscribe(listener: (state: PlayerSessionState) => void): () => void
   // Manual source pick (e.g. the Source/Change-source popup) — loads
-  // immediately. Deliberately does NOT reset the failover-tried set or
-  // allSourcesFailed, matching ChannelPlayerScreen's original behavior (see
-  // allSourcesFailed above).
+  // immediately and starts a fresh bounded failover pass.
   selectSource(index: number): void
   play(): Promise<void>
   pause(): void
@@ -84,9 +81,16 @@ export interface PlayerSessionOptions {
   // 0) means "one group", which reduces nextFailoverIndex to exactly the
   // previous first-untried-ascending behavior.
   sourceGroups?: readonly number[]
+  // Once the current source has delivered this much real media-time
+  // progress, old failures are no longer evidence that earlier mirrors are
+  // still dead. Clear the bounded failover history so a match watched for a
+  // long time cannot eventually exhaust every source because each had one
+  // unrelated transient failure hours apart.
+  failureHistoryResetAfterSeconds?: number
 }
 
 const DEFAULT_STALL_RETRY_COOLDOWN_MS = 15000
+const DEFAULT_FAILURE_HISTORY_RESET_AFTER_SECONDS = 30
 
 function clampIndex(index: number, length: number): number {
   if (length === 0) return 0
@@ -104,6 +108,7 @@ export function createPlayerSessionController(
     stallRetryCooldownMs = DEFAULT_STALL_RETRY_COOLDOWN_MS,
     now = () => Date.now(),
     sourceGroups = [],
+    failureHistoryResetAfterSeconds = DEFAULT_FAILURE_HISTORY_RESET_AFTER_SECONDS,
   } = options
 
   let sourceIndex = clampIndex(initialIndex, sourceUrls.length)
@@ -111,6 +116,8 @@ export function createPlayerSessionController(
   const triedIndices = new Set<number>()
   const listeners = new Set<(state: PlayerSessionState) => void>()
   let disposed = false
+  let playbackProgressBaseline: number | null = null
+  let failureHistoryResetForCurrentLoad = false
 
   // Tracks an in-progress "did our one same-source reload attempt actually
   // fix it" window for whichever sourceIndex most recently stalled — reset
@@ -132,6 +139,8 @@ export function createPlayerSessionController(
   function loadCurrent(): void {
     const url = sourceUrls[sourceIndex]
     if (url === undefined) return
+    playbackProgressBaseline = null
+    failureHistoryResetForCurrentLoad = false
     void player.load(url).then(() => player.play())
   }
 
@@ -239,6 +248,15 @@ export function createPlayerSessionController(
       emit()
       return
     }
+    if (playerState.status === 'playing' && !failureHistoryResetForCurrentLoad) {
+      playbackProgressBaseline ??= playerState.currentTime
+      if (playerState.currentTime - playbackProgressBaseline >= failureHistoryResetAfterSeconds) {
+        triedIndices.clear()
+        allSourcesFailed = false
+        stallEpisode = null
+        failureHistoryResetForCurrentLoad = true
+      }
+    }
     emit()
   })
 
@@ -258,6 +276,8 @@ export function createPlayerSessionController(
     selectSource(index) {
       if (index < 0 || index >= sourceUrls.length) return
       stallEpisode = null
+      triedIndices.clear()
+      allSourcesFailed = false
       sourceIndex = index
       loadCurrent()
       emit()

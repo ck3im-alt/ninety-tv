@@ -52,6 +52,12 @@ interface Props {
   // null) when the user skipped step 1 — App.tsx must not treat that as a
   // playlist to install.
   onDone: (channels: Channel[], source: PlaylistSourceRecord | null) => void
+  // Production first-run activation now happens before this preference
+  // wizard. Tests and any legacy embedding can still exercise step 1, but
+  // App enters at sports after the TV credential and optional phone-sent
+  // playlist are already persisted.
+  skipPlaylistStep?: boolean
+  initialChannels?: Channel[]
 }
 
 // Owns state across all five onboarding steps (playlist connect → sports &
@@ -59,9 +65,9 @@ interface Props {
 // persisted piecemeal — only Finish setup actually writes to storage. Each
 // step screen stays a plain controlled component with no storage awareness
 // of its own.
-export function OnboardingFlow({ onDone }: Props) {
-  const [step, setStep] = useState<Step>(1)
-  const [channels, setChannels] = useState<Channel[]>([])
+export function OnboardingFlow({ onDone, skipPlaylistStep = false, initialChannels = [] }: Props) {
+  const [step, setStep] = useState<Step>(skipPlaylistStep ? 2 : 1)
+  const [channels, setChannels] = useState<Channel[]>(initialChannels)
   const [source, setSource] = useState<PlaylistSourceRecord | null>(null)
   // Football only, and no leagues at all — see ONBOARDING_INITIAL_SPORTS /
   // ONBOARDING_INITIAL_FOOTBALL_LEAGUE_IDS for why these are onboarding's
@@ -213,7 +219,7 @@ export function OnboardingFlow({ onDone }: Props) {
         viewerCountryCode={viewerCountry.code}
         onToggleSport={toggleSport}
         onToggleLeague={toggleLeague}
-        onBack={() => setStep(1)}
+        onBack={skipPlaylistStep ? undefined : () => setStep(1)}
         onContinue={() => setStep(3)}
       />
     )

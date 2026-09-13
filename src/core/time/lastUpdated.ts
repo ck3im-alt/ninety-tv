@@ -17,7 +17,10 @@ import { formatClockTime24h } from './clockFormat'
 export function formatLastUpdated(verb: string, at: number | null, now: number = Date.now()): string {
   if (at == null) return `Never ${verb.toLowerCase()}`
   const elapsed = now - at
-  if (elapsed < 60_000) return `${verb} just now`
+  // A future timestamp can occur when the TV/provider clocks differ. It is
+  // not "just now"; show its explicit clock/date below. The lower bound
+  // also keeps midnight-sensitive tests and the real UI honest.
+  if (elapsed >= 0 && elapsed < 60_000) return `${verb} just now`
   const date = new Date(at)
   // Always 24-hour, via the app's shared formatter, so this cannot drift
   // from the times on every other screen.

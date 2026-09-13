@@ -80,7 +80,7 @@ interface Props {
   viewerCountryCode: string | null
   onToggleSport: (id: SportKey) => void
   onToggleLeague: (id: string) => void
-  onBack: () => void
+  onBack?: () => void
   onContinue: () => void
 }
 
@@ -328,6 +328,7 @@ export function OnboardingSportsScreen({
   // meaning: the previous step. Still routed through the existing
   // back-handler stack rather than a second global key listener.
   useBackHandler(() => {
+    if (!onBack) return false
     onBack()
     return true
   })

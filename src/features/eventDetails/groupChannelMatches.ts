@@ -271,7 +271,9 @@ export function groupChannelMatches(matches: ChannelMatch[], eventContext?: PpvD
     if (match.broadcastCountry !== undefined && group.broadcastCountry === undefined) {
       group.broadcastCountry = match.broadcastCountry
     }
+    const matchedSourceUrls = match.matchedSourceUrls ? new Set(match.matchedSourceUrls) : null
     for (const source of match.channel.sources) {
+      if (matchedSourceUrls && !matchedSourceUrls.has(source.url)) continue
       group.sourceOptions.push({ channel: match.channel, source })
     }
   }

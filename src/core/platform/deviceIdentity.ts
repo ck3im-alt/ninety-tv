@@ -42,6 +42,22 @@ function safelyRead(reader: (() => string) | undefined): string | undefined {
   }
 }
 
+export function formatMacAddress(value: string | undefined): string | null {
+  if (!value) return null
+  const compact = value.replace(/[^a-fA-F0-9]/g, '').toUpperCase()
+  if (!/^[0-9A-F]{12}$/.test(compact)) return null
+  return compact.match(/.{2}/g)!.join(':')
+}
+
+// Display-only support metadata. Keeping this separate from the full
+// pairing object makes it impossible for a screen to accidentally render
+// the DUID or installation id while still showing the same normalized MAC
+// the phone receives from the API.
+export function getDisplayMacAddress(): string | null {
+  const network = typeof window === 'undefined' ? undefined : window.webapis?.network
+  return formatMacAddress(safelyRead(network?.getMac?.bind(network)))
+}
+
 // Raw identifiers exist only in this short-lived request object. Callers
 // must never log it. The API HMAC-fingerprints them before persistence.
 export function collectPairingDeviceMetadata(): PairingDeviceMetadata {

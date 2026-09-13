@@ -32,7 +32,7 @@ import {
 import type { ChannelIdentityIndex } from './channelIdentityIndex'
 import type { IdentityClassification } from './channelIdentityResolver'
 import type { Channel } from '../channel'
-import { firstXtreamSource, type XtreamCredentialResolver } from '../playlists/xtreamResolver'
+import { xtreamSources, type XtreamCredentialResolver } from '../playlists/xtreamResolver'
 import type { SportEvent } from './types'
 
 // How far a candidate fixture/EPG listing's time may drift from the
@@ -92,6 +92,12 @@ export interface ChannelMatch {
   // to rank a widened-EPG match as a lower-confidence candidate rather than
   // a recommended stream; doesn't affect matching truth here.
   isWeakEpgMatch?: boolean
+  // EPG is source-specific, not merely channel-specific. A merged Channel
+  // can contain streams from several panels, and only the URLs listed here
+  // actually returned this event from their own EPG. Downstream playback
+  // must not silently widen an EPG-proven match back to every sibling
+  // source in the merged channel.
+  matchedSourceUrls?: string[]
 }
 
 export interface BroadcastStationInfo {
@@ -154,7 +160,16 @@ export interface MatchResult {
 // apiStations are still reported from the event's own broadcasts, and
 // broadcasterMap/PPV/EPG stages are entirely unaffected.
 function matchViaNinetyApi(event: SportEvent, identityIndex: ChannelIdentityIndex | null): { matches: ChannelMatch[]; apiHasData: boolean; apiStations: BroadcastStationInfo[] } {
-  const broadcasts = event.broadcasts ?? []
+  // The backend deliberately returns more than yes/no: AMBIGUOUS and
+  // UNKNOWN are unresolved candidates, while REJECTED carries explicit
+  // contradictory evidence (blueprint section 26). Treating every row as
+  // authoritative here discarded that distinction and could route a viewer
+  // to a channel the backend had explicitly rejected. PROBABLE has cleared
+  // the backend's automatic-match threshold and has no hard conflicts, so
+  // it remains watchable; the other three diagnostic tiers do not.
+  const broadcasts = (event.broadcasts ?? []).filter((broadcast) =>
+    broadcast.classification === 'CONFIRMED' || broadcast.classification === 'PROBABLE',
+  )
   if (broadcasts.length === 0) return { matches: [], apiHasData: false, apiStations: [] }
 
   const matches: ChannelMatch[] = []
@@ -315,17 +330,28 @@ async function matchViaEpg(event: SportEvent, channels: Channel[], xtream: Xtrea
       // Xtream panel, so asking playlist A's panel about playlist B's stream
       // id doesn't fail — it silently returns A's schedule for an unrelated
       // channel. See data/playlists/xtreamResolver.
-      const target = firstXtreamSource(channel, xtream, extractStreamId)
-      if (!target) return null
+      const targets = xtreamSources(channel, xtream, extractStreamId)
+      if (targets.length === 0) return null
 
-      const listings = await getShortEpgLimited(target.creds, target.streamId, 4, signal)
-      const hit = listings.find((listing) => {
-        const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
-        if (!withinWindow) return false
-        const foldedTitle = foldForMatching(listing.title)
-        return textMatchesTeam(foldedTitle, event.homeTeam!) && textMatchesTeam(foldedTitle, event.awayTeam!)
-      })
-      return hit ? ({ channel, source: 'epg', label: hit.title, isExactMatch: false } as ChannelMatch) : null
+      const sourceResults = await Promise.allSettled(
+        targets.map(async (target) => {
+          const listings = await getShortEpgLimited(target.creds, target.streamId, 4, signal)
+          const hit = listings.find((listing) => {
+            const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
+            if (!withinWindow) return false
+            const foldedTitle = foldForMatching(listing.title)
+            return textMatchesTeam(foldedTitle, event.homeTeam!) && textMatchesTeam(foldedTitle, event.awayTeam!)
+          })
+          return hit ? { sourceUrl: target.source.url, title: hit.title } : null
+        }),
+      )
+      const hits = sourceResults
+        .filter((result): result is PromiseFulfilledResult<{ sourceUrl: string; title: string } | null> => result.status === 'fulfilled')
+        .map((result) => result.value)
+        .filter((hit): hit is { sourceUrl: string; title: string } => hit !== null)
+      return hits.length > 0
+        ? ({ channel, source: 'epg', label: hits[0].title, isExactMatch: false, matchedSourceUrls: hits.map((hit) => hit.sourceUrl) } as ChannelMatch)
+        : null
     }),
   )
 
@@ -378,18 +404,36 @@ async function matchViaEpgAllPpv(event: SportEvent, channels: Channel[], xtream:
       // Xtream panel, so asking playlist A's panel about playlist B's stream
       // id doesn't fail — it silently returns A's schedule for an unrelated
       // channel. See data/playlists/xtreamResolver.
-      const target = firstXtreamSource(channel, xtream, extractStreamId)
-      if (!target) return null
+      const targets = xtreamSources(channel, xtream, extractStreamId)
+      if (targets.length === 0) return null
 
-      const listings = await getShortEpgLimited(target.creds, target.streamId, 4, signal)
-      const hit = listings.find((listing) => {
-        const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
-        if (!withinWindow) return false
-        const titleWords = significantWordSet(listing.title)
-        const overlap = [...titleWords].filter((w) => eventWords.has(w)).length
-        return overlap >= 2
-      })
-      return hit ? ({ channel, source: 'epg', label: hit.title, isExactMatch: false, isWeakEpgMatch: true } as ChannelMatch) : null
+      const sourceResults = await Promise.allSettled(
+        targets.map(async (target) => {
+          const listings = await getShortEpgLimited(target.creds, target.streamId, 4, signal)
+          const hit = listings.find((listing) => {
+            const withinWindow = Math.abs(listing.start_timestamp * 1000 - kickoff) <= TIME_TOLERANCE_MS
+            if (!withinWindow) return false
+            const titleWords = significantWordSet(listing.title)
+            const overlap = [...titleWords].filter((w) => eventWords.has(w)).length
+            return overlap >= 2
+          })
+          return hit ? { sourceUrl: target.source.url, title: hit.title } : null
+        }),
+      )
+      const hits = sourceResults
+        .filter((result): result is PromiseFulfilledResult<{ sourceUrl: string; title: string } | null> => result.status === 'fulfilled')
+        .map((result) => result.value)
+        .filter((hit): hit is { sourceUrl: string; title: string } => hit !== null)
+      return hits.length > 0
+        ? ({
+            channel,
+            source: 'epg',
+            label: hits[0].title,
+            isExactMatch: false,
+            isWeakEpgMatch: true,
+            matchedSourceUrls: hits.map((hit) => hit.sourceUrl),
+          } as ChannelMatch)
+        : null
     }),
   )
 

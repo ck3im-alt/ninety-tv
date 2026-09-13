@@ -34,8 +34,9 @@ export interface StallDiagnostics {
 
 export interface StallWatchdogOptions {
   // Whether playback is currently expected to be actively advancing (i.e.
-  // the owning Player's own status === 'playing') — false while idle/
-  // loading/paused/ended/error. The watchdog continuously resets its
+  // the owning Player expects progress. Initial loading is normally false;
+  // loading caused by a post-start rebuffer may deliberately stay true.
+  // The watchdog continuously resets its
   // progress baseline whenever this is false, so it always gets a fresh
   // window once playback (re)starts rather than comparing against a stale
   // pre-load/pre-pause position.

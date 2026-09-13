@@ -116,6 +116,14 @@ describe('estimateQualityTier', () => {
     expect(estimateQualityTier(option)).toBe(2)
   })
 
+  it('does not let a sibling variant upgrade a source whose own metadata is untagged', () => {
+    const option: SourceOption = {
+      channel: makeChannel('TV 2 Sport 1', ['NO: TV2 SPORT 1', 'NO: TV2 SPORT 1 8K']),
+      source: { label: 'Default', url: 'http://x/default', originalName: 'NO: TV2 SPORT 1' },
+    }
+    expect(estimateQualityTier(option)).toBe(0)
+  })
+
   // Real-sanitized playlist names from fixtures/channel-identity/cases.json
   // — confirms detection still works against actual observed provider
   // naming, not just synthetic strings.

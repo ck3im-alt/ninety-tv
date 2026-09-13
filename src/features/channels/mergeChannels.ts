@@ -28,6 +28,7 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
       logo?: string
       groupTitle?: string
       sources: ChannelSource[]
+      seenSourceUrls: Set<string>
       epgChannelIds: string[]
       seenEpgChannelIds: Set<string>
       rawNames: string[]
@@ -47,6 +48,7 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
         logo: entry.logo,
         groupTitle: entry.groupTitle,
         sources: [],
+        seenSourceUrls: new Set(),
         epgChannelIds: [],
         seenEpgChannelIds: new Set(),
         rawNames: [],
@@ -64,12 +66,18 @@ export function mergeChannelSources(raw: RawChannel[]): Channel[] {
       group.seenRawNames.add(entry.name)
       group.rawNames.push(entry.name)
     }
-    group.sources.push({
-      label: qualityTag ?? 'Default',
-      url: entry.url,
-      epgChannelId: entry.epgChannelId,
-      originalName: entry.name,
-    })
+    // A duplicated playlist row pointing at the exact same URL is not a
+    // mirror. Keeping it twice made ordinary channel playback waste a
+    // failover attempt by reopening the same dead stream.
+    if (!group.seenSourceUrls.has(entry.url)) {
+      group.seenSourceUrls.add(entry.url)
+      group.sources.push({
+        label: qualityTag ?? 'Default',
+        url: entry.url,
+        epgChannelId: entry.epgChannelId,
+        originalName: entry.name,
+      })
+    }
   }
 
   const result = order.map((key) => {

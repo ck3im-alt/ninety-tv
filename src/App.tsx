@@ -4,6 +4,7 @@ import { FocusDebugOverlay, exitApp, setUnhandledBackHandler, useAppLifecycle, u
 import { ExitConfirmDialog } from './features/exit/ExitConfirmDialog'
 import { NetworkOfflineNotice } from './features/network/NetworkOfflineNotice'
 import { EntitlementRequiredScreen } from './features/entitlement/EntitlementRequiredScreen'
+import { ActivationScreen } from './features/setup/ActivationScreen'
 import { useDeviceEntitlement } from './data/useDeviceEntitlement'
 import { TopNav } from './features/navigation/TopNav'
 import { HomeScreen } from './features/home/HomeScreen'
@@ -690,6 +691,14 @@ function App() {
   if (deviceEntitlement.status === 'checking') {
     return <LoadingScreen title="Checking your Ninety access" />
   }
+  if (deviceEntitlement.status === 'unpaired' || deviceEntitlement.status === 'reauthenticate') {
+    return (
+      <ActivationScreen
+        reconnecting={deviceEntitlement.status === 'reauthenticate'}
+        onImported={(channels, source) => installPlaylist(source, channels)}
+      />
+    )
+  }
   if (deviceEntitlement.status === 'unavailable') {
     return <EntitlementRequiredScreen unavailable onRetry={deviceEntitlement.retry} />
   }
@@ -857,6 +866,8 @@ function App() {
 
       {screen === 'onboarding' && (
         <OnboardingFlow
+          skipPlaylistStep
+          initialChannels={library.channels}
           onDone={(loaded, source) => {
             // Step 1 can be skipped, in which case there is no playlist to
             // install at all — go straight to Home rather than adding an

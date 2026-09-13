@@ -8,6 +8,7 @@ function createFakePlayer(): Player & {
   fail(): void
   stall(): void
   setStatus(status: PlayerState['status']): void
+  setCurrentTime(currentTime: number): void
 } {
   let state: PlayerState = {
     status: 'idle',
@@ -84,6 +85,9 @@ function createFakePlayer(): Player & {
     setStatus(status) {
       setState({ status })
     },
+    setCurrentTime(currentTime) {
+      setState({ status: 'playing', currentTime })
+    },
   }
 }
 
@@ -132,7 +136,7 @@ describe('createPlayerSessionController', () => {
     expect(player.loadedUrls).toEqual(['http://x/1', 'http://x/2', 'http://x/3'])
   })
 
-  it('a manual selectSource loads immediately without resetting failover tracking', () => {
+  it('a manual selectSource loads immediately and starts a fresh failover pass', () => {
     const player = createFakePlayer()
     const controller = createPlayerSessionController(player, URLS)
     controller.attach({} as HTMLVideoElement)
@@ -142,11 +146,41 @@ describe('createPlayerSessionController', () => {
     controller.selectSource(0) // user manually rewinds to the already-failed source 0
     expect(player.loadedUrls.at(-1)).toBe('http://x/1')
 
-    // 0 fails again: tried is still {0,1} from before the manual detour, so
-    // failover correctly skips the already-known-bad 1 and jumps to 2 —
-    // proving the manual selectSource() call didn't reset tracking.
+    // The explicit user retry clears the stale failure history, so source 1
+    // is eligible again instead of the session being permanently poisoned.
     player.fail()
-    expect(controller.getState().sourceIndex).toBe(2)
+    expect(controller.getState().sourceIndex).toBe(1)
+  })
+
+  it('can recover after all sources failed when the user selects one again', () => {
+    const player = createFakePlayer()
+    const controller = createPlayerSessionController(player, URLS)
+    controller.attach({} as HTMLVideoElement)
+    player.fail()
+    player.fail()
+    player.fail()
+    expect(controller.getState().allSourcesFailed).toBe(true)
+
+    controller.selectSource(0)
+    expect(controller.getState().allSourcesFailed).toBe(false)
+    player.fail()
+    expect(controller.getState().sourceIndex).toBe(1)
+  })
+
+  it('forgets old mirror failures after the replacement source plays stably', () => {
+    const player = createFakePlayer()
+    const controller = createPlayerSessionController(player, URLS, 0, { failureHistoryResetAfterSeconds: 30 })
+    controller.attach({} as HTMLVideoElement)
+
+    player.fail() // source 0 fails, source 1 takes over
+    player.setCurrentTime(100)
+    player.setCurrentTime(131) // 31 seconds of real progress clears tried={0}
+    player.fail()
+
+    // Source 0 is eligible again rather than a failure from much earlier in
+    // the match permanently removing it from the rotation.
+    expect(controller.getState().sourceIndex).toBe(0)
+    expect(player.loadedUrls.at(-1)).toBe('http://x/1')
   })
 
   it('ignores an out-of-range selectSource call', () => {

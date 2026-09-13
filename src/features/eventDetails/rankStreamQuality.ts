@@ -66,6 +66,12 @@ function tierFromText(parts: Array<string | undefined>): QualityTier {
 export function estimateQualityTier(option: SourceOption): QualityTier {
   const sourceTier = tierFromText([option.source.label, option.source.originalName])
   if (sourceTier > 0) return sourceTier
+  // A real ingested source always carries its own originalName. If that name
+  // and its label contain no quality, the honest answer for THIS source is
+  // unknown. Falling through to channel.rawNames here borrowed UHD/8K from a
+  // different merged sibling and could make this untagged URL the primary
+  // candidate behind a high-quality row.
+  if (option.source.originalName !== undefined) return 0
   return tierFromText([option.channel.name, ...(option.channel.rawNames ?? [])])
 }
 

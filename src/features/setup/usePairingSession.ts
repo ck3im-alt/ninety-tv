@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ackPairing, createPairingSession, pollPairingStatus } from '../../data/pairing/pairingClient'
-import { saveDeviceCredential } from '../../data/deviceCredential'
+import { notifyDeviceCredentialChanged, saveDeviceCredential } from '../../data/deviceCredential'
 
 // Gap BETWEEN polls, not a fixed period. See the scheduling note below —
 // with a serialized loop this is measured from the end of one poll to the
@@ -99,18 +99,37 @@ export function usePairingSession(
           // The credential came through the TV-only poll capability, never
           // the public QR token. Persist before acknowledging so a dropped
           // write cannot consume the only route to it.
-          if (!saveDeviceCredential(result.deviceCredential)) return scheduleNext(myGeneration, pollSecret)
+          // Suppress the global credential event until every authorized
+          // playlist byte has been imported and persisted. Emitting it here
+          // would let App's entitlement gate unmount this screen midway
+          // through a large import.
+          if (!saveDeviceCredential(result.deviceCredential, false)) return scheduleNext(myGeneration, pollSecret)
+
+          // A successful authenticated claim can still represent an
+          // expired trial, revoked device, or otherwise inactive account.
+          // The API may include a staged URL in that response; never hand it
+          // to the importer until the server-authoritative decision is
+          // active. Wake App so it can show purchase or reconnection UI.
+          if (!result.entitlement.active) {
+            notifyDeviceCredentialChanged()
+            return
+          }
           if (result.m3uUrl) {
             if (result.m3uUrl === lastFailedUrl) return scheduleNext(myGeneration, pollSecret)
             const accepted = await onReceivedRef.current(result.m3uUrl, pollSecret)
             if (cancelled || myGeneration !== generation) return
-            if (accepted) return
+            if (accepted) {
+              notifyDeviceCredentialChanged()
+              onPairedRef.current?.()
+              return
+            }
             lastFailedUrl = result.m3uUrl
             return scheduleNext(myGeneration, pollSecret)
           }
           if (result.playlistSetupComplete) {
             await ackPairing(pollSecret)
             if (cancelled || myGeneration !== generation) return
+            notifyDeviceCredentialChanged()
             onPairedRef.current?.()
             return
           }

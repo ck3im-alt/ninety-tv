@@ -1,0 +1,107 @@
+.activation-screen {
+  width: 100vw;
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 68px 100px 64px;
+  background:
+    radial-gradient(circle at 78% 42%, rgba(80, 210, 120, 0.08), transparent 35%),
+    var(--bg-primary);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.activation-wordmark {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 22px;
+  letter-spacing: .34em;
+}
+
+.activation-content {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 470px;
+  gap: 120px;
+  align-items: center;
+  max-width: 1540px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.activation-copy { max-width: 820px; }
+.activation-kicker {
+  margin: 0 0 18px;
+  color: var(--accent);
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+}
+.activation-copy h1 {
+  margin: 0;
+  font-size: 58px;
+  line-height: 1.1;
+  font-weight: var(--weight-medium);
+  letter-spacing: -.035em;
+}
+.activation-description {
+  max-width: 720px;
+  margin: 28px 0 0;
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1.5;
+}
+.activation-error {
+  margin: 24px 0 0;
+  color: var(--live-red);
+  font-size: 21px;
+  line-height: 1.4;
+}
+.activation-copy button {
+  margin-top: 24px;
+  min-width: 210px;
+  padding: 16px 28px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-size: 20px;
+}
+.activation-copy button.focused {
+  border-color: var(--accent);
+  background: var(--surface-focus);
+}
+
+.activation-code-frame {
+  width: 430px;
+  height: 430px;
+  box-sizing: border-box;
+  border-radius: 24px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .38);
+}
+.activation-code-frame p {
+  color: #5d6b76;
+  font-size: 19px;
+}
+
+.activation-device {
+  width: 100%;
+  max-width: 1540px;
+  margin: 0 auto;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 28px;
+  align-items: baseline;
+  font-size: 20px;
+}
+.activation-device span { color: var(--text-primary); }
+.activation-device strong {
+  color: var(--text-secondary);
+  font-weight: var(--weight-regular);
+  letter-spacing: .05em;
+}

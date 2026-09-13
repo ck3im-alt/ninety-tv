@@ -87,6 +87,10 @@ declare global {
     network?: SamsungWebapisNetwork;
     appcommon?: SamsungWebapisAppCommon;
     productinfo?: SamsungWebapisProductInfo;
+    // AVPlay is kept opaque here and narrowed by the feature-detecting
+    // accessor in core/platform/samsungProductApi.ts. Its callback-heavy
+    // surface is app-owned there instead of being assumed globally.
+    avplay?: unknown;
   }
 
   interface Window {

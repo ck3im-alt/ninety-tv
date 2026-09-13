@@ -1,11 +1,42 @@
 .entitlement-required {
-  width: 100vw; height: 100vh; padding: 70px 96px; background: var(--bg-primary); color: var(--text-primary);
+  width: 100vw;
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 70px 96px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 .entitlement-wordmark { margin: 0; color: var(--text-secondary); font-size: 22px; letter-spacing: .34em; }
-.entitlement-required section { max-width: 800px; margin-top: 190px; }
-.entitlement-kicker { color: var(--accent); text-transform: uppercase; letter-spacing: .16em; font-size: 17px; }
-.entitlement-required h1 { margin: 12px 0 20px; font-size: 54px; font-weight: var(--weight-medium); letter-spacing: -.03em; }
-.entitlement-required section > p { color: var(--text-secondary); font-size: 23px; line-height: 1.5; }
-.entitlement-required strong { color: var(--text-primary); font-weight: var(--weight-medium); }
-.entitlement-required button { margin-top: 32px; min-width: 220px; padding: 17px 28px; border: 2px solid transparent; border-radius: var(--radius-md); background: var(--surface-elevated); color: var(--text-primary); font-size: 20px; }
+.entitlement-required section { max-width: 850px; }
+.connection-required section { margin-top: 190px; }
+.entitlement-kicker { margin: 0; color: var(--accent); text-transform: uppercase; letter-spacing: .16em; font-size: 18px; }
+.entitlement-required h1 { margin: 12px 0 20px; font-size: 56px; line-height: 1.1; font-weight: var(--weight-medium); letter-spacing: -.03em; }
+.entitlement-required section > p { color: var(--text-secondary); font-size: 24px; line-height: 1.5; }
+.entitlement-required button { min-width: 220px; padding: 17px 28px; border: 2px solid transparent; border-radius: var(--radius-md); background: var(--surface-elevated); color: var(--text-primary); font-size: 20px; }
 .entitlement-required button.focused { background: var(--surface-focus); border-color: var(--accent); }
+.connection-required button { margin-top: 32px; }
+
+.purchase-layout {
+  height: calc(100% - 54px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 120px;
+  align-items: center;
+  max-width: 1530px;
+  margin: 0 auto;
+}
+.purchase-preserved { margin-top: 28px; color: var(--text-primary) !important; }
+.purchase-error { color: var(--live-red) !important; }
+.purchase-actions { display: flex; gap: 18px; margin-top: 34px; }
+.purchase-code-column { display: flex; flex-direction: column; align-items: center; gap: 22px; color: var(--text-primary); font-size: 24px; }
+.purchase-code-frame {
+  width: 380px;
+  height: 380px;
+  border-radius: 22px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .38);
+}
+.purchase-code-frame p { color: #5d6b76; font-size: 18px; }

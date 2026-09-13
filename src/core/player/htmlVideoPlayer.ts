@@ -6,6 +6,7 @@ import { createStallWatchdog } from './playbackStallWatchdog'
 import type { StallWatchdog } from './playbackStallWatchdog'
 import { resolvePlayerEngineConfig } from './playerEngineConfig'
 import type { HlsEngineConfig, MpegTsEngineConfig, PlayerEngineConfig } from './playerEngineConfig'
+import { classifyPlaybackSource } from './playbackSource'
 import type { AudioTrack, Player, PlayerError, PlayerState, SubtitleTrack } from './types'
 
 const INITIAL_STATE: PlayerState = {
@@ -23,19 +24,6 @@ const INITIAL_STATE: PlayerState = {
   muted: true,
 }
 
-function isHlsSource(url: string): boolean {
-  return url.includes('.m3u8')
-}
-
-// Xtream Codes panels serve live channels as raw MPEG-TS by default
-// (.../live/user/pass/id.ts) — .m3u8 (HLS) is only available on panels that
-// explicitly transcode to it, which many don't. Chrome/Tizen's native
-// <video> can't demux a raw TS container, so this needs its own MSE-based
-// player (mpegts.js) rather than falling through to hls.js or plain src.
-function isMpegTsSource(url: string): boolean {
-  return url.endsWith('.ts')
-}
-
 // Fire-and-forget warm-up for whichever engine chunk a sample URL implies —
 // called once, speculatively, well before any real load() (see
 // BrowseCascadeScreen's mount effect) so the first channel someone actually
@@ -44,7 +32,7 @@ function isMpegTsSource(url: string): boolean {
 // touches a <video> element — only primes the browser's module cache so
 // load()'s own `await import(...)` below resolves instantly instead.
 export function preloadPlayerEngine(sampleSourceUrl: string): void {
-  if (isMpegTsSource(sampleSourceUrl)) {
+  if (classifyPlaybackSource(sampleSourceUrl) === 'mpegts') {
     void import('mpegts.js').catch(() => {})
   } else {
     void import('hls.js').catch(() => {})
@@ -90,6 +78,20 @@ function bufferedRangesOf(el: HTMLVideoElement): Array<{ start: number; end: num
     ranges.push({ start: el.buffered.start(i), end: el.buffered.end(i) })
   }
   return ranges
+}
+
+function nativeMediaError(error: MediaError | null): PlayerError {
+  const message = error?.message ?? 'Video playback error'
+  switch (error?.code) {
+    case 2:
+      return { code: 'network', message }
+    case 3:
+      return { code: 'decode', message }
+    case 4:
+      return { code: 'source-unavailable', message }
+    default:
+      return { code: 'unknown', message }
+  }
 }
 
 // mpegts.js's LoggingControl is a module-global singleton (not per-player
@@ -151,6 +153,13 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
   let state: PlayerState = { ...INITIAL_STATE }
   const listeners = new Set<(state: PlayerState) => void>()
   let stallWatchdog: StallWatchdog | null = null
+  let startupTimer: ReturnType<typeof setTimeout> | null = null
+  // `waiting` is emitted both during initial startup and during a real
+  // rebuffer. The old status-only watchdog disabled itself for BOTH, so once
+  // a playing stream entered `waiting` it could freeze forever. Remembering
+  // whether this source has ever played lets startup use its own deadline
+  // while post-start rebuffers remain covered by the progress watchdog.
+  let hasPlaybackStarted = false
   // True ONLY while pause() below was the reason playback isn't advancing —
   // deliberately NOT the same thing as the native video.paused property.
   // Real failure found: mpegts.js's own internal buffering/recovery logic
@@ -185,6 +194,10 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
   }
 
   function setError(error: PlayerError): void {
+    if (startupTimer) {
+      clearTimeout(startupTimer)
+      startupTimer = null
+    }
     setState({ status: 'error', error })
   }
 
@@ -313,7 +326,10 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
     stallWatchdog = createStallWatchdog({
       // 'paused' status is only exempted while WE asked for it — see
       // userPaused's own comment above.
-      isActive: () => !userPaused && (state.status === 'playing' || state.status === 'paused'),
+      isActive: () =>
+        !userPaused &&
+        hasPlaybackStarted &&
+        (state.status === 'playing' || state.status === 'paused' || state.status === 'loading'),
       sample: () => ({
         currentTime: el.currentTime,
         paused: userPaused,
@@ -333,7 +349,14 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
   }
 
   function bindVideoEvents(el: HTMLVideoElement): void {
-    el.addEventListener('playing', () => setState({ status: 'playing', error: null }))
+    el.addEventListener('playing', () => {
+      hasPlaybackStarted = true
+      if (startupTimer) {
+        clearTimeout(startupTimer)
+        startupTimer = null
+      }
+      setState({ status: 'playing', error: null })
+    })
     el.addEventListener('pause', () => setState({ status: 'paused' }))
     el.addEventListener('ended', () => setState({ status: 'ended' }))
     el.addEventListener('waiting', () => setState({ status: 'loading' }))
@@ -344,7 +367,7 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
     // moment its track list becomes readable.
     el.addEventListener('loadedmetadata', () => refreshAudioTracks())
     el.addEventListener('error', () => {
-      setError({ code: 'unknown', message: el.error?.message ?? 'Video playback error' })
+      setError(nativeMediaError(el.error))
     })
     el.textTracks.addEventListener('addtrack', () => refreshSubtitleTracks(el))
     el.textTracks.addEventListener('removetrack', () => refreshSubtitleTracks(el))
@@ -383,9 +406,33 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
       return
     }
     hls = new HlsCtor(engineConfig.hls)
+    // hls.js documents startLoad() and recoverMediaError() as the recovery
+    // paths for fatal network and media failures respectively. Give each
+    // path one bounded attempt for this engine instance; a repeated fatal
+    // error is then surfaced to the session controller, which can rotate to
+    // another source. This preserves failover without abandoning a lone HLS
+    // source for a transient CDN or MediaSource failure.
+    let networkRecoveryAttempted = false
+    let mediaRecoveryAttempted = false
     hls.on(HlsCtor.Events.ERROR, (_event, data) => {
+      if (generation !== loadGeneration) return
       if (!data.fatal) return
-      setError({ code: 'network', message: data.details })
+      if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR && !networkRecoveryAttempted) {
+        networkRecoveryAttempted = true
+        setState({ status: 'loading' })
+        hls?.startLoad()
+        return
+      }
+      if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR && !mediaRecoveryAttempted) {
+        mediaRecoveryAttempted = true
+        setState({ status: 'loading' })
+        hls?.recoverMediaError()
+        return
+      }
+      setError({
+        code: data.type === HlsCtor.ErrorTypes.NETWORK_ERROR ? 'network' : data.type === HlsCtor.ErrorTypes.MEDIA_ERROR ? 'decode' : 'unknown',
+        message: data.details,
+      })
     })
     // AUDIO_TRACKS_UPDATED fires whenever the set of selectable renditions
     // changes — on manifest parse, and again if a level switch moves
@@ -393,11 +440,15 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
     // dispatch it for a stream that never had alternate audio, which is
     // precisely why an ordinary single-audio channel leaves audioTracks
     // empty and shows no Audio control.
-    hls.on(HlsCtor.Events.AUDIO_TRACKS_UPDATED, () => refreshAudioTracks())
+    hls.on(HlsCtor.Events.AUDIO_TRACKS_UPDATED, () => {
+      if (generation === loadGeneration) refreshAudioTracks()
+    })
     // Covers a switch we did NOT initiate as well as one we did (hls.js
     // picks the manifest's DEFAULT rendition itself on startup), so the
     // checkmark always follows the engine.
-    hls.on(HlsCtor.Events.AUDIO_TRACK_SWITCHED, (_event, data: AudioTrackSwitchedData) => refreshAudioTracks(data))
+    hls.on(HlsCtor.Events.AUDIO_TRACK_SWITCHED, (_event, data: AudioTrackSwitchedData) => {
+      if (generation === loadGeneration) refreshAudioTracks(data)
+    })
     // hls.js fetches the manifest and every segment via JS, so it hits the
     // CORS wall a plain <video src> wouldn't — dev-only, routed through the
     // manifest-rewriting proxy (see vite.config.ts). Not needed in the
@@ -425,8 +476,12 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
         fixAudioTimestampGap: engineConfig.mpegts.fixAudioTimestampGap,
       },
     )
-    instance.on(mpegts.Events.ERROR, (_type: unknown, detail: unknown) => {
-      setError({ code: 'network', message: typeof detail === 'string' ? detail : 'MPEG-TS playback error' })
+    instance.on(mpegts.Events.ERROR, (type: unknown, detail: unknown) => {
+      if (generation !== loadGeneration) return
+      setError({
+        code: type === mpegts.ErrorTypes.NETWORK_ERROR ? 'network' : type === mpegts.ErrorTypes.MEDIA_ERROR ? 'decode' : 'unknown',
+        message: typeof detail === 'string' ? detail : 'MPEG-TS playback error',
+      })
     })
     instance.attachMediaElement(video)
     instance.load()
@@ -446,6 +501,12 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
       const generation = ++loadGeneration
       teardownActiveEngine()
       userPaused = false
+      hasPlaybackStarted = false
+      if (startupTimer) clearTimeout(startupTimer)
+      startupTimer = setTimeout(() => {
+        if (generation !== loadGeneration || hasPlaybackStarted) return
+        setError({ code: 'network', message: 'Stream did not start within 12 seconds' })
+      }, 12_000)
       // Audio state is cleared here, not just on dispose: a new source can
       // arrive from a quality pick, an automatic failover, or a stall
       // reload, and in every one of those cases the previous stream's
@@ -462,13 +523,14 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
         activeAudioTrack: null,
       })
 
-      if (isMpegTsSource(sourceUrl)) {
+      const sourceType = classifyPlaybackSource(sourceUrl)
+      if (sourceType === 'mpegts') {
         activeEngine = 'mpegts'
         await loadMpegTs(sourceUrl, generation)
         return
       }
 
-      if (isHlsSource(sourceUrl) && !video.canPlayType('application/vnd.apple.mpegurl')) {
+      if (sourceType === 'hls' && !video.canPlayType('application/vnd.apple.mpegurl')) {
         activeEngine = 'hls'
         await loadHls(sourceUrl, generation)
         return
@@ -564,6 +626,10 @@ export function createHtmlVideoPlayer(engineConfigOverrides?: DevEngineConfigOve
     },
 
     dispose() {
+      if (startupTimer) {
+        clearTimeout(startupTimer)
+        startupTimer = null
+      }
       stallWatchdog?.dispose()
       stallWatchdog = null
       teardownActiveEngine()

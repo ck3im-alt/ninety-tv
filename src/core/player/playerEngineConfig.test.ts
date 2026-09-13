@@ -8,12 +8,12 @@ describe('resolvePlayerEngineConfig', () => {
 
   it('merges a partial mpegts override over the defaults, leaving the rest untouched', () => {
     const config = resolvePlayerEngineConfig({ mpegts: { enableWorker: true } })
-    expect(config.mpegts).toEqual({ enableWorker: true, enableWorkerForMSE: false, fixAudioTimestampGap: true })
+    expect(config.mpegts).toEqual({ enableWorker: true, enableWorkerForMSE: false, fixAudioTimestampGap: false })
   })
 
   it('merges multiple mpegts overrides at once', () => {
-    const config = resolvePlayerEngineConfig({ mpegts: { enableWorker: true, fixAudioTimestampGap: false } })
-    expect(config.mpegts).toEqual({ enableWorker: true, enableWorkerForMSE: false, fixAudioTimestampGap: false })
+    const config = resolvePlayerEngineConfig({ mpegts: { enableWorker: true, fixAudioTimestampGap: true } })
+    expect(config.mpegts).toEqual({ enableWorker: true, enableWorkerForMSE: false, fixAudioTimestampGap: true })
   })
 
   it('never mutates the shared DEFAULT_PLAYER_ENGINE_CONFIG object', () => {

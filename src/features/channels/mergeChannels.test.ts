@@ -46,6 +46,15 @@ describe('mergeChannelSources — identity preservation', () => {
     expect(channel.sources.map((s) => s.originalName)).toEqual(['UK | TNT SPORTS 1 FHD', 'UK | TNT SPORT 1 UHD'])
   })
 
+  it('does not keep an identical URL twice as a fake failover source', () => {
+    const [channel] = mergeChannelSources([
+      raw({ id: '1', name: 'UK | TNT SPORTS 1 FHD', url: 'https://x/shared', epgChannelId: 'a' }),
+      raw({ id: '2', name: 'UK | TNT SPORT 1 HD', url: 'https://x/shared', epgChannelId: 'a' }),
+    ])
+    expect(channel.sources).toHaveLength(1)
+    expect(channel.rawNames).toEqual(['UK | TNT SPORTS 1 FHD', 'UK | TNT SPORT 1 HD'])
+  })
+
   it('derives hasEpgChannelId as false and epgChannelIds as empty when no source carried one', () => {
     const [channel] = mergeChannelSources([raw({ id: '1', name: 'Some PPV Stream', url: 'https://x/1' })])
     expect(channel.epgChannelIds).toEqual([])

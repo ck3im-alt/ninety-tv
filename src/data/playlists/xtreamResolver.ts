@@ -66,17 +66,26 @@ export function createXtreamCredentialResolver(playlists: readonly PlaylistDefin
 // source is the Xtream one — taking the first source would silently drop
 // EPG for a channel that does have it, and (before provenance existed)
 // could pair one panel's stream id with another panel's credentials.
-export function firstXtreamSource(
+export function xtreamSources(
   channel: Channel,
   resolver: XtreamCredentialResolver,
   extractStreamId: (url: string) => number | null,
-): { source: ChannelSource; creds: XtreamCredentials; streamId: number } | null {
+): Array<{ source: ChannelSource; creds: XtreamCredentials; streamId: number }> {
+  const results: Array<{ source: ChannelSource; creds: XtreamCredentials; streamId: number }> = []
   for (const source of channel.sources) {
     const creds = resolver.forSource(source)
     if (!creds) continue
     const streamId = extractStreamId(source.url)
     if (streamId === null) continue
-    return { source, creds, streamId }
+    results.push({ source, creds, streamId })
   }
-  return null
+  return results
+}
+
+export function firstXtreamSource(
+  channel: Channel,
+  resolver: XtreamCredentialResolver,
+  extractStreamId: (url: string) => number | null,
+): { source: ChannelSource; creds: XtreamCredentials; streamId: number } | null {
+  return xtreamSources(channel, resolver, extractStreamId)[0] ?? null
 }

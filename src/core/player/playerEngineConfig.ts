@@ -25,11 +25,10 @@ export interface MpegTsEngineConfig {
   // itself into a worker. Newer/less broadly supported than enableWorker;
   // must not be turned on without verifying Tizen/Samsung support first.
   enableWorkerForMSE: boolean
-  // @default true (mpegts.js's own default) — generates silent AAC frames
-  // to bridge a detected audio timestamp gap. A real crash was traced to
-  // this generating ~4.4 million frames synchronously for one bogus gap,
-  // blowing the JS call stack. Exists for a legitimate reason (real
-  // discontinuities do happen) — being evaluated, not assumed broken.
+  // mpegts.js defaults this to true, but a real provider discontinuity was
+  // observed producing ~4.4 million silent frames synchronously and blowing
+  // the JS call stack. A short audio discontinuity is preferable to a frozen
+  // live stream, so Ninety deliberately uses the safer false default.
   fixAudioTimestampGap: boolean
 }
 
@@ -49,7 +48,7 @@ export const DEFAULT_PLAYER_ENGINE_CONFIG: PlayerEngineConfig = {
   mpegts: {
     enableWorker: false,
     enableWorkerForMSE: false,
-    fixAudioTimestampGap: true,
+    fixAudioTimestampGap: false,
   },
 }
 

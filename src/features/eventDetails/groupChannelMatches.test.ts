@@ -79,6 +79,30 @@ describe('groupChannelMatches PPV quality-variant grouping', () => {
   })
 })
 
+describe('source-specific EPG evidence', () => {
+  it('keeps only the merged-channel sources whose own panel EPG matched the event', () => {
+    const merged = channel({
+      id: 'merged',
+      name: 'Sports Feed',
+      sources: [
+        { label: 'Wrong', url: 'http://panel-a/live/u/p/1.ts' },
+        { label: 'Verified', url: 'http://panel-b/live/u/p/2.ts' },
+      ],
+    })
+    const match: ChannelMatch = {
+      channel: merged,
+      source: 'epg',
+      label: 'Home vs Away',
+      isExactMatch: false,
+      matchedSourceUrls: ['http://panel-b/live/u/p/2.ts'],
+    }
+
+    expect(groupChannelMatches([match])[0].sourceOptions.map((option) => option.source.url)).toEqual([
+      'http://panel-b/live/u/p/2.ts',
+    ])
+  })
+})
+
 describe('groupChannelMatches non-PPV grouping (regression)', () => {
   it('still merges the same real channel split across quality-tagged sibling categories', () => {
     const matches: ChannelMatch[] = [

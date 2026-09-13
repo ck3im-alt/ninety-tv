@@ -3,7 +3,7 @@
 // Sending playlist B's stream id to playlist A's panel does not fail — it
 // returns A's programme for an unrelated channel. These tests pin that down.
 import { describe, expect, it } from 'vitest'
-import { createXtreamCredentialResolver, firstXtreamSource, NO_XTREAM_CREDENTIALS } from './xtreamResolver'
+import { createXtreamCredentialResolver, firstXtreamSource, NO_XTREAM_CREDENTIALS, xtreamSources } from './xtreamResolver'
 import { extractStreamId } from '../xtream/extractStreamId'
 import type { PlaylistDefinition } from './playlistDefinition'
 import type { Channel } from '../channel'
@@ -90,5 +90,25 @@ describe('firstXtreamSource', () => {
   it('returns null when an Xtream source’s URL carries no recoverable stream id', () => {
     const channel: Channel = { id: 'c', name: 'X', sources: [{ label: 'HD', url: 'http://server-a.example/odd/path', playlistId: 'pl-a' }] }
     expect(firstXtreamSource(channel, resolver, extractStreamId)).toBeNull()
+  })
+})
+
+describe('xtreamSources', () => {
+  it('returns every queryable source with its own panel credentials', () => {
+    const resolver = createXtreamCredentialResolver([playlistA, playlistB, m3uPlaylist])
+    const channel: Channel = {
+      id: 'merged',
+      name: 'Merged Sports',
+      sources: [
+        { label: 'A', url: 'http://server-a.example/live/u/p/101.ts', playlistId: 'pl-a' },
+        { label: 'M3U', url: 'http://lists.example/102.ts', playlistId: 'pl-m3u' },
+        { label: 'B', url: 'http://server-b.example/live/u/p/103.ts', playlistId: 'pl-b' },
+      ],
+    }
+
+    expect(xtreamSources(channel, resolver, extractStreamId).map(({ streamId, creds }) => [streamId, creds.username])).toEqual([
+      [101, 'username-a'],
+      [103, 'username-b'],
+    ])
   })
 })

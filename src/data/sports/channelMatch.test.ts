@@ -180,6 +180,40 @@ describe('matchChannelsForEvent with TWO Xtream playlists connected', () => {
 
     expect(getShortEpgMock).not.toHaveBeenCalled()
   })
+
+  it('checks every source in a merged channel and keeps only the source whose own EPG matched', async () => {
+    const merged: Channel = {
+      id: 'merged-two-panels',
+      name: 'PPV Sports Merged',
+      groupTitle: 'PPV',
+      sources: [
+        { label: 'Panel A', url: 'http://panel-a.example/live/u/p/1555.ts', playlistId: PLAYLIST_A },
+        { label: 'Panel B', url: 'http://panel-b.example/live/u/p/2555.ts', playlistId: PLAYLIST_B },
+      ],
+    }
+    getShortEpgMock.mockImplementation(async (creds: XtreamCredentials) =>
+      creds.server === CREDS_B.server
+        ? [
+            {
+              id: 'listing-1',
+              title: 'Home vs Away',
+              description: '',
+              start: '2026-08-18 20:00:00',
+              end: '2026-08-18 22:00:00',
+              start_timestamp: Date.parse('2026-08-18T20:00:00Z') / 1000,
+              stop_timestamp: Date.parse('2026-08-18T22:00:00Z') / 1000,
+              now_playing: 1 as const,
+            },
+          ]
+        : [],
+    )
+
+    const result = await matchChannelsForEvent(unmatchedEvent(), [merged], XTREAM_BOTH, null, { allowNetworkFallback: true })
+
+    expect(getShortEpgMock.mock.calls.map(([, streamId]) => streamId)).toEqual(expect.arrayContaining([1555, 2555]))
+    expect(result.matches).toHaveLength(1)
+    expect(result.matches[0].matchedSourceUrls).toEqual(['http://panel-b.example/live/u/p/2555.ts'])
+  })
 })
 
 describe('namesOverlap', () => {
@@ -408,6 +442,34 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     expect(result.matches).toHaveLength(1)
     expect(result.matches[0]).toMatchObject({ channel: playlist[0], source: 'ninety', identityClassification: 'STRONG', isExactMatch: false })
   })
+
+  it('accepts a PROBABLE backend event-to-broadcast relation once the playlist identity is confirmed', async () => {
+    const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
+    const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 0.86, classification: 'PROBABLE' }])
+
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
+
+    expect(result.matches).toHaveLength(1)
+    expect(result.apiHasData).toBe(true)
+  })
+
+  it.each(['AMBIGUOUS', 'UNKNOWN', 'REJECTED'] as const)(
+    'never routes using a %s backend event-to-broadcast relation',
+    async (classification) => {
+      const catalog = [logicalChannel({ id: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB' })]
+      const playlist = [testChannel({ id: 'p1', name: 'TNT SPORTS 1', groupTitle: 'UK| SPORT' })]
+      const index = buildIndex(catalog, playlist)
+      const event = eventWithBroadcasts([{ logicalChannelId: 'gb_tnt_sports_1', name: 'TNT Sports 1', country: 'GB', confidence: 0.5, classification }])
+
+      const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
+
+      expect(result.matches).toEqual([])
+      expect(result.apiHasData).toBe(false)
+      expect(result.apiStations).toEqual([])
+    },
+  )
 
   it('does not fall back to namesOverlap when the identity resolver says NONE, even though the old text match would have hit', async () => {
     // p1's external id deterministically identifies it as TNT Sports 2 (a

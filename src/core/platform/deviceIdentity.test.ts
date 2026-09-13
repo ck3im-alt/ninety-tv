@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { collectPairingDeviceMetadata, getInstallationId } from './deviceIdentity'
+import { collectPairingDeviceMetadata, formatMacAddress, getDisplayMacAddress, getInstallationId } from './deviceIdentity'
 
 describe('Samsung pairing device metadata', () => {
   beforeEach(() => {
@@ -27,5 +27,16 @@ describe('Samsung pairing device metadata', () => {
   it('degrades safely when a Samsung method throws', () => {
     window.webapis = { productinfo: { getDuid: () => { throw new Error('denied') } } }
     expect(collectPairingDeviceMetadata().duid).toBeUndefined()
+  })
+
+  it('normalizes a valid MAC for display and rejects malformed values', () => {
+    expect(formatMacAddress('50-b7-a3-c2-96-11')).toBe('50:B7:A3:C2:96:11')
+    expect(formatMacAddress('50b7.a3c2.9611')).toBe('50:B7:A3:C2:96:11')
+    expect(formatMacAddress('not-a-mac')).toBeNull()
+  })
+
+  it('reads only the display MAC through the display helper', () => {
+    window.webapis = { network: { getMac: () => '50b7a3c29611' } }
+    expect(getDisplayMacAddress()).toBe('50:B7:A3:C2:96:11')
   })
 })

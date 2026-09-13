@@ -20,15 +20,16 @@ import { usePairingSession } from './usePairingSession'
 // they would fail against the setInterval version and pass against any
 // correct serialization.
 
-const { createPairingSession, pollPairingStatus, ackPairing, saveDeviceCredential } = vi.hoisted(() => ({
+const { createPairingSession, pollPairingStatus, ackPairing, saveDeviceCredential, notifyDeviceCredentialChanged } = vi.hoisted(() => ({
   createPairingSession: vi.fn(),
   pollPairingStatus: vi.fn(),
   ackPairing: vi.fn(),
   saveDeviceCredential: vi.fn(),
+  notifyDeviceCredentialChanged: vi.fn(),
 }))
 
 vi.mock('../../data/pairing/pairingClient', () => ({ createPairingSession, pollPairingStatus, ackPairing }))
-vi.mock('../../data/deviceCredential', () => ({ saveDeviceCredential }))
+vi.mock('../../data/deviceCredential', () => ({ saveDeviceCredential, notifyDeviceCredentialChanged }))
 
 const POLL_INTERVAL_MS = 2000
 
@@ -102,6 +103,7 @@ beforeEach(() => {
   pollPairingStatus.mockReset().mockResolvedValue({ status: 'waiting' })
   ackPairing.mockReset().mockResolvedValue(undefined)
   saveDeviceCredential.mockReset().mockReturnValue(true)
+  notifyDeviceCredentialChanged.mockReset()
 })
 
 afterEach(() => {
@@ -287,7 +289,7 @@ describe('usePairingSession — account pairing credential bootstrap', () => {
     await tick()
     await flush()
 
-    expect(saveDeviceCredential).toHaveBeenCalledWith('device-credential')
+    expect(saveDeviceCredential).toHaveBeenCalledWith('device-credential', false)
     expect(ackPairing).toHaveBeenCalledWith('secret-1')
     expect(saveDeviceCredential.mock.invocationCallOrder[0]).toBeLessThan(ackPairing.mock.invocationCallOrder[0])
     expect(h.onPaired).toHaveBeenCalledTimes(1)
@@ -311,6 +313,25 @@ describe('usePairingSession — account pairing credential bootstrap', () => {
     expect(h.onPaired).not.toHaveBeenCalled()
     await tick()
     expect(pollPairingStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('never imports or acknowledges a staged playlist when entitlement is inactive', async () => {
+    pollPairingStatus.mockResolvedValue({
+      status: 'paired',
+      deviceCredential: 'device-credential',
+      entitlement: { active: false, reason: 'inactive', accessEndsAt: null },
+      m3uUrl: 'http://provider/private.m3u',
+      playlistSetupComplete: true,
+    })
+    const h = harness(() => true)
+    await flush()
+    await tick()
+    await flush()
+
+    expect(saveDeviceCredential).toHaveBeenCalledWith('device-credential', false)
+    expect(h.onReceived).not.toHaveBeenCalled()
+    expect(ackPairing).not.toHaveBeenCalled()
+    expect(notifyDeviceCredentialChanged).toHaveBeenCalledTimes(1)
   })
 })
 

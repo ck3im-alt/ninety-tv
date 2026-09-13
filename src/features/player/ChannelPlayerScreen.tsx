@@ -369,7 +369,14 @@ export function ChannelPlayerScreen({ channels, initialSourceLabel, playbackGrou
     // dropping to the next choice down. All of that policy lives in the
     // session controller already — this only tells it which entries belong
     // together (see PlayerSessionOptions.sourceGroups).
-    { sourceGroups: entries.map((entry) => entry.choiceIndex) },
+    {
+      sourceGroups: entries.map((entry) => entry.choiceIndex),
+      // Samsung's native AVPlay pipeline is substantially more resilient
+      // for full-screen broadcast HLS/MPEG-TS. The adapter transparently
+      // falls back to this screen's existing HTML engine on other devices
+      // or if AVPlay rejects a particular source.
+      preferTizenNative: true,
+    },
   )
   const playerState = session.playerState
   const sourceIndex = session.sourceIndex

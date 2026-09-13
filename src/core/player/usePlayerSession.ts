@@ -7,6 +7,7 @@
 // pane can reuse the identical, independently-instantiated lifecycle.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createHtmlVideoPlayer } from './htmlVideoPlayer'
+import { createTizenAvPlayer } from './tizenAvPlayer'
 import { createPlayerSessionController } from './playerSessionController'
 import type { PlayerSessionController, PlayerSessionOptions, PlayerSessionState } from './playerSessionController'
 import { playbackScreenSaver } from '../platform/screenSaver'
@@ -56,6 +57,13 @@ export interface PlayerSession {
   controller: PlayerSessionController
 }
 
+export interface UsePlayerSessionOptions extends PlayerSessionOptions {
+  // AVPlay is a process-global native surface, so only the ordinary
+  // full-screen player opts in. Multiview deliberately leaves this false
+  // and keeps one independent HTML/MSE engine per pane.
+  preferTizenNative?: boolean
+}
+
 // sourceUrls/initialIndex/options are only read once, at mount — a session
 // that needs an entirely different source LIST (a real event/channel
 // reassignment, not just a quality-tier change) is expected to get a fresh
@@ -67,9 +75,9 @@ export interface PlayerSession {
 // throughout the Multiview feature) — passing a fresh closure each render
 // is harmless but pointless, since only the one captured at mount is ever
 // called.
-export function usePlayerSession(sourceUrls: readonly string[], initialIndex = 0, options?: PlayerSessionOptions): PlayerSession {
+export function usePlayerSession(sourceUrls: readonly string[], initialIndex = 0, options?: UsePlayerSessionOptions): PlayerSession {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const player = useMemo(() => createHtmlVideoPlayer(), [])
+  const [player] = useState(() => (options?.preferTizenNative ? createTizenAvPlayer() : createHtmlVideoPlayer()))
   const controller = useMemo(
     () => createPlayerSessionController(player, sourceUrls, initialIndex, options),
     // eslint-disable-next-line react-hooks/exhaustive-deps
