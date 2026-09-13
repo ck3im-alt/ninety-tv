@@ -306,6 +306,16 @@ describe('textMatchesTeam (Manchester City vs Coventry City)', () => {
     const foldedCoventry = foldForMatching('Coventry City vs Sunderland')
     expect(textMatchesTeam(foldedCoventry, 'Coventry City')).toBe(true)
   })
+
+  it('matches the provider abbreviations MAN UNITED and MAN CITY without confusing the two clubs', () => {
+    const derby = foldForMatching('NEXT | PREMIER LEAGUE MAN UNITED - MAN CITY | 16:30')
+    expect(textMatchesTeam(derby, 'Manchester United')).toBe(true)
+    expect(textMatchesTeam(derby, 'Manchester City')).toBe(true)
+
+    const unitedOnly = foldForMatching('MAN UNITED - LIVERPOOL')
+    expect(textMatchesTeam(unitedOnly, 'Manchester United')).toBe(true)
+    expect(textMatchesTeam(unitedOnly, 'Manchester City')).toBe(false)
+  })
 })
 
 describe('PPV title containing both teams', () => {
@@ -697,6 +707,30 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     expect(result.matches.map((m) => ({ id: m.channel.id, source: m.source }))).toEqual([
       { id: 'viaplay-direct', source: 'ppvName' },
       { id: 'viaplay-numbered', source: 'ppvName' },
+    ])
+  })
+
+  it('finds the exact abbreviated Viaplay PPV title reported on the TV', async () => {
+    const viaplay = testChannel({
+      id: 'viaplay-ppv-47',
+      name: 'NEXT | PREMIER LEAGUE MAN UNITED - MAN CITY | Sun 13 Sep 16:30 CEST (NO) | 8K EXCLUSIVE | NO: VIAPLAY PPV 47',
+      groupTitle: 'NO| VIAPLAY PPV',
+      epgChannelIds: ['viaplay.ppv.47'],
+      hasEpgChannelId: true,
+    })
+    const event = {
+      ...unmatchedEvent(),
+      title: 'Manchester United vs Manchester City',
+      homeTeam: 'Manchester United',
+      awayTeam: 'Manchester City',
+      dateTimeUtc: '2026-09-13T15:30:00Z',
+      timeLabel: '17:30',
+    }
+
+    const result = await matchChannelsForEvent(event, [viaplay], NO_XTREAM_CREDENTIALS, null)
+
+    expect(result.matches).toEqual([
+      expect.objectContaining({ channel: viaplay, source: 'ppvName' }),
     ])
   })
 

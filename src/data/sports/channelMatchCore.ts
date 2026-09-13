@@ -57,7 +57,31 @@ export const significantWords = memoize((teamName: string): string[] => {
   return (distinctive.length > 0 ? distinctive : words).slice(0, 2)
 })
 
+// Some provider event titles shorten Manchester to "Man". A plain
+// significant-word comparison cannot recover that spelling (and is
+// especially unsafe for the Manchester derby because both clubs otherwise
+// reduce to the same distinctive word, MANCHESTER). Keep the exceptions as
+// whole, boundary-checked phrases so MAN UNITED can never satisfy Manchester
+// City, or vice versa. This is deliberately a tiny evidence-backed alias set,
+// not a general three-letter-prefix heuristic.
+const TEAM_PHRASE_MATCHERS = new Map<string, RegExp>([
+  ['MANCHESTER CITY', /\b(?:MANCHESTER|MAN)\s+CITY\b/],
+  ['MANCHESTER UNITED', /\b(?:MANCHESTER|MAN)\s+(?:UNITED|UTD)\b/],
+])
+const teamPhraseMatcherCache = new Map<string, RegExp | null>()
+
+function teamPhraseMatcher(teamName: string): RegExp | null {
+  const cached = teamPhraseMatcherCache.get(teamName)
+  if (cached !== undefined) return cached
+  const key = foldForMatching(teamName).replace(/[^A-Z0-9]+/g, ' ').trim()
+  const matcher = TEAM_PHRASE_MATCHERS.get(key) ?? null
+  teamPhraseMatcherCache.set(teamName, matcher)
+  return matcher
+}
+
 export function textMatchesTeam(foldedText: string, teamName: string): boolean {
+  const phraseMatcher = teamPhraseMatcher(teamName)
+  if (phraseMatcher) return phraseMatcher.test(foldedText)
   return significantWords(teamName).some((w) => foldedText.includes(w))
 }
 
