@@ -455,6 +455,32 @@ describe('matchChannelsForEvent Ninety-stage identity resolution', () => {
     expect(result.apiHasData).toBe(true)
   })
 
+  it('resolves the production-shaped UK Sky listings for a Premier League fixture', async () => {
+    const catalog = [
+      logicalChannel({ id: 'gb_sky_sports_main_event', name: 'Sky Sports Main Event', country: 'GB', network_name: 'Sky' }),
+      logicalChannel({ id: 'gb_sky_sports_premier_league', name: 'Sky Sports Premier League', country: 'GB', network_name: 'Sky' }),
+    ]
+    const playlist = [
+      testChannel({ id: 'sky-main', name: 'SKY SPORTS MAIN EVENT FHD', groupTitle: 'UK| SPORTS' }),
+      testChannel({ id: 'sky-pl', name: 'SKY SPORTS PREMIER LEAGUE UHD', groupTitle: 'GB | SPORTS UHD' }),
+    ]
+    const index = buildIndex(catalog, playlist)
+    const event = eventWithBroadcasts([
+      { logicalChannelId: 'gb_sky_sports_main_event', name: 'Sky Sports Main Event', country: 'GB', confidence: 0.95, classification: 'PROBABLE' },
+      { logicalChannelId: 'gb_sky_sports_premier_league', name: 'Sky Sports Premier League', country: 'GB', confidence: 0.95, classification: 'PROBABLE' },
+    ])
+
+    const result = await matchChannelsForEvent(event, playlist, NO_XTREAM_CREDENTIALS, index)
+
+    expect(result.matches).toHaveLength(2)
+    expect(result.matches.map((match) => match.channel.id).sort()).toEqual(['sky-main', 'sky-pl'])
+    expect(result.matches.every((match) => match.source === 'ninety' && match.isExactMatch)).toBe(true)
+    expect(result.apiStations.map((station) => station.logicalChannelId).sort()).toEqual([
+      'gb_sky_sports_main_event',
+      'gb_sky_sports_premier_league',
+    ])
+  })
+
   it.each(['AMBIGUOUS', 'UNKNOWN', 'REJECTED'] as const)(
     'never routes using a %s backend event-to-broadcast relation',
     async (classification) => {
