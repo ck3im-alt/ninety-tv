@@ -177,7 +177,12 @@ function textGroupKey(match: ChannelMatch, eventContext?: PpvDisplayNameContext)
   const channel = match.channel
   const category = parseCategory(channel.groupTitle ?? '')
   const country = category.countryCode ?? ''
-  if (isPpvCategory(category)) {
+  // ppvName is itself proof that this is an event-specific playlist row.
+  // Some panels put those rows in an ordinary country/sports category rather
+  // than one literally named PPV, so category text alone left aliases such
+  // as "VIAPLAY | Team A - Team B" and "Viaplay 22 | Team A - Team B" as
+  // two rows even though both had already matched this exact fixture.
+  if (isPpvCategory(category) || match.source === 'ppvName') {
     // Event-specific PPV entries for the SAME provider/slot commonly differ
     // ONLY by an embedded quality tag inside the raw event-title-shaped name
     // ("... | 8K EXCLUSIVE | NO: TV2 PLAY PPV 20" vs "... | FHD | NO: TV2
@@ -198,7 +203,14 @@ function textGroupKey(match: ChannelMatch, eventContext?: PpvDisplayNameContext)
     // names don't both satisfy verifiedSameEvent against the SAME
     // eventContext, so they fall through to the slot-preserving key exactly
     // as before.
-    const identity = verifiedSameEvent(match, eventContext) ? (extractProviderIdentity(channel.name) ?? normalizePpvDisplayName(channel.name)) : normalizePpvDisplayName(channel.name)
+    let identity = verifiedSameEvent(match, eventContext) ? (extractProviderIdentity(channel.name) ?? normalizePpvDisplayName(channel.name)) : normalizePpvDisplayName(channel.name)
+    // A bare trailing number is also a disposable provider slot for a
+    // verified ppvName event feed ("Viaplay 22"). Restrict this to rows whose
+    // own title contains both teams of the current event: ordinary numbered
+    // linear channels such as V Sport Premier League 1 must stay distinct.
+    if (match.source === 'ppvName' && verifiedSameEvent(match, eventContext)) {
+      identity = identity.replace(/\s+\d+\s*$/, '').trim() || identity
+    }
     return `${country}|ppv|${identity.toLowerCase()}`
   }
   const { canonicalName } = normalizeChannelName(channel.name)

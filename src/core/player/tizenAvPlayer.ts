@@ -12,6 +12,7 @@ const DESIGN_WIDTH = 1920
 const DESIGN_HEIGHT = 1080
 const STARTUP_DEADLINE_MS = 12_000
 const AUDIO_SELECTION_MAX_ATTEMPTS = 3
+const VIDEO_STREAM_VALIDATION_MAX_ATTEMPTS = 3
 
 const INITIAL_STATE: PlayerState = {
   status: 'idle',
@@ -81,6 +82,7 @@ export function createTizenAvPlayer(): Player {
   let subtitlesEnabled = false
   let nativeAudioSelectionPending = false
   let nativeAudioSelectionAttempts = 0
+  let nativeVideoValidationAttempts = 0
   let fallbackAttempted = false
   // Once this session has needed HTML, keep using it for later failover
   // URLs too. The HTML engine can retain an MSE decoder between loads;
@@ -230,6 +232,11 @@ export function createTizenAvPlayer(): Player {
     // Samsung also requires multi-audio streams to have a track explicitly
     // selected while PLAYING. Re-select the stream that AVPlay reports as
     // current (or its first audio stream) after every native load/unmute.
+    // A non-throwing setSelectTrack() does not mean the decoder is already
+    // producing audio: UHD HLS manifests can finish wiring their audio
+    // rendition a little after AVPlay first enters PLAYING. Repeat the same
+    // idempotent selection over the first few time callbacks so that delayed
+    // track discovery cannot leave a silent decoder until the next reload.
     try {
       api.enableAudioStream?.()
     } catch {
@@ -248,12 +255,35 @@ export function createTizenAvPlayer(): Player {
         return
       }
       api.setSelectTrack('AUDIO', audioIndex)
-      nativeAudioSelectionPending = false
-      nativeAudioSelectionAttempts = 0
+      nativeAudioSelectionAttempts += 1
+      if (nativeAudioSelectionAttempts >= AUDIO_SELECTION_MAX_ATTEMPTS) nativeAudioSelectionPending = false
       refreshTracks()
     } catch {
       nativeAudioSelectionAttempts += 1
       if (nativeAudioSelectionAttempts >= AUDIO_SELECTION_MAX_ATTEMPTS) nativeAudioSelectionPending = false
+    }
+  }
+
+  function validateNativeVideo(loadGeneration: number): void {
+    if (!api || engine !== 'avplay' || loadGeneration !== generation) return
+    try {
+      // Samsung documents index -1 as an invalid current stream. AVPlay can
+      // still emit advancing play-time callbacks in that state, which made
+      // our watchdog classify an audio-only/failed decoder as healthy and
+      // leave the TV on a permanent black surface. Allow a few callbacks for
+      // live manifests to settle, then retry this exact URL through HTML/MSE.
+      const currentVideo = api.getCurrentStreamInfo?.().find((track) => track.type === 'VIDEO')
+      if (currentVideo && currentVideo.index >= 0) {
+        nativeVideoValidationAttempts = 0
+        return
+      }
+      nativeVideoValidationAttempts += 1
+      if (nativeVideoValidationAttempts >= VIDEO_STREAM_VALIDATION_MAX_ATTEMPTS) {
+        void activateFallback(loadGeneration, true)
+      }
+    } catch {
+      // Track inspection is unavailable on some older firmware. Absence of
+      // this diagnostic API is not evidence that rendered video is broken.
     }
   }
 
@@ -324,6 +354,7 @@ export function createTizenAvPlayer(): Player {
         }
         setState({ status: 'playing', error: null, currentTime: milliseconds / 1000, duration })
         if (nativeAudioSelectionPending) restoreNativeAudio()
+        validateNativeVideo(loadGeneration)
       },
       onstreamcompleted() {
         if (loadGeneration === generation && engine === 'avplay') setState({ status: 'ended' })
@@ -353,6 +384,16 @@ export function createTizenAvPlayer(): Player {
       state = { ...state, muted: element.muted }
       api = nativeDisabledForSession ? null : getSamsungAvPlayApi()
       if (api) {
+        // The muted attribute exists only to satisfy browser autoplay. This
+        // full-screen AVPlay session is entered by an explicit remote/click
+        // gesture and is not governed by HTMLMediaElement autoplay policy.
+        // Treating the bootstrap attribute as a real native mute made the
+        // first source call disableAudioStream(); on affected UHD feeds the
+        // later enable did not restore sound, while a quality reload worked
+        // because it started from the already-unmuted state. Start AVPlay
+        // audible and leave later toolbar mute choices fully authoritative.
+        state = { ...state, muted: false }
+        fallback.setMuted(false)
         ensureNativeObject()
         showEngine('avplay')
       } else {
@@ -369,6 +410,7 @@ export function createTizenAvPlayer(): Player {
       subtitlesEnabled = false
       nativeAudioSelectionPending = !state.muted
       nativeAudioSelectionAttempts = 0
+      nativeVideoValidationAttempts = 0
       lastNativeTime = -1
       clearStartupTimer()
       releaseNative()
@@ -541,6 +583,11 @@ export function createTizenAvPlayer(): Player {
       const index = audioIndexById.get(id)
       if (index === undefined || !api) return
       try {
+        // An explicit viewer choice supersedes the automatic startup rearm.
+        // Otherwise a lagging getCurrentStreamInfo() response could make a
+        // pending retry switch back to the previously active track.
+        nativeAudioSelectionPending = false
+        nativeAudioSelectionAttempts = 0
         api.setSelectTrack?.('AUDIO', index)
         refreshTracks()
       } catch {

@@ -119,7 +119,7 @@ describe('Tizen AVPlay adapter', () => {
     expect(fake.play).toHaveBeenCalledOnce()
     expect(container.querySelector('object[type="application/avplayer"]')).not.toBeNull()
     expect(video.style.visibility).toBe('hidden')
-    expect(player.getState()).toMatchObject({ status: 'playing', currentTime: 4.5, muted: true })
+    expect(player.getState()).toMatchObject({ status: 'playing', currentTime: 4.5, muted: false })
 
     player.dispose()
   })
@@ -191,6 +191,27 @@ describe('Tizen AVPlay adapter', () => {
     player.dispose()
   })
 
+  it('falls back from advancing-but-black AVPlay playback with no active video stream', async () => {
+    const fake = fakeAvPlay({
+      tracks: [{ type: 'AUDIO', index: 2, extra_info: JSON.stringify({ language: 'eng' }) }],
+    })
+    const { player, video } = attach(fake)
+
+    await player.load('https://provider.example/v-sport-premier-league.mp4')
+    await player.play()
+    fake.listener()?.oncurrentplaytime?.(1_000)
+    fake.listener()?.oncurrentplaytime?.(2_000)
+    fake.listener()?.oncurrentplaytime?.(3_000)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(video.style.visibility).toBe('visible')
+    expect(video.play).toHaveBeenCalledOnce()
+    expect(player.getState().status).not.toBe('error')
+
+    player.dispose()
+  })
+
   it('maps AVPlay audio and subtitle tracks and switches by native index', async () => {
     const fake = fakeAvPlay({
       tracks: [
@@ -223,7 +244,7 @@ describe('Tizen AVPlay adapter', () => {
     player.dispose()
   })
 
-  it('re-arms the active AVPlay audio track after the startup mute is removed', async () => {
+  it('starts native playback audible and re-arms delayed UHD audio tracks', async () => {
     const fake = fakeAvPlay({
       tracks: [
         { type: 'AUDIO', index: 4, extra_info: JSON.stringify({ language: 'eng' }) },
@@ -235,16 +256,45 @@ describe('Tizen AVPlay adapter', () => {
     await player.load('https://provider.example/sky-sports-main-event-uhd.m3u8')
     await player.play()
     fake.listener()?.oncurrentplaytime?.(1_000)
-    player.setMuted(false)
+    fake.listener()?.oncurrentplaytime?.(2_000)
 
-    expect(fake.disableAudioStream).toHaveBeenCalledOnce()
-    expect(fake.enableAudioStream).toHaveBeenCalledOnce()
-    expect(fake.setSelectTrack).toHaveBeenCalledWith('AUDIO', 4)
+    expect(fake.disableAudioStream).not.toHaveBeenCalled()
+    expect(fake.enableAudioStream).toHaveBeenCalledTimes(3)
+    expect(fake.setSelectTrack).toHaveBeenCalledTimes(3)
+    expect(fake.setSelectTrack).toHaveBeenNthCalledWith(1, 'AUDIO', 4)
+    expect(fake.setSelectTrack).toHaveBeenNthCalledWith(2, 'AUDIO', 4)
+    expect(fake.setSelectTrack).toHaveBeenNthCalledWith(3, 'AUDIO', 4)
     expect(player.getState()).toMatchObject({
       status: 'playing',
       muted: false,
       activeAudioTrack: 'avplay:AUDIO:4',
     })
+
+    player.dispose()
+  })
+
+  it('keeps deliberate native mute across a reload and re-arms audio when the viewer unmutes', async () => {
+    const fake = fakeAvPlay({
+      tracks: [{ type: 'AUDIO', index: 5, extra_info: JSON.stringify({ language: 'eng' }) }],
+    })
+    const { player } = attach(fake)
+
+    await player.load('https://provider.example/sky-sports-main-event-uhd.m3u8')
+    await player.play()
+    fake.listener()?.oncurrentplaytime?.(1_000)
+    player.setMuted(true)
+
+    await player.load('https://provider.example/sky-sports-main-event-720p.m3u8')
+    await player.play()
+    expect(fake.disableAudioStream).toHaveBeenCalledTimes(2)
+    expect(player.getState().muted).toBe(true)
+
+    player.setMuted(false)
+    fake.listener()?.oncurrentplaytime?.(2_000)
+    fake.listener()?.oncurrentplaytime?.(3_000)
+
+    expect(fake.setSelectTrack).toHaveBeenLastCalledWith('AUDIO', 5)
+    expect(player.getState().muted).toBe(false)
 
     player.dispose()
   })

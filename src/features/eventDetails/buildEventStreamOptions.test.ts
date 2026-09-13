@@ -163,6 +163,23 @@ describe('PPV stream-group identity (task sections 3-8, 12-13)', () => {
     expect(options[0].qualityVariants[1].qualityLabel).toBeNull() // retained as an alternate/fallback source, not discarded
   })
 
+  it('merges verified Norwegian Viaplay event aliases outside a PPV-named category', () => {
+    const context = { homeTeam: 'Coventry City', awayTeam: 'Brighton & Hove Albion', dateTimeUtc: '2026-09-13T13:00:00.000Z' }
+    const direct = ppvNameMatch('VIAPLAY | Coventry City - Brighton & Hove Albion | 14:50', 'NO| Sports')
+    const numberedSlot = ppvNameMatch('Viaplay 22 | Coventry City - Brighton & Hove Albion | 14:50', 'NO| Events')
+
+    const options = buildEventStreamOptions([direct, numberedSlot], NO_FAVORITES, context)
+
+    expect(options).toHaveLength(1)
+    expect(options[0]).toMatchObject({
+      displayName: 'VIAPLAY | Coventry City - Brighton & Hove Albion | 14:50',
+      countryName: 'Norway',
+      sourceType: 'event',
+    })
+    expect(options[0].qualityVariants).toHaveLength(1)
+    expect(options[0].qualityVariants[0].candidates).toHaveLength(2)
+  })
+
   it('same provider/event confirmed via three raw entries at three different qualities — still one group', () => {
     const matches = [
       ppvNameMatch('LIVE | Málaga CF - Deportivo La Coruña | Sun 24 Aug 21:25 CEST (NO) | 8K EXCLUSIVE | NO: Viaplay PPV 03', 'NO| PPV'),

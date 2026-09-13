@@ -410,7 +410,7 @@ export function getChannelDisplayName(group: MatchGroup, context?: PpvDisplayNam
   if (group.canonicalBroadcastName) return group.canonicalBroadcastName
   const representative = group.sourceOptions[0]?.channel
   const category = parseCategory(representative?.groupTitle ?? '')
-  if (isPpvCategory(category)) {
+  if (isPpvCategory(category) || group.matchSource === 'ppvName') {
     return buildContextualPpvDisplayName(group.name, context) ?? normalizePpvDisplayName(group.name, context)
   }
   return group.name
