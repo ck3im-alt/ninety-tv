@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation'
 import { getDisplayMacAddress } from '../../core/platform/deviceIdentity'
-import { nextPaint } from '../../core/ui'
+import { LoadingScreen, nextPaint } from '../../core/ui'
 import { connectPlaylistFromUrl } from '../../data/playlists/connectPlaylist'
 import type { Channel } from '../../data/channel'
 import type { PlaylistSourceRecord } from '../../data/session'
@@ -53,16 +53,47 @@ export function ActivationScreen({ onImported, reconnecting = false }: Props) {
     if (pairing.status === 'error') void setFocus(RETRY_FOCUS_KEY)
   }, [pairing.status])
 
+  // Never reveal a first-run shell with an empty QR card. This is the first
+  // impression of Ninety, and session creation is a blocking prerequisite,
+  // not content that can progressively fill in behind the viewer. The same
+  // full-screen treatment covers the phone-to-TV playlist hand-off.
+  if (importing) {
+    return <LoadingScreen title="Adding your playlist" detail="Organizing your channels for NINETY…" />
+  }
+  if (pairing.status === 'loading') {
+    return (
+      <LoadingScreen
+        title={reconnecting ? 'Preparing reconnection' : 'Preparing your setup'}
+        detail="Creating a secure QR code…"
+      />
+    )
+  }
+
   return (
     <main className="activation-screen">
-      <p className="activation-wordmark">NINETY</p>
-      <section className="activation-content">
+      <div className="activation-aurora activation-aurora-one" aria-hidden="true" />
+      <div className="activation-aurora activation-aurora-two" aria-hidden="true" />
+
+      <header className="activation-header">
+        <div className="activation-brand-mark" aria-hidden="true"><span /></div>
+        <p className="activation-wordmark">NINETY</p>
+        <p className="activation-header-note">TV SETUP</p>
+      </header>
+
+      <section className="activation-content" aria-labelledby="activation-title">
         <div className="activation-copy">
-          <p className="activation-kicker">{reconnecting ? 'Reconnect Ninety' : 'Set up Ninety'}</p>
-          <h1>{reconnecting ? 'Connect this TV again.' : 'Scan this QR code with your phone to connect this TV.'}</h1>
+          <p className="activation-kicker">{reconnecting ? 'WELCOME BACK' : 'WELCOME TO NINETY'}</p>
+          <h1 id="activation-title">{reconnecting ? 'Reconnect NINETY' : 'Set up NINETY'}</h1>
           <p className="activation-description">
-            {importing ? 'Connecting your playlist…' : 'Continue setup securely on your phone. No login or provider password is needed on the TV.'}
+            {reconnecting
+              ? 'Scan this QR code to reconnect your playlist and restore access.'
+              : 'Scan this QR code to add your playlist and activate your 7-day free trial.'}
           </p>
+          <ol className="activation-steps" aria-label="Setup steps">
+            <li><span>01</span><strong>Scan with your phone</strong></li>
+            <li><span>02</span><strong>Add your playlist</strong></li>
+            <li><span>03</span><strong>Start watching</strong></li>
+          </ol>
           {importError && <p className="activation-error" role="alert">{importError}</p>}
           {pairing.status === 'error' && (
             <>
@@ -72,18 +103,25 @@ export function ActivationScreen({ onImported, reconnecting = false }: Props) {
           )}
         </div>
 
-        <div className="activation-code-frame">
-          {pairing.status === 'waiting' && pairing.activationUrl ? (
-            <QrCode value={pairing.activationUrl} size={390} label="QR code to set up Ninety on this TV" />
-          ) : (
-            <p>{pairing.status === 'loading' ? 'Generating code…' : 'Setup code unavailable'}</p>
-          )}
+        <div className={`activation-code-card ${pairing.status === 'error' ? 'has-error' : ''}`}>
+          {!reconnecting && <span className="activation-trial-badge">7 DAYS FREE</span>}
+          <div className="activation-code-frame">
+            {pairing.status === 'waiting' && pairing.activationUrl ? (
+              <QrCode value={pairing.activationUrl} size={390} label="QR code to set up Ninety on this TV" />
+            ) : (
+              <div className="activation-code-error">
+                <span aria-hidden="true">!</span>
+                <p>Setup code unavailable</p>
+              </div>
+            )}
+          </div>
+          <p className="activation-scan-hint">Open your phone camera and point it at the code</p>
         </div>
       </section>
 
       <footer className="activation-device">
-        <span>Samsung TV</span>
-        <strong>{mac ? `MAC: ${mac}` : 'MAC address unavailable'}</strong>
+        <span className="activation-secure"><i aria-hidden="true" /> Secure phone setup</span>
+        <span className="activation-device-id">Samsung TV <b>·</b> {mac ? `MAC ${mac}` : 'MAC address unavailable'}</span>
       </footer>
     </main>
   )

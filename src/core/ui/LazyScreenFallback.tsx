@@ -1,5 +1,4 @@
 import { LoadingScreen } from './LoadingScreen'
-import { useDeferredBusy } from './useDeferredBusy'
 
 // What shows while a lazy screen's chunk is still being fetched.
 //
@@ -9,14 +8,10 @@ import { useDeferredBusy } from './useDeferredBusy'
 // black-looking gap with the top bar still drawn — which reads as the app
 // having died, and is exactly the moment a viewer starts pressing keys.
 //
-// WHY IT IS DELAYED RATHER THAN IMMEDIATE. Most of these chunks resolve in
-// a handful of milliseconds. Mounting a full loading panel for that is
-// worse than mounting nothing: a panel that appears and vanishes inside one
-// or two frames is a flash, not feedback. useDeferredBusy's show delay
-// means the common fast case renders exactly what it renders today —
-// nothing at all — and the panel only appears for a transition genuinely
-// slow enough to need explaining. (Its minimum-visible window does not
-// apply here: Suspense unmounts this the instant the chunk resolves.)
+// It is immediate by design. Even a short empty frame reads as a broken app
+// on a television, especially during first-run setup. A consistent branded
+// transition is preferable to ever exposing an empty shell while a route's
+// code or content is not ready.
 //
 // FOCUS. This registers no focusable node and no norigin focus context, so
 // it cannot steal spatial focus or leave a duplicate node behind for the
@@ -29,7 +24,5 @@ import { useDeferredBusy } from './useDeferredBusy'
 // No progress indication, real or invented: a dynamic import exposes no
 // progress, so anything shown would be a lie.
 export function LazyScreenFallback() {
-  const show = useDeferredBusy(true)
-  if (!show) return null
-  return <LoadingScreen title="Loading" />
+  return <LoadingScreen title="Loading NINETY" detail="Getting the next screen ready…" />
 }
