@@ -7,9 +7,9 @@ import './EntitlementRequiredScreen.css'
 const CHECK_FOCUS_KEY = 'entitlement-check'
 const PURCHASE_RETRY_FOCUS_KEY = 'entitlement-purchase-retry'
 
-export function EntitlementRequiredScreen({ onRetry, unavailable = false }: { onRetry: () => void; unavailable?: boolean }) {
+export function EntitlementRequiredScreen({ onRetry, unavailable = false, reason }: { onRetry: () => void; unavailable?: boolean; reason?: string }) {
   if (unavailable) return <ConnectionRequiredScreen onRetry={onRetry} />
-  return <PurchaseRequiredScreen onRetry={onRetry} />
+  return <PurchaseRequiredScreen onRetry={onRetry} reason={reason} />
 }
 
 function ConnectionRequiredScreen({ onRetry }: { onRetry: () => void }) {
@@ -28,7 +28,7 @@ function ConnectionRequiredScreen({ onRetry }: { onRetry: () => void }) {
   )
 }
 
-function PurchaseRequiredScreen({ onRetry }: { onRetry: () => void }) {
+function PurchaseRequiredScreen({ onRetry, reason }: { onRetry: () => void; reason?: string }) {
   const [session, setSession] = useState<DevicePurchaseSession | null>(null)
   const [sessionState, setSessionState] = useState<'loading' | 'ready' | 'error'>('loading')
   const generation = useRef(0)
@@ -73,9 +73,9 @@ function PurchaseRequiredScreen({ onRetry }: { onRetry: () => void }) {
       <p className="entitlement-wordmark">NINETY</p>
       <div className="purchase-layout">
         <section>
-          <p className="entitlement-kicker">Your free trial has ended</p>
-          <h1>Like Ninety?</h1>
-          <p>Choose a plan to continue watching.</p>
+          <p className="entitlement-kicker">{reason === 'device_limit_reached' ? 'TV plan required' : 'Your free trial has ended'}</p>
+          <h1>{reason === 'device_limit_reached' ? 'Add this TV to your plan' : 'Like Ninety?'}</h1>
+          <p>{reason === 'device_limit_reached' ? 'Review the TVs covered by your plan to continue watching.' : 'Choose a plan to continue watching.'}</p>
           <p className="purchase-preserved">Your playlist and TV are still connected.</p>
           {sessionState === 'error' && <p className="purchase-error">We couldn't create a purchase code.</p>}
           <div className="purchase-actions">

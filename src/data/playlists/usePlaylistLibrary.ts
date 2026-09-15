@@ -121,7 +121,7 @@ export interface PlaylistLibrary {
   dismissNotice: () => void
   // Set when a file playlist's cache is gone and only the user can fix it.
   reconnectNotice: string | null
-  addPlaylist: (source: PlaylistSourceRecord, channels: Channel[]) => Promise<PlaylistDefinition>
+  addPlaylist: (source: PlaylistSourceRecord, channels: Channel[], identity?: { id: string; name: string }) => Promise<PlaylistDefinition>
   // What every "the user just connected a playlist" surface should call.
   // Adds a new playlist, EXCEPT when the connected source is the file a
   // playlist is currently waiting for — see reconnectTarget.ts — in which
@@ -556,10 +556,12 @@ export function usePlaylistLibrary(): PlaylistLibrary {
   }, [syncPlaylists])
 
   const addPlaylist = useCallback(
-    async (source: PlaylistSourceRecord, channels: Channel[]) => {
+    async (source: PlaylistSourceRecord, channels: Channel[], identity?: { id: string; name: string }) => {
+      const existing = identity && stateRef.current.playlists.find((p) => p.id === identity.id)
+      if (existing) return existing
       const definition: PlaylistDefinition = {
-        id: newPlaylistId(),
-        name: defaultPlaylistName(
+        id: identity?.id ?? newPlaylistId(),
+        name: identity?.name ?? defaultPlaylistName(
           source,
           stateRef.current.playlists.map((p) => p.name),
         ),

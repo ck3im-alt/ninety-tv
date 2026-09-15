@@ -19,6 +19,7 @@ import {
   saveRecentlyWatched,
 } from './data/session'
 import { usePlaylistLibrary } from './data/playlists/usePlaylistLibrary'
+import { useRemotePlaylistManagement } from './data/playlists/useRemotePlaylistManagement'
 import { isResyncable } from './data/playlists/playlistDefinition'
 import { CategoryChannelsScreen } from './features/channels/CategoryChannelsScreen'
 import { BrowseCascadeScreen } from './features/channels/BrowseCascadeScreen'
@@ -452,6 +453,7 @@ function App() {
   // and deliberately not "the provider/API is reachable".
   const network = useNetworkStatus()
   const deviceEntitlement = useDeviceEntitlement()
+  useRemotePlaylistManagement(library, deviceEntitlement.status === 'active' && (screen === 'player' || screen === 'multiview'))
   const recheckNetwork = network.recheck
 
   // MULTITASKING. One listener for the whole app (Samsung requires
@@ -703,7 +705,7 @@ function App() {
     return <EntitlementRequiredScreen unavailable onRetry={deviceEntitlement.retry} />
   }
   if (deviceEntitlement.status === 'inactive') {
-    return <EntitlementRequiredScreen onRetry={deviceEntitlement.retry} />
+    return <EntitlementRequiredScreen reason={deviceEntitlement.entitlement.reason} onRetry={deviceEntitlement.retry} />
   }
 
   return (

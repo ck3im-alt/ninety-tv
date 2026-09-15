@@ -19,7 +19,7 @@ export function loadDeviceCredential(): string | null {
 
 export interface DeviceEntitlement {
   active: boolean
-  reason: 'trial' | 'subscription' | 'device_not_linked' | 'device_revoked' | 'inactive' | 'invalid_device_credential'
+  reason: 'trial' | 'subscription' | 'device_not_linked' | 'device_revoked' | 'inactive' | 'invalid_device_credential' | 'device_limit_reached' | 'lifetime'
   accessEndsAt: string | null
   serverNow: string
 }
