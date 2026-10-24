@@ -122,7 +122,9 @@ def probe(ip):
         duid = device.service("shell:0 getduid").decode(errors="replace").strip("\0\r\n ")
         # The Samsung dispatcher normally returns the bare DUID. Never guess from
         # the TVkey ID or serial number: those are different identifiers.
-        if not duid or any(c.isspace() for c in duid) or not 16 <= len(duid) <= 256:
+        # Retail TVs can return a short identifier (observed on Q70T/5.5).
+        # Validate the token's shape, without assuming a UUID/hash length.
+        if not duid or len(duid) > 256 or not duid.isascii() or not all(c.isalnum() or c in "-_" for c in duid):
             raise RuntimeError("Unexpected DUID response; stop and report this result: " + repr(duid))
         print("DUID read OK (not printed)")
         info = {"ip": ip, "duid": duid, "capabilities": caps}
